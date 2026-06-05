@@ -6,7 +6,12 @@ import { Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 export default function AuthenticatedLayout({ header, children }) {
-    const user = usePage().props.auth.user;
+    const {
+        user,
+        canViewPsychologicalProfile,
+        canViewGroupSocialPassport,
+        canViewAnalyticsDashboard,
+    } = usePage().props.auth;
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
@@ -36,6 +41,42 @@ export default function AuthenticatedLayout({ header, children }) {
                                 >
                                     Портрет студента
                                 </NavLink>
+                                {canViewPsychologicalProfile && (
+                                    <NavLink
+                                        href={route(
+                                            'psychological-profile.index',
+                                        )}
+                                        active={route().current(
+                                            'psychological-profile.*',
+                                        )}
+                                    >
+                                        Психологический профиль
+                                    </NavLink>
+                                )}
+                                {canViewGroupSocialPassport && (
+                                    <NavLink
+                                        href={route(
+                                            'group-social-passport.edit',
+                                        )}
+                                        active={route().current(
+                                            'group-social-passport.*',
+                                        )}
+                                    >
+                                        Социальный паспорт
+                                    </NavLink>
+                                )}
+                                {canViewAnalyticsDashboard && (
+                                    <NavLink
+                                        href={route(
+                                            'analytics-dashboard.index',
+                                        )}
+                                        active={route().current(
+                                            'analytics-dashboard.*',
+                                        )}
+                                    >
+                                        Аналитика
+                                    </NavLink>
+                                )}
                             </div>
                         </div>
 
@@ -146,6 +187,36 @@ export default function AuthenticatedLayout({ header, children }) {
                         >
                             Портрет студента
                         </ResponsiveNavLink>
+                        {canViewPsychologicalProfile && (
+                            <ResponsiveNavLink
+                                href={route('psychological-profile.index')}
+                                active={route().current(
+                                    'psychological-profile.*',
+                                )}
+                            >
+                                Психологический профиль
+                            </ResponsiveNavLink>
+                        )}
+                        {canViewGroupSocialPassport && (
+                            <ResponsiveNavLink
+                                href={route('group-social-passport.edit')}
+                                active={route().current(
+                                    'group-social-passport.*',
+                                )}
+                            >
+                                Социальный паспорт
+                            </ResponsiveNavLink>
+                        )}
+                        {canViewAnalyticsDashboard && (
+                            <ResponsiveNavLink
+                                href={route('analytics-dashboard.index')}
+                                active={route().current(
+                                    'analytics-dashboard.*',
+                                )}
+                            >
+                                Аналитика
+                            </ResponsiveNavLink>
+                        )}
                     </div>
 
                     <div className="border-t border-gray-200 pb-1 pt-4">

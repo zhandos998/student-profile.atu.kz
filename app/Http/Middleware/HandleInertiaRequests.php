@@ -29,10 +29,17 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
+        $user?->loadMissing('role');
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                'canViewPsychologicalProfile' => $user?->canViewPsychologicalProfile() ?? false,
+                'canViewGroupSocialPassport' => $user?->canViewGroupSocialPassport() ?? false,
+                'canViewAnalyticsDashboard' => $user?->canViewAnalyticsDashboard() ?? false,
             ],
             'csrfToken' => csrf_token(),
         ];

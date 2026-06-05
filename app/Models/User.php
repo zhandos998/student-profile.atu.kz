@@ -20,6 +20,49 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    public const PSYCHOLOGICAL_PROFILE_POSITIONS = [
+        'Психолог',
+        'Проректор ВР',
+        'Декан',
+        'Зам. декана по ВР',
+        'Директор ДДМ',
+    ];
+
+    public function canViewPsychologicalProfile(): bool
+    {
+        $this->loadMissing('role');
+
+        if ($this->role?->slug === Role::ADMINISTRATOR_DIT) {
+            return true;
+        }
+
+        return $this->role?->slug === Role::ADMINISTRATION
+            && in_array($this->position, self::PSYCHOLOGICAL_PROFILE_POSITIONS, true);
+    }
+
+    public function canViewGroupSocialPassport(): bool
+    {
+        $this->loadMissing('role');
+
+        return in_array($this->role?->slug, [
+            Role::ADMINISTRATOR_DIT,
+            Role::ADMINISTRATION,
+            Role::CURATOR,
+            Role::ADVISOR,
+            Role::GROUP_LEADER,
+        ], true);
+    }
+
+    public function canViewAnalyticsDashboard(): bool
+    {
+        $this->loadMissing('role');
+
+        return in_array($this->role?->slug, [
+            Role::ADMINISTRATOR_DIT,
+            Role::ADMINISTRATION,
+        ], true);
+    }
+
     /**
      * @return BelongsTo<Role, User>
      */
@@ -42,6 +85,22 @@ class User extends Authenticatable
     public function academicProfile(): HasOne
     {
         return $this->hasOne(AcademicProfile::class);
+    }
+
+    /**
+     * @return HasOne<PsychologicalProfile>
+     */
+    public function psychologicalProfile(): HasOne
+    {
+        return $this->hasOne(PsychologicalProfile::class);
+    }
+
+    /**
+     * @return HasOne<GroupSocialPassport>
+     */
+    public function groupSocialPassport(): HasOne
+    {
+        return $this->hasOne(GroupSocialPassport::class);
     }
 
     /**

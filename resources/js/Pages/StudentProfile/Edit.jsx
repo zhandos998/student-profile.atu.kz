@@ -14,13 +14,18 @@ const valueOrEmpty = (value) => value ?? "";
 const optionLabel = (options, value) =>
     options.find((option) => option.value === value)?.label ?? value;
 
-function Section({ title, children }) {
+function Section({ title, children, actions = null }) {
     return (
         <section className="border-b border-gray-200 bg-white p-6 last:border-b-0">
             <h3 className="mb-5 text-base font-semibold text-gray-900">
                 {title}
             </h3>
             {children}
+            {actions && (
+                <div className="mt-6 flex items-center justify-end gap-4 border-t border-gray-100 pt-4">
+                    {actions}
+                </div>
+            )}
         </section>
     );
 }
@@ -158,7 +163,7 @@ export default function Edit({
         valueOrEmpty(profile.half_orphan_type),
     );
 
-    const profileForm = useForm({
+    const [profileData, setProfileData] = useState({
         full_name: valueOrEmpty(profile.full_name),
         birth_date: valueOrEmpty(profile.birth_date),
         study_form: valueOrEmpty(profile.study_form),
@@ -201,6 +206,35 @@ export default function Edit({
         group_comparison: valueOrEmpty(academicProfile.group_comparison),
         success_forecast: valueOrEmpty(academicProfile.success_forecast),
     });
+    const [profileErrors, setProfileErrors] = useState({});
+    const [profileProcessing, setProfileProcessing] = useState(false);
+    const [profileRecentlySuccessful, setProfileRecentlySuccessful] =
+        useState(false);
+
+    const profileForm = {
+        data: profileData,
+        errors: profileErrors,
+        processing: profileProcessing,
+        recentlySuccessful: profileRecentlySuccessful,
+        setData: (fieldOrData, value) => {
+            if (typeof fieldOrData === "string") {
+                setProfileData((current) => ({
+                    ...current,
+                    [fieldOrData]: value,
+                }));
+
+                return;
+            }
+
+            if (typeof fieldOrData === "function") {
+                setProfileData((current) => fieldOrData(current));
+
+                return;
+            }
+
+            setProfileData(fieldOrData);
+        },
+    };
 
     const setSocialSupportFlag = (field, checked) => {
         setSocialSupport((current) => ({
@@ -235,9 +269,10 @@ export default function Edit({
     const submitProfile = (event) => {
         event.preventDefault();
 
-        profileForm
-            .transform((data) => ({
-                ...data,
+        router.post(
+            route("student-profile.update"),
+            {
+                ...profileData,
                 is_orphan: socialSupport.is_orphan ? "1" : "0",
                 legal_representative: socialSupport.is_orphan
                     ? legalRepresentative
@@ -251,16 +286,36 @@ export default function Edit({
                     : "0",
                 is_large_family: socialSupport.is_large_family ? "1" : "0",
                 is_low_income: socialSupport.is_low_income ? "1" : "0",
-                benefits: data.benefits ?? [],
-            }))
-            .post(route("student-profile.update"), {
+                benefits: profileData.benefits ?? [],
+            },
+            {
                 forceFormData: true,
                 preserveScroll: true,
-                onSuccess: () => {
-                    profileForm.setData("photo", null);
-                    profileForm.setData("identity_card", null);
+                onStart: () => {
+                    setProfileProcessing(true);
+                    setProfileRecentlySuccessful(false);
                 },
-            });
+                onError: (errors) => {
+                    setProfileErrors(errors);
+                },
+                onSuccess: () => {
+                    setProfileErrors({});
+                    setProfileRecentlySuccessful(true);
+                    setProfileData((current) => ({
+                        ...current,
+                        photo: null,
+                        identity_card: null,
+                    }));
+                    window.setTimeout(
+                        () => setProfileRecentlySuccessful(false),
+                        2000,
+                    );
+                },
+                onFinish: () => {
+                    setProfileProcessing(false);
+                },
+            },
+        );
     };
 
     const submitAchievement = (event) => {
@@ -289,6 +344,17 @@ export default function Edit({
         });
     };
 
+    const renderSectionSave = () => (
+        <>
+            {profileForm.recentlySuccessful && (
+                <p className="text-sm text-gray-600">Сохранено</p>
+            )}
+            <PrimaryButton type="submit" disabled={profileForm.processing}>
+                Сохранить
+            </PrimaryButton>
+        </>
+    );
+
     return (
         <AuthenticatedLayout
             header={
@@ -305,7 +371,10 @@ export default function Edit({
                         onSubmit={submitProfile}
                         className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
                     >
-                        <Section title="Карточка студента">
+                        <Section
+                            title="Карточка студента"
+                            actions={renderSectionSave()}
+                        >
                             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                 <Field
                                     label="ФИО"
@@ -574,7 +643,10 @@ export default function Edit({
                             </div>
                         </Section>
 
-                        <Section title="Социальный статус">
+                        <Section
+                            title="Социальный статус"
+                            actions={renderSectionSave()}
+                        >
                             <div className="space-y-6">
                                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                     <Field
@@ -648,7 +720,10 @@ export default function Edit({
                             </div>
                         </Section>
 
-                        <Section title="Социальная поддержка">
+                        <Section
+                            title="Социальная поддержка"
+                            actions={renderSectionSave()}
+                        >
                             <div className="space-y-5">
                                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                                     <BooleanCheckbox
@@ -777,7 +852,10 @@ export default function Edit({
                             </div>
                         </Section>
 
-                        <Section title="Контакты и проживание">
+                        <Section
+                            title="Контакты и проживание"
+                            actions={renderSectionSave()}
+                        >
                             <div className="grid gap-5 md:grid-cols-2">
                                 <Field
                                     label="Особые образовательные потребности"
@@ -848,7 +926,7 @@ export default function Edit({
                                 </Field>
 
                                 <Field
-                                    label="Иностранный студент"
+                                    label="Иностранный студент (указать страну)"
                                     error={
                                         profileForm.errors
                                             .foreign_student_country
@@ -933,7 +1011,10 @@ export default function Edit({
                             </div>
                         </Section>
 
-                        <Section title="Академический профиль">
+                        <Section
+                            title="Академический профиль"
+                            actions={renderSectionSave()}
+                        >
                             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                 <Field
                                     label="Язык обучения"
@@ -1077,16 +1158,6 @@ export default function Edit({
                             </div>
                         </Section>
 
-                        <div className="flex items-center justify-end gap-4 bg-gray-50 px-6 py-4">
-                            {profileForm.recentlySuccessful && (
-                                <p className="text-sm text-gray-600">
-                                    Сохранено
-                                </p>
-                            )}
-                            <PrimaryButton disabled={profileForm.processing}>
-                                Сохранить
-                            </PrimaryButton>
-                        </div>
                     </form>
 
                     <div className="mt-8 grid gap-8 xl:grid-cols-2">

@@ -1,8 +1,12 @@
 <?php
 
+use App\Http\Controllers\AnalyticsDashboardController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExtracurricularAchievementController;
+use App\Http\Controllers\GroupSocialPassportController;
 use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PsychologicalProfileController;
 use App\Http\Controllers\StudentProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -17,9 +21,9 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -32,6 +36,17 @@ Route::middleware('auth')->group(function () {
     Route::delete('/student-profile/achievements/{achievement}', [ExtracurricularAchievementController::class, 'destroy'])->name('student-profile.achievements.destroy');
     Route::post('/student-profile/portfolio', [PortfolioItemController::class, 'store'])->name('student-profile.portfolio.store');
     Route::delete('/student-profile/portfolio/{portfolioItem}', [PortfolioItemController::class, 'destroy'])->name('student-profile.portfolio.destroy');
+
+    Route::get('/psychological-profile', [PsychologicalProfileController::class, 'index'])->name('psychological-profile.index');
+    Route::post('/psychological-profile', [PsychologicalProfileController::class, 'update'])->name('psychological-profile.update');
+
+    Route::get('/group-social-passport', [GroupSocialPassportController::class, 'edit'])->name('group-social-passport.edit');
+    Route::post('/group-social-passport', [GroupSocialPassportController::class, 'update'])->name('group-social-passport.update');
+
+    Route::get('/analytics-dashboard', [AnalyticsDashboardController::class, 'index'])->name('analytics-dashboard.index');
+    Route::get('/analytics-dashboard/reports/{type}/export', [AnalyticsDashboardController::class, 'export'])
+        ->whereIn('type', ['student', 'group', 'course', 'faculty'])
+        ->name('analytics-dashboard.reports.export');
 });
 
 require __DIR__.'/auth.php';
