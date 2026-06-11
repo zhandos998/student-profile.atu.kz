@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicProfile;
+use App\Models\HealthPassport;
+use App\Models\PsychologicalProfile;
 use App\Models\Role;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -43,6 +45,60 @@ class AnalyticsDashboardTest extends TestCase
         $this->actingAs($user)
             ->get(route('analytics-dashboard.index'))
             ->assertOk();
+    }
+
+    public function test_analytics_dashboard_has_required_risk_group_categories(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $ditRole = Role::query()->where('slug', Role::ADMINISTRATOR_DIT)->firstOrFail();
+        $studentRole = Role::query()->where('slug', Role::STUDENT)->firstOrFail();
+
+        $administrator = User::factory()->create([
+            'role_id' => $ditRole->id,
+            'position' => 'Администратор ДИТ',
+        ]);
+
+        $academicRiskStudent = User::factory()->create(['role_id' => $studentRole->id]);
+        AcademicProfile::query()->create([
+            'user_id' => $academicRiskStudent->id,
+            'gpa' => 1.8,
+        ]);
+
+        $socialRiskStudent = User::factory()->create(['role_id' => $studentRole->id]);
+        StudentProfile::query()->create([
+            'user_id' => $socialRiskStudent->id,
+            'full_name' => 'Студент социального риска',
+            'is_low_income' => true,
+        ]);
+
+        $psychologicalRiskStudent = User::factory()->create(['role_id' => $studentRole->id]);
+        PsychologicalProfile::query()->create([
+            'user_id' => $psychologicalRiskStudent->id,
+            'testing_results' => 'Есть психологические риски',
+        ]);
+
+        $medicalRiskStudent = User::factory()->create(['role_id' => $studentRole->id]);
+        HealthPassport::query()->create([
+            'user_id' => $medicalRiskStudent->id,
+            'diagnosis' => 'Медицинский риск',
+        ]);
+
+        $this->actingAs($administrator)
+            ->get(route('analytics-dashboard.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('AnalyticsDashboard/Index')
+                ->has('riskGroups', 4)
+                ->where('riskGroups.0.label', 'Академические риски')
+                ->where('riskGroups.0.count', 1)
+                ->where('riskGroups.1.label', 'Социальные риски')
+                ->where('riskGroups.1.count', 1)
+                ->where('riskGroups.2.label', 'Психологические риски')
+                ->where('riskGroups.2.count', 1)
+                ->where('riskGroups.3.label', 'Медицинские риски')
+                ->where('riskGroups.3.count', 1)
+            );
     }
 
     public function test_analytics_dashboard_has_notification_channels(): void
@@ -105,11 +161,15 @@ class AnalyticsDashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('AnalyticsDashboard/Index')
-                ->has('reports', 4)
+                ->has('reports', 8)
                 ->where('reports.0.type', 'student')
                 ->where('reports.1.type', 'group')
                 ->where('reports.2.type', 'course')
                 ->where('reports.3.type', 'faculty')
+                ->where('reports.4.type', 'academic-risks')
+                ->where('reports.5.type', 'social-risks')
+                ->where('reports.6.type', 'psychological-risks')
+                ->where('reports.7.type', 'medical-risks')
             );
     }
 
@@ -178,6 +238,49 @@ class AnalyticsDashboardTest extends TestCase
 
         $this->assertStringContainsString('Иван Иванов', $response->getContent());
         $this->assertStringContainsString('ИС-101', $response->getContent());
+    }
+
+    public function test_dit_administrator_can_export_academic_risks_report(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $ditRole = Role::query()->where('slug', Role::ADMINISTRATOR_DIT)->firstOrFail();
+        $studentRole = Role::query()->where('slug', Role::STUDENT)->firstOrFail();
+
+        $administrator = User::factory()->create([
+            'role_id' => $ditRole->id,
+            'position' => 'Администратор ДИТ',
+        ]);
+
+        $student = User::factory()->create([
+            'role_id' => $studentRole->id,
+            'name' => 'Risk Student',
+            'email' => 'risk@example.com',
+            'position' => 'Студент',
+        ]);
+
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'full_name' => 'Risk Student',
+            'faculty' => 'Факультет информационных технологий',
+            'group_name' => 'IS-101',
+            'course' => 1,
+        ]);
+
+        AcademicProfile::query()->create([
+            'user_id' => $student->id,
+            'gpa' => 1.75,
+            'academic_debt' => 'Calculus',
+        ]);
+
+        $response = $this->actingAs($administrator)
+            ->get(route('analytics-dashboard.reports.export', ['type' => 'academic-risks']))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
+            ->assertHeader('Content-Disposition');
+
+        $this->assertStringContainsString('Risk Student', $response->getContent());
+        $this->assertStringContainsString('Calculus', $response->getContent());
     }
 
     public function test_student_cannot_export_analytics_report(): void

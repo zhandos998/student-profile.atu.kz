@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\ExtracurricularAchievement;
+use App\Models\Role;
+use App\Models\User;
 use App\Support\StudentProfileOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +18,42 @@ class ExtracurricularAchievementController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        return $this->storeForUser($request, $request->user());
+    }
+
+    public function storeForStudent(Request $request, User $student): RedirectResponse
+    {
+        abort_unless($request->user()?->canManageStudentProfiles(), 403);
+        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+
+        return $this->storeForUser($request, $student);
+    }
+
+    /**
+     * Delete a student extracurricular achievement.
+     */
+    public function destroy(Request $request, ExtracurricularAchievement $achievement): RedirectResponse
+    {
+        abort_unless($achievement->user_id === $request->user()->id, 404);
+
+        $this->deleteAchievement($achievement);
+
+        return back()->with('status', 'achievement-deleted');
+    }
+
+    public function destroyForStudent(Request $request, User $student, ExtracurricularAchievement $achievement): RedirectResponse
+    {
+        abort_unless($request->user()?->canManageStudentProfiles(), 403);
+        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($achievement->user_id === $student->id, 404);
+
+        $this->deleteAchievement($achievement);
+
+        return back()->with('status', 'achievement-deleted');
+    }
+
+    private function storeForUser(Request $request, User $user): RedirectResponse
+    {
         $validated = $request->validate([
             'activity_type' => ['required', Rule::in(StudentProfileOptions::values(StudentProfileOptions::ACTIVITY_TYPES))],
             'title' => ['required', 'string', 'max:255'],
@@ -28,7 +66,7 @@ class ExtracurricularAchievementController extends Controller
         $document = $request->file('document');
 
         ExtracurricularAchievement::query()->create([
-            'user_id' => $request->user()->id,
+            'user_id' => $user->id,
             'activity_type' => $validated['activity_type'],
             'title' => $validated['title'],
             'level' => $validated['level'] ?? null,
@@ -41,19 +79,12 @@ class ExtracurricularAchievementController extends Controller
         return back()->with('status', 'achievement-added');
     }
 
-    /**
-     * Delete a student extracurricular achievement.
-     */
-    public function destroy(Request $request, ExtracurricularAchievement $achievement): RedirectResponse
+    private function deleteAchievement(ExtracurricularAchievement $achievement): void
     {
-        abort_unless($achievement->user_id === $request->user()->id, 404);
-
         if ($achievement->document_path) {
             Storage::disk('public')->delete($achievement->document_path);
         }
 
         $achievement->delete();
-
-        return back()->with('status', 'achievement-deleted');
     }
 }

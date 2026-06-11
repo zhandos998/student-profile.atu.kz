@@ -28,6 +28,15 @@ class User extends Authenticatable
         'Директор ДДМ',
     ];
 
+    public const HEALTH_PASSPORT_POSITIONS = [
+        'Психолог',
+        'Проректор ВР',
+        'Декан',
+        'Зам. декана по ВР',
+        'Директор ДДМ',
+        'Здравпункт',
+    ];
+
     public function canViewPsychologicalProfile(): bool
     {
         $this->loadMissing('role');
@@ -40,6 +49,18 @@ class User extends Authenticatable
             && in_array($this->position, self::PSYCHOLOGICAL_PROFILE_POSITIONS, true);
     }
 
+    public function canViewHealthPassport(): bool
+    {
+        $this->loadMissing('role');
+
+        if ($this->role?->slug === Role::ADMINISTRATOR_DIT) {
+            return true;
+        }
+
+        return $this->role?->slug === Role::ADMINISTRATION
+            && in_array($this->position, self::HEALTH_PASSPORT_POSITIONS, true);
+    }
+
     public function canViewGroupSocialPassport(): bool
     {
         $this->loadMissing('role');
@@ -49,8 +70,25 @@ class User extends Authenticatable
             Role::ADMINISTRATION,
             Role::CURATOR,
             Role::ADVISOR,
-            Role::GROUP_LEADER,
         ], true);
+    }
+
+    public function canManageStudentProfiles(): bool
+    {
+        $this->loadMissing('role');
+
+        return in_array($this->role?->slug, [
+            Role::ADMINISTRATOR_DIT,
+            Role::ADMINISTRATION,
+            Role::ADVISOR,
+        ], true);
+    }
+
+    public function canUseOwnStudentProfile(): bool
+    {
+        $this->loadMissing('role');
+
+        return $this->role?->slug !== Role::ADVISOR;
     }
 
     public function canViewAnalyticsDashboard(): bool
@@ -93,6 +131,14 @@ class User extends Authenticatable
     public function psychologicalProfile(): HasOne
     {
         return $this->hasOne(PsychologicalProfile::class);
+    }
+
+    /**
+     * @return HasOne<HealthPassport>
+     */
+    public function healthPassport(): HasOne
+    {
+        return $this->hasOne(HealthPassport::class);
     }
 
     /**

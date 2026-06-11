@@ -17,6 +17,17 @@ class StudentProfileOptions
         'divorced' => 'Разведен/а',
     ];
 
+    public const CITIZENSHIPS = [
+        'kazakhstan_citizen' => 'Гражданин Республики Казахстан',
+        'kandas' => 'Кандас',
+        'foreign_citizen' => 'Иностранный гражданин',
+    ];
+
+    public const MILITARY_DEPARTMENT_STATUSES = [
+        'studying' => 'Обучается на военной кафедре',
+        'not_studying' => 'Не обучается на военной кафедре',
+    ];
+
     public const DISABILITY_GROUPS = [
         '1' => '1 группы',
         '2' => '2 группы',
@@ -30,8 +41,17 @@ class StudentProfileOptions
     ];
 
     public const BENEFITS = [
-        'allowance' => 'Пособие',
-        'pension' => 'Пенсия',
+        'asp' => 'Получает АСП',
+        'loss_of_breadwinner' => 'По утере кормильца',
+        'rural_quota' => 'Сельская квота',
+        'veteran_family_or_combatant' => 'Семья ветерана, участник боевых действий',
+        'ecological_disaster_victim' => 'Пострадавший от экологического бедствия',
+        'emergency_victim' => 'Пострадавший от ЧС',
+    ];
+
+    public const SOCIAL_SUPPORT_NEED_STATUSES = [
+        'needs' => 'Нуждается',
+        'not_needs' => 'Не нуждается',
     ];
 
     public const EDUCATION_LANGUAGES = [
@@ -72,6 +92,7 @@ class StudentProfileOptions
         'project' => 'Проект',
         'scientific_work' => 'Научная работа',
         'video' => 'Видеоматериал',
+        'thank_you_letter' => 'Благодарственные письма и др.',
     ];
 
     public const FACULTIES = [
@@ -91,10 +112,13 @@ class StudentProfileOptions
         return [
             'faculties' => self::toSameValueOptions(self::facultyNames()),
             'genders' => self::toSelectOptions(self::GENDERS),
+            'citizenships' => self::toSelectOptions(self::CITIZENSHIPS),
+            'militaryDepartmentStatuses' => self::toSelectOptions(self::MILITARY_DEPARTMENT_STATUSES),
             'maritalStatuses' => self::toSelectOptions(self::MARITAL_STATUSES),
             'disabilityGroups' => self::toSelectOptions(self::DISABILITY_GROUPS),
             'halfOrphanTypes' => self::toSelectOptions(self::HALF_ORPHAN_TYPES),
             'benefits' => self::toSelectOptions(self::BENEFITS),
+            'socialSupportNeedStatuses' => self::toSelectOptions(self::SOCIAL_SUPPORT_NEED_STATUSES),
             'educationLanguages' => self::toSelectOptions(self::EDUCATION_LANGUAGES),
             'activityTypes' => self::toSelectOptions(self::ACTIVITY_TYPES),
             'achievementLevels' => self::toSelectOptions(self::ACHIEVEMENT_LEVELS),

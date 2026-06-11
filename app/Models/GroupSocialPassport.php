@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'user_id',
+    'faculty',
     'group_name',
     'leader_full_name',
     'leader_phone',
@@ -15,6 +16,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'curator_full_name',
     'curator_phone',
     'curator_email',
+    'deputy_dean_ur_full_name',
+    'deputy_dean_ur_phone',
+    'deputy_dean_ur_email',
+    'deputy_dean_vr_full_name',
+    'deputy_dean_vr_phone',
+    'deputy_dean_vr_email',
     'students',
     'summary',
     'departed_students',

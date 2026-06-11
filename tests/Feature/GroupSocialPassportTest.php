@@ -43,6 +43,21 @@ class GroupSocialPassportTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_group_leader_cannot_view_group_social_passport_page(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $role = Role::query()->where('slug', Role::GROUP_LEADER)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'position' => 'Староста',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('group-social-passport.edit'))
+            ->assertForbidden();
+    }
+
     public function test_curator_can_save_group_social_passport(): void
     {
         $this->seed(RoleSeeder::class);
@@ -55,6 +70,7 @@ class GroupSocialPassportTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('group-social-passport.update'), [
+                'faculty' => 'Факультет информационных технологий',
                 'group_name' => 'ИС-23-1',
                 'leader_full_name' => 'Иванов Иван Иванович',
                 'leader_phone' => '+7 700 000 00 00',
@@ -62,6 +78,12 @@ class GroupSocialPassportTest extends TestCase
                 'curator_full_name' => 'Петров Петр Петрович',
                 'curator_phone' => '+7 701 000 00 00',
                 'curator_email' => 'curator@atu.kz',
+                'deputy_dean_ur_full_name' => 'Смирнова Анна Сергеевна',
+                'deputy_dean_ur_phone' => '+7 702 111 22 33',
+                'deputy_dean_ur_email' => 'deputy.ur@atu.kz',
+                'deputy_dean_vr_full_name' => 'Ким Асель Ерлановна',
+                'deputy_dean_vr_phone' => '+7 703 111 22 33',
+                'deputy_dean_vr_email' => 'deputy.vr@atu.kz',
                 'students' => [
                     [
                         'full_name' => 'Сидоров Сидор Сидорович',
@@ -108,7 +130,14 @@ class GroupSocialPassportTest extends TestCase
 
         $passport = GroupSocialPassport::query()->where('user_id', $user->id)->firstOrFail();
 
+        $this->assertSame('Факультет информационных технологий', $passport->faculty);
         $this->assertSame('ИС-23-1', $passport->group_name);
+        $this->assertSame('Смирнова Анна Сергеевна', $passport->deputy_dean_ur_full_name);
+        $this->assertSame('+7 702 111 22 33', $passport->deputy_dean_ur_phone);
+        $this->assertSame('deputy.ur@atu.kz', $passport->deputy_dean_ur_email);
+        $this->assertSame('Ким Асель Ерлановна', $passport->deputy_dean_vr_full_name);
+        $this->assertSame('+7 703 111 22 33', $passport->deputy_dean_vr_phone);
+        $this->assertSame('deputy.vr@atu.kz', $passport->deputy_dean_vr_email);
         $this->assertSame('Сидоров Сидор Сидорович', $passport->students[0]['full_name']);
         $this->assertSame('123456789012', $passport->students[0]['iin']);
         $this->assertSame('ID1234567', $passport->students[0]['identity_document_number']);
@@ -125,6 +154,23 @@ class GroupSocialPassportTest extends TestCase
         $user = User::factory()->create([
             'role_id' => $role->id,
             'position' => 'Студент',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('group-social-passport.update'), [
+                'group_name' => 'ИС-23-1',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_group_leader_cannot_save_group_social_passport(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $role = Role::query()->where('slug', Role::GROUP_LEADER)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'position' => 'Староста',
         ]);
 
         $this->actingAs($user)

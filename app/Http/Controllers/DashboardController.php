@@ -34,7 +34,7 @@ class DashboardController extends Controller
             'curatorAdvisorHome' => in_array($user?->role?->slug, [Role::CURATOR, Role::ADVISOR], true)
                 ? $this->curatorAdvisorHome()
                 : null,
-            'administrationHome' => $user?->role?->slug === Role::ADMINISTRATION
+            'administrationHome' => in_array($user?->role?->slug, [Role::ADMINISTRATION, Role::ADMINISTRATOR_DIT], true)
                 ? $this->administrationHome()
                 : null,
         ]);
@@ -79,7 +79,7 @@ class DashboardController extends Controller
                 'count' => $user->portfolioItems->count(),
                 'latest' => $this->latestActivity($user->portfolioItems, ['item_type', 'original_name']),
             ],
-            'recommendations' => $this->studentRecommendations($user),
+            'recommendations' => $this->studentRecommendations(),
         ];
     }
 
@@ -377,7 +377,8 @@ class DashboardController extends Controller
      *     statistics: array<int, array{label: string, value: string|int|float|null, hint: string}>,
      *     ratings: array<int, array{name: string, group: string|null, faculty: string|null, gpa: float|null, achievements: int}>,
      *     reports: array<int, array{type: string, title: string, description: string, exportUrl: string}>,
-     *     monitoring: array<int, array{label: string, value: string|int|float|null, status: string, tone: string}>
+     *     monitoring: array<int, array{label: string, value: string|int|float|null, status: string, tone: string}>,
+     *     responsiblePersons: array<int, array{risk: string, responsible: string}>
      * }
      */
     private function administrationHome(): array
@@ -419,6 +420,32 @@ class DashboardController extends Controller
             'ratings' => $this->administrationRatings(),
             'reports' => $this->administrationReports(),
             'monitoring' => $this->monitoringIndicators($profiles),
+            'responsiblePersons' => $this->administrationResponsiblePersons(),
+        ];
+    }
+
+    /**
+     * @return array<int, array{risk: string, responsible: string}>
+     */
+    private function administrationResponsiblePersons(): array
+    {
+        return [
+            [
+                'risk' => 'Социальные риски',
+                'responsible' => 'Зам.деканы по ВР и кураторы/эдвайзеры',
+            ],
+            [
+                'risk' => 'Академические риски',
+                'responsible' => 'Зам.декана по УР и кураторы/эдвайзеры',
+            ],
+            [
+                'risk' => 'Психологические риски',
+                'responsible' => 'СПП',
+            ],
+            [
+                'risk' => 'Медицинские риски',
+                'responsible' => 'Здравпункт',
+            ],
         ];
     }
 
@@ -472,6 +499,30 @@ class DashboardController extends Controller
                 'title' => 'По факультету',
                 'description' => 'Сводные показатели по факультетам.',
                 'exportUrl' => route('analytics-dashboard.reports.export', ['type' => 'faculty']),
+            ],
+            [
+                'type' => 'academic-risks',
+                'title' => 'По академическим рискам',
+                'description' => 'Низкий GPA и академическая задолженность.',
+                'exportUrl' => route('analytics-dashboard.reports.export', ['type' => 'academic-risks']),
+            ],
+            [
+                'type' => 'social-risks',
+                'title' => 'По социальным рискам',
+                'description' => 'Социальные факторы риска и потребность в поддержке.',
+                'exportUrl' => route('analytics-dashboard.reports.export', ['type' => 'social-risks']),
+            ],
+            [
+                'type' => 'psychological-risks',
+                'title' => 'По психологическим рискам',
+                'description' => 'Психологические факторы из профиля и паспорта здоровья.',
+                'exportUrl' => route('analytics-dashboard.reports.export', ['type' => 'psychological-risks']),
+            ],
+            [
+                'type' => 'medical-risks',
+                'title' => 'По медицинским рискам',
+                'description' => 'Медицинские факторы из паспорта здоровья.',
+                'exportUrl' => route('analytics-dashboard.reports.export', ['type' => 'medical-risks']),
             ],
         ];
     }
@@ -565,61 +616,34 @@ class DashboardController extends Controller
     /**
      * @return array<int, array{title: string, description: string}>
      */
-    private function studentRecommendations(User $user): array
+    private function studentRecommendations(): array
     {
-        $recommendations = [];
-        $academic = $user->academicProfile;
-
-        if ($this->profileCompletion($user) < 80) {
-            $recommendations[] = [
-                'title' => 'Обновить личную информацию',
-                'description' => 'Заполните контактные данные, адрес проживания, факультет, группу и специальность.',
-            ];
-        }
-
-        if ($this->needsAcademicSupport($academic)) {
-            $recommendations[] = [
-                'title' => 'Поддержка по успеваемости',
-                'description' => 'Запланируйте консультацию с эдвайзером и выберите дополнительные занятия по проблемным дисциплинам.',
-            ];
-        }
-
-        if ($user->extracurricularAchievements->isEmpty()) {
-            $recommendations[] = [
-                'title' => 'Добавить достижения',
-                'description' => 'Загрузите олимпиады, конкурсы, спортивные соревнования, проекты или волонтерскую активность.',
-            ];
-        }
-
-        if ($user->portfolioItems->isEmpty()) {
-            $recommendations[] = [
-                'title' => 'Собрать портфолио',
-                'description' => 'Добавьте сертификаты, дипломы, грамоты, проекты, научные работы или видеоматериалы.',
-            ];
-        }
-
-        if ($recommendations === []) {
-            $recommendations[] = [
-                'title' => 'Поддерживать активность',
-                'description' => 'Продолжайте обновлять профиль, участвовать в мероприятиях и пополнять портфолио.',
-            ];
-        }
-
-        return $recommendations;
-    }
-
-    private function needsAcademicSupport(?AcademicProfile $academic): bool
-    {
-        if ($academic === null) {
-            return true;
-        }
-
-        if ($academic->gpa !== null && (float) $academic->gpa < 2.5) {
-            return true;
-        }
-
-        return $academic->academic_debt !== null
-            && $this->hasAcademicDebt($academic->academic_debt);
+        return [
+            [
+                'title' => 'Индивидуальное консультирование',
+                'description' => 'Консультация с куратором, эдвайзером или психологом по учебным и личным вопросам.',
+            ],
+            [
+                'title' => 'Мониторинг академической успеваемости',
+                'description' => 'Контроль GPA, текущей успеваемости и академической задолженности.',
+            ],
+            [
+                'title' => 'План ментора',
+                'description' => 'Персональный план сопровождения с целями, сроками и ответственными.',
+            ],
+            [
+                'title' => 'Социальная поддержка',
+                'description' => 'Материальная помощь, скидки и другие меры поддержки при наличии оснований.',
+            ],
+            [
+                'title' => 'Работа с семьей',
+                'description' => 'Взаимодействие с семьей только по согласованию со студентом.',
+            ],
+            [
+                'title' => 'Контроль проживания в общежитии',
+                'description' => 'Проверка условий проживания и актуальности данных по общежитию.',
+            ],
+        ];
     }
 
     private function hasLowGpa(?AcademicProfile $academic): bool

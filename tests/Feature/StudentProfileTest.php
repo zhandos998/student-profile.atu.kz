@@ -37,6 +37,9 @@ class StudentProfileTest extends TestCase
                 'birth_date' => '2005-03-15',
                 'study_form' => 'Очная',
                 'nationality' => 'Казах',
+                'citizenship' => 'kazakhstan_citizen',
+                'military_department_status' => 'studying',
+                'military_department_place' => 'Военная кафедра КазНУ',
                 'photo' => UploadedFile::fake()->image('student.png'),
                 'iin' => '123456789012',
                 'identity_document_number' => 'ID1234567',
@@ -58,10 +61,13 @@ class StudentProfileTest extends TestCase
                 'is_incomplete_family' => true,
                 'is_large_family' => true,
                 'is_low_income' => true,
-                'benefits' => ['allowance', 'pension'],
+                'benefits' => ['asp', 'loss_of_breadwinner'],
+                'social_support_need_status' => 'needs',
+                'social_support_need_details' => 'Нуждается в оплате общежития',
                 'stay_address' => 'г. Алматы, общежитие 1',
                 'residence_address' => 'г. Алматы',
                 'contact_details' => '+7 700 000 00 00',
+                'kandas_country' => 'Монголия',
                 'dormitory_details' => 'Общежитие 1, комната 101',
                 'education_language' => 'ru',
                 'gpa' => 3.45,
@@ -79,6 +85,9 @@ class StudentProfileTest extends TestCase
         $academicProfile = AcademicProfile::query()->where('user_id', $user->id)->firstOrFail();
 
         $this->assertSame('Иванов Иван Иванович', $profile->full_name);
+        $this->assertSame('kazakhstan_citizen', $profile->citizenship);
+        $this->assertSame('studying', $profile->military_department_status);
+        $this->assertSame('Военная кафедра КазНУ', $profile->military_department_place);
         $this->assertSame('Факультет пищевых технологий', $profile->faculty);
         $this->assertSame('2', $profile->disability_group);
         $this->assertSame('1', $profile->disabled_parent_group);
@@ -90,7 +99,10 @@ class StudentProfileTest extends TestCase
         $this->assertTrue($profile->is_incomplete_family);
         $this->assertTrue($profile->is_large_family);
         $this->assertTrue($profile->is_low_income);
-        $this->assertSame(['allowance', 'pension'], $profile->benefits);
+        $this->assertSame(['asp', 'loss_of_breadwinner'], $profile->benefits);
+        $this->assertSame('needs', $profile->social_support_need_status);
+        $this->assertSame('Нуждается в оплате общежития', $profile->social_support_need_details);
+        $this->assertSame('Монголия', $profile->kandas_country);
         $this->assertSame('3.45', $academicProfile->gpa);
         Storage::disk('public')->assertExists($profile->photo_path);
         Storage::disk('public')->assertExists($profile->identity_card_path);
@@ -137,16 +149,17 @@ class StudentProfileTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('student-profile.portfolio.store'), [
-                'item_type' => 'certificate',
-                'title' => 'Сертификат волонтера',
-                'file' => UploadedFile::fake()->create('certificate.pdf', 100, 'application/pdf'),
+                'item_type' => 'thank_you_letter',
+                'title' => 'Благодарственное письмо',
+                'file' => UploadedFile::fake()->create('thank-you-letter.pdf', 100, 'application/pdf'),
             ])
             ->assertSessionHasNoErrors()
             ->assertRedirect();
 
         $portfolioItem = PortfolioItem::query()->where('user_id', $user->id)->firstOrFail();
 
-        $this->assertSame('Сертификат волонтера', $portfolioItem->title);
+        $this->assertSame('thank_you_letter', $portfolioItem->item_type);
+        $this->assertSame('Благодарственное письмо', $portfolioItem->title);
         Storage::disk('public')->assertExists($portfolioItem->file_path);
 
         $this->actingAs($user)

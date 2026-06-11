@@ -6,7 +6,7 @@ import PrimaryButton from "@/Components/PrimaryButton";
 import SecondaryButton from "@/Components/SecondaryButton";
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, router, useForm } from "@inertiajs/react";
+import { Head, Link, router, useForm } from "@inertiajs/react";
 import { useState } from "react";
 
 const valueOrEmpty = (value) => value ?? "";
@@ -64,13 +64,14 @@ function SelectInput({
     );
 }
 
-function TextAreaInput({ value, onChange, rows = 3 }) {
+function TextAreaInput({ value, onChange, rows = 3, disabled = false }) {
     return (
         <textarea
             value={value}
             onChange={onChange}
             rows={rows}
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            disabled={disabled}
+            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-50"
         />
     );
 }
@@ -146,6 +147,8 @@ export default function Edit({
     achievements,
     portfolioItems,
     options,
+    isManagedProfile = false,
+    targetUser = null,
 }) {
     const [achievementFileKey, setAchievementFileKey] = useState(0);
     const [portfolioFileKey, setPortfolioFileKey] = useState(0);
@@ -168,6 +171,13 @@ export default function Edit({
         birth_date: valueOrEmpty(profile.birth_date),
         study_form: valueOrEmpty(profile.study_form),
         nationality: valueOrEmpty(profile.nationality),
+        citizenship: valueOrEmpty(profile.citizenship),
+        military_department_status: valueOrEmpty(
+            profile.military_department_status,
+        ),
+        military_department_place: valueOrEmpty(
+            profile.military_department_place,
+        ),
         photo: null,
         iin: valueOrEmpty(profile.iin),
         identity_document_number: valueOrEmpty(
@@ -185,6 +195,12 @@ export default function Edit({
         disabled_parent_group: valueOrEmpty(profile.disabled_parent_group),
         disabled_sibling_group: valueOrEmpty(profile.disabled_sibling_group),
         benefits: profile.benefits ?? [],
+        social_support_need_status: valueOrEmpty(
+            profile.social_support_need_status,
+        ),
+        social_support_need_details: valueOrEmpty(
+            profile.social_support_need_details,
+        ),
         special_educational_needs: valueOrEmpty(
             profile.special_educational_needs,
         ),
@@ -192,6 +208,7 @@ export default function Edit({
         residence_address: valueOrEmpty(profile.residence_address),
         contact_details: valueOrEmpty(profile.contact_details),
         foreign_student_country: valueOrEmpty(profile.foreign_student_country),
+        kandas_country: valueOrEmpty(profile.kandas_country),
         dormitory_details: valueOrEmpty(profile.dormitory_details),
         relatives_living_details: valueOrEmpty(
             profile.relatives_living_details,
@@ -251,6 +268,24 @@ export default function Edit({
         }
     };
 
+    const setMilitaryDepartmentStatus = (value) => {
+        profileForm.setData((current) => ({
+            ...current,
+            military_department_status: value,
+            military_department_place:
+                value === "studying" ? current.military_department_place : "",
+        }));
+    };
+
+    const setSocialSupportNeedStatus = (value) => {
+        profileForm.setData((current) => ({
+            ...current,
+            social_support_need_status: value,
+            social_support_need_details:
+                value === "needs" ? current.social_support_need_details : "",
+        }));
+    };
+
     const achievementForm = useForm({
         activity_type: "olympiad",
         title: "",
@@ -265,12 +300,36 @@ export default function Edit({
         title: "",
         file: null,
     });
+    const targetUserId = targetUser?.id;
+    const profileUpdateUrl = isManagedProfile
+        ? route("student-profiles.update", targetUserId)
+        : route("student-profile.update");
+    const achievementStoreUrl = isManagedProfile
+        ? route("student-profiles.achievements.store", targetUserId)
+        : route("student-profile.achievements.store");
+    const portfolioStoreUrl = isManagedProfile
+        ? route("student-profiles.portfolio.store", targetUserId)
+        : route("student-profile.portfolio.store");
+    const achievementDestroyUrl = (achievementId) =>
+        isManagedProfile
+            ? route("student-profiles.achievements.destroy", [
+                  targetUserId,
+                  achievementId,
+              ])
+            : route("student-profile.achievements.destroy", achievementId);
+    const portfolioDestroyUrl = (portfolioItemId) =>
+        isManagedProfile
+            ? route("student-profiles.portfolio.destroy", [
+                  targetUserId,
+                  portfolioItemId,
+              ])
+            : route("student-profile.portfolio.destroy", portfolioItemId);
 
     const submitProfile = (event) => {
         event.preventDefault();
 
         router.post(
-            route("student-profile.update"),
+            profileUpdateUrl,
             {
                 ...profileData,
                 is_orphan: socialSupport.is_orphan ? "1" : "0",
@@ -321,7 +380,7 @@ export default function Edit({
     const submitAchievement = (event) => {
         event.preventDefault();
 
-        achievementForm.post(route("student-profile.achievements.store"), {
+        achievementForm.post(achievementStoreUrl, {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {
@@ -334,7 +393,7 @@ export default function Edit({
     const submitPortfolio = (event) => {
         event.preventDefault();
 
-        portfolioForm.post(route("student-profile.portfolio.store"), {
+        portfolioForm.post(portfolioStoreUrl, {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {
@@ -358,9 +417,28 @@ export default function Edit({
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                    Портрет студента
-                </h2>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 className="text-xl font-semibold leading-tight text-gray-800">
+                            {isManagedProfile
+                                ? `Портрет студента: ${targetUser.name}`
+                                : "Портрет студента"}
+                        </h2>
+                        {isManagedProfile && (
+                            <p className="mt-1 text-sm text-gray-500">
+                                {targetUser.email}
+                            </p>
+                        )}
+                    </div>
+                    {isManagedProfile && (
+                        <Link
+                            href={route("student-profiles.index")}
+                            className="text-sm font-medium text-[#355da8] hover:text-[#2f5192]"
+                        >
+                            К списку портретов
+                        </Link>
+                    )}
+                </div>
             }
         >
             <Head title="Портрет студента" />
@@ -439,6 +517,74 @@ export default function Edit({
                                             )
                                         }
                                         className="w-full"
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="Гражданство"
+                                    error={profileForm.errors.citizenship}
+                                >
+                                    <SelectInput
+                                        value={profileForm.data.citizenship}
+                                        options={options.citizenships}
+                                        placeholder="Выберите гражданство"
+                                        onChange={(event) =>
+                                            profileForm.setData(
+                                                "citizenship",
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="Военная кафедра"
+                                    error={
+                                        profileForm.errors
+                                            .military_department_status
+                                    }
+                                >
+                                    <SelectInput
+                                        value={
+                                            profileForm.data
+                                                .military_department_status
+                                        }
+                                        options={
+                                            options.militaryDepartmentStatuses
+                                        }
+                                        placeholder="Выберите статус"
+                                        onChange={(event) =>
+                                            setMilitaryDepartmentStatus(
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="Где обучается на военной кафедре"
+                                    error={
+                                        profileForm.errors
+                                            .military_department_place
+                                    }
+                                >
+                                    <TextInput
+                                        value={
+                                            profileForm.data
+                                                .military_department_place
+                                        }
+                                        disabled={
+                                            profileForm.data
+                                                .military_department_status !==
+                                            "studying"
+                                        }
+                                        onChange={(event) =>
+                                            profileForm.setData(
+                                                "military_department_place",
+                                                event.target.value,
+                                            )
+                                        }
+                                        className="w-full disabled:cursor-not-allowed disabled:bg-gray-50"
                                     />
                                 </Field>
 
@@ -835,7 +981,7 @@ export default function Edit({
                                     <Field
                                         label="Льготы"
                                         error={profileForm.errors.benefits}
-                                        className="md:col-span-2"
+                                        className="md:col-span-2 xl:col-span-3"
                                     >
                                         <CheckboxGroup
                                             value={profileForm.data.benefits}
@@ -844,6 +990,58 @@ export default function Edit({
                                                 profileForm.setData(
                                                     "benefits",
                                                     value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Нуждающийся в социальной поддержке"
+                                        error={
+                                            profileForm.errors
+                                                .social_support_need_status
+                                        }
+                                    >
+                                        <SelectInput
+                                            value={
+                                                profileForm.data
+                                                    .social_support_need_status
+                                            }
+                                            options={
+                                                options.socialSupportNeedStatuses
+                                            }
+                                            placeholder="Выберите статус"
+                                            onChange={(event) =>
+                                                setSocialSupportNeedStatus(
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="В какой социальной поддержке нуждается"
+                                        error={
+                                            profileForm.errors
+                                                .social_support_need_details
+                                        }
+                                        className="md:col-span-2"
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data
+                                                    .social_support_need_details
+                                            }
+                                            rows={2}
+                                            disabled={
+                                                profileForm.data
+                                                    .social_support_need_status !==
+                                                "needs"
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "social_support_need_details",
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -879,7 +1077,7 @@ export default function Edit({
                                 </Field>
 
                                 <Field
-                                    label="Контактные данные"
+                                    label="Контактные данные(сотовый телефон)"
                                     error={profileForm.errors.contact_details}
                                 >
                                     <TextAreaInput
@@ -940,6 +1138,24 @@ export default function Edit({
                                         onChange={(event) =>
                                             profileForm.setData(
                                                 "foreign_student_country",
+                                                event.target.value,
+                                            )
+                                        }
+                                        className="w-full"
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="Кандас (указать страну)"
+                                    error={profileForm.errors.kandas_country}
+                                >
+                                    <TextInput
+                                        value={
+                                            profileForm.data.kandas_country
+                                        }
+                                        onChange={(event) =>
+                                            profileForm.setData(
+                                                "kandas_country",
                                                 event.target.value,
                                             )
                                         }
@@ -1157,7 +1373,6 @@ export default function Edit({
                                 </Field>
                             </div>
                         </Section>
-
                     </form>
 
                     <div className="mt-8 grid gap-8 xl:grid-cols-2">
@@ -1345,8 +1560,7 @@ export default function Edit({
                                             type="button"
                                             onClick={() =>
                                                 router.delete(
-                                                    route(
-                                                        "student-profile.achievements.destroy",
+                                                    achievementDestroyUrl(
                                                         achievement.id,
                                                     ),
                                                     { preserveScroll: true },
@@ -1471,8 +1685,7 @@ export default function Edit({
                                             type="button"
                                             onClick={() =>
                                                 router.delete(
-                                                    route(
-                                                        "student-profile.portfolio.destroy",
+                                                    portfolioDestroyUrl(
                                                         item.id,
                                                     ),
                                                     { preserveScroll: true },

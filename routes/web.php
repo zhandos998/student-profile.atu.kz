@@ -4,6 +4,7 @@ use App\Http\Controllers\AnalyticsDashboardController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExtracurricularAchievementController;
 use App\Http\Controllers\GroupSocialPassportController;
+use App\Http\Controllers\HealthPassportController;
 use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PsychologicalProfileController;
@@ -37,15 +38,28 @@ Route::middleware('auth')->group(function () {
     Route::post('/student-profile/portfolio', [PortfolioItemController::class, 'store'])->name('student-profile.portfolio.store');
     Route::delete('/student-profile/portfolio/{portfolioItem}', [PortfolioItemController::class, 'destroy'])->name('student-profile.portfolio.destroy');
 
+    Route::get('/student-profiles', [StudentProfileController::class, 'index'])->name('student-profiles.index');
+    Route::get('/student-profiles/create', [StudentProfileController::class, 'createManaged'])->name('student-profiles.create');
+    Route::post('/student-profiles', [StudentProfileController::class, 'storeManaged'])->name('student-profiles.store');
+    Route::get('/student-profiles/{student}/edit', [StudentProfileController::class, 'editManaged'])->name('student-profiles.edit');
+    Route::post('/student-profiles/{student}', [StudentProfileController::class, 'updateManaged'])->name('student-profiles.update');
+    Route::post('/student-profiles/{student}/achievements', [ExtracurricularAchievementController::class, 'storeForStudent'])->name('student-profiles.achievements.store');
+    Route::delete('/student-profiles/{student}/achievements/{achievement}', [ExtracurricularAchievementController::class, 'destroyForStudent'])->name('student-profiles.achievements.destroy');
+    Route::post('/student-profiles/{student}/portfolio', [PortfolioItemController::class, 'storeForStudent'])->name('student-profiles.portfolio.store');
+    Route::delete('/student-profiles/{student}/portfolio/{portfolioItem}', [PortfolioItemController::class, 'destroyForStudent'])->name('student-profiles.portfolio.destroy');
+
     Route::get('/psychological-profile', [PsychologicalProfileController::class, 'index'])->name('psychological-profile.index');
     Route::post('/psychological-profile', [PsychologicalProfileController::class, 'update'])->name('psychological-profile.update');
+
+    Route::get('/health-passport', [HealthPassportController::class, 'index'])->name('health-passport.index');
+    Route::post('/health-passport', [HealthPassportController::class, 'update'])->name('health-passport.update');
 
     Route::get('/group-social-passport', [GroupSocialPassportController::class, 'edit'])->name('group-social-passport.edit');
     Route::post('/group-social-passport', [GroupSocialPassportController::class, 'update'])->name('group-social-passport.update');
 
     Route::get('/analytics-dashboard', [AnalyticsDashboardController::class, 'index'])->name('analytics-dashboard.index');
     Route::get('/analytics-dashboard/reports/{type}/export', [AnalyticsDashboardController::class, 'export'])
-        ->whereIn('type', ['student', 'group', 'course', 'faculty'])
+        ->whereIn('type', ['student', 'group', 'course', 'faculty', 'academic-risks', 'social-risks', 'psychological-risks', 'medical-risks'])
         ->name('analytics-dashboard.reports.export');
 });
 

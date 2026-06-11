@@ -74,7 +74,13 @@ class DashboardTest extends TestCase
                 ->where('studentHome.academic.gpa', 3.25)
                 ->where('studentHome.achievements.count', 1)
                 ->where('studentHome.portfolio.count', 1)
-                ->has('studentHome.recommendations')
+                ->has('studentHome.recommendations', 6)
+                ->where('studentHome.recommendations.0.title', 'Индивидуальное консультирование')
+                ->where('studentHome.recommendations.1.title', 'Мониторинг академической успеваемости')
+                ->where('studentHome.recommendations.2.title', 'План ментора')
+                ->where('studentHome.recommendations.3.title', 'Социальная поддержка')
+                ->where('studentHome.recommendations.4.title', 'Работа с семьей')
+                ->where('studentHome.recommendations.5.title', 'Контроль проживания в общежитии')
                 ->where('curatorAdvisorHome', null)
             );
     }
@@ -234,8 +240,44 @@ class DashboardTest extends TestCase
                 ->where('administrationHome.statistics.0.label', 'Количество студентов')
                 ->where('administrationHome.statistics.0.value', 1)
                 ->has('administrationHome.ratings', 1)
-                ->has('administrationHome.reports', 4)
+                ->has('administrationHome.reports', 8)
                 ->has('administrationHome.monitoring', 5)
+                ->has('administrationHome.responsiblePersons', 4)
+                ->where('administrationHome.responsiblePersons.0.risk', 'Социальные риски')
+                ->where('administrationHome.responsiblePersons.0.responsible', 'Зам.деканы по ВР и кураторы/эдвайзеры')
+                ->where('administrationHome.responsiblePersons.1.risk', 'Академические риски')
+                ->where('administrationHome.responsiblePersons.1.responsible', 'Зам.декана по УР и кураторы/эдвайзеры')
+                ->where('administrationHome.responsiblePersons.2.risk', 'Психологические риски')
+                ->where('administrationHome.responsiblePersons.2.responsible', 'СПП')
+                ->where('administrationHome.responsiblePersons.3.risk', 'Медицинские риски')
+                ->where('administrationHome.responsiblePersons.3.responsible', 'Здравпункт')
+            );
+    }
+
+    public function test_dit_dashboard_has_administration_home_blocks(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $role = Role::query()->where('slug', Role::ADMINISTRATOR_DIT)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'position' => 'Администратор ДИТ',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboard')
+                ->where('studentHome', null)
+                ->where('curatorAdvisorHome', null)
+                ->has('administrationHome.statistics', 4)
+                ->has('administrationHome.reports', 8)
+                ->has('administrationHome.responsiblePersons', 4)
+                ->where('administrationHome.reports.4.type', 'academic-risks')
+                ->where('administrationHome.reports.5.type', 'social-risks')
+                ->where('administrationHome.reports.6.type', 'psychological-risks')
+                ->where('administrationHome.reports.7.type', 'medical-risks')
             );
     }
 

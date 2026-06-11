@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\PortfolioItem;
+use App\Models\Role;
+use App\Models\User;
 use App\Support\StudentProfileOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +18,42 @@ class PortfolioItemController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        return $this->storeForUser($request, $request->user());
+    }
+
+    public function storeForStudent(Request $request, User $student): RedirectResponse
+    {
+        abort_unless($request->user()?->canManageStudentProfiles(), 403);
+        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+
+        return $this->storeForUser($request, $student);
+    }
+
+    /**
+     * Delete a student portfolio file.
+     */
+    public function destroy(Request $request, PortfolioItem $portfolioItem): RedirectResponse
+    {
+        abort_unless($portfolioItem->user_id === $request->user()->id, 404);
+
+        $this->deletePortfolioItem($portfolioItem);
+
+        return back()->with('status', 'portfolio-deleted');
+    }
+
+    public function destroyForStudent(Request $request, User $student, PortfolioItem $portfolioItem): RedirectResponse
+    {
+        abort_unless($request->user()?->canManageStudentProfiles(), 403);
+        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($portfolioItem->user_id === $student->id, 404);
+
+        $this->deletePortfolioItem($portfolioItem);
+
+        return back()->with('status', 'portfolio-deleted');
+    }
+
+    private function storeForUser(Request $request, User $user): RedirectResponse
+    {
         $validated = $request->validate([
             'item_type' => ['required', Rule::in(StudentProfileOptions::values(StudentProfileOptions::PORTFOLIO_TYPES))],
             'title' => ['required', 'string', 'max:255'],
@@ -25,7 +63,7 @@ class PortfolioItemController extends Controller
         $file = $request->file('file');
 
         PortfolioItem::query()->create([
-            'user_id' => $request->user()->id,
+            'user_id' => $user->id,
             'item_type' => $validated['item_type'],
             'title' => $validated['title'],
             'file_path' => $file->store('student-profiles/portfolio', 'public'),
@@ -37,17 +75,10 @@ class PortfolioItemController extends Controller
         return back()->with('status', 'portfolio-added');
     }
 
-    /**
-     * Delete a student portfolio file.
-     */
-    public function destroy(Request $request, PortfolioItem $portfolioItem): RedirectResponse
+    private function deletePortfolioItem(PortfolioItem $portfolioItem): void
     {
-        abort_unless($portfolioItem->user_id === $request->user()->id, 404);
-
         Storage::disk('public')->delete($portfolioItem->file_path);
 
         $portfolioItem->delete();
-
-        return back()->with('status', 'portfolio-deleted');
     }
 }

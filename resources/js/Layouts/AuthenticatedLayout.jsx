@@ -9,22 +9,29 @@ export default function AuthenticatedLayout({ header, children }) {
     const {
         user,
         canViewPsychologicalProfile,
+        canViewHealthPassport,
         canViewGroupSocialPassport,
         canViewAnalyticsDashboard,
+        canManageStudentProfiles,
+        canUseOwnStudentProfile,
     } = usePage().props.auth;
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            <nav className="border-b border-gray-100 bg-white">
+        <div className="min-h-screen bg-white">
+            <nav className="border-b border-[#dbe5f6] bg-white">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 justify-between">
                         <div className="flex">
                             <div className="flex shrink-0 items-center">
                                 <Link href="/">
-                                    <ApplicationLogo className="block h-9 w-auto fill-current text-gray-800" />
+                                    <ApplicationLogo
+                                        variant="wordmark"
+                                        className="block h-9 w-auto max-w-[150px]"
+                                        alt="Almaty Technological University"
+                                    />
                                 </Link>
                             </div>
 
@@ -35,12 +42,26 @@ export default function AuthenticatedLayout({ header, children }) {
                                 >
                                     Панель
                                 </NavLink>
-                                <NavLink
-                                    href={route('student-profile.edit')}
-                                    active={route().current('student-profile.*')}
-                                >
-                                    Портрет студента
-                                </NavLink>
+                                {canUseOwnStudentProfile && (
+                                    <NavLink
+                                        href={route('student-profile.edit')}
+                                        active={route().current(
+                                            'student-profile.*',
+                                        )}
+                                    >
+                                        Портрет студента
+                                    </NavLink>
+                                )}
+                                {canManageStudentProfiles && (
+                                    <NavLink
+                                        href={route('student-profiles.index')}
+                                        active={route().current(
+                                            'student-profiles.*',
+                                        )}
+                                    >
+                                        Портреты студентов
+                                    </NavLink>
+                                )}
                                 {canViewPsychologicalProfile && (
                                     <NavLink
                                         href={route(
@@ -51,6 +72,16 @@ export default function AuthenticatedLayout({ header, children }) {
                                         )}
                                     >
                                         Психологический профиль
+                                    </NavLink>
+                                )}
+                                {canViewHealthPassport && (
+                                    <NavLink
+                                        href={route('health-passport.index')}
+                                        active={route().current(
+                                            'health-passport.*',
+                                        )}
+                                    >
+                                        Паспорт здоровья
                                     </NavLink>
                                 )}
                                 {canViewGroupSocialPassport && (
@@ -87,7 +118,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                         <span className="inline-flex rounded-md">
                                             <button
                                                 type="button"
-                                                className="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
+                                                className="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-[#355da8] transition duration-150 ease-in-out hover:text-[#2f5192] focus:outline-none"
                                             >
                                                 {user.name}
 
@@ -132,7 +163,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                         (previousState) => !previousState,
                                     )
                                 }
-                                className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
+                                className="inline-flex items-center justify-center rounded-md p-2 text-[#355da8] transition duration-150 ease-in-out hover:bg-[#f4f7fc] hover:text-[#2f5192] focus:bg-[#f4f7fc] focus:text-[#2f5192] focus:outline-none"
                             >
                                 <svg
                                     className="h-6 w-6"
@@ -181,12 +212,22 @@ export default function AuthenticatedLayout({ header, children }) {
                         >
                             Панель
                         </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('student-profile.edit')}
-                            active={route().current('student-profile.*')}
-                        >
-                            Портрет студента
-                        </ResponsiveNavLink>
+                        {canUseOwnStudentProfile && (
+                            <ResponsiveNavLink
+                                href={route('student-profile.edit')}
+                                active={route().current('student-profile.*')}
+                            >
+                                Портрет студента
+                            </ResponsiveNavLink>
+                        )}
+                        {canManageStudentProfiles && (
+                            <ResponsiveNavLink
+                                href={route('student-profiles.index')}
+                                active={route().current('student-profiles.*')}
+                            >
+                                Портреты студентов
+                            </ResponsiveNavLink>
+                        )}
                         {canViewPsychologicalProfile && (
                             <ResponsiveNavLink
                                 href={route('psychological-profile.index')}
@@ -195,6 +236,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                 )}
                             >
                                 Психологический профиль
+                            </ResponsiveNavLink>
+                        )}
+                        {canViewHealthPassport && (
+                            <ResponsiveNavLink
+                                href={route('health-passport.index')}
+                                active={route().current('health-passport.*')}
+                            >
+                                Паспорт здоровья
                             </ResponsiveNavLink>
                         )}
                         {canViewGroupSocialPassport && (
@@ -219,7 +268,7 @@ export default function AuthenticatedLayout({ header, children }) {
                         )}
                     </div>
 
-                    <div className="border-t border-gray-200 pb-1 pt-4">
+                    <div className="border-t border-[#dbe5f6] pb-1 pt-4">
                         <div className="px-4">
                             <div className="text-base font-medium text-gray-800">
                                 {user.name}
@@ -246,7 +295,7 @@ export default function AuthenticatedLayout({ header, children }) {
             </nav>
 
             {header && (
-                <header className="bg-white shadow">
+                <header className="bg-white shadow-sm">
                     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                         {header}
                     </div>

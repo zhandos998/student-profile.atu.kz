@@ -24,6 +24,7 @@ class GroupSocialPassportController extends Controller
         abort_unless($request->user()?->canViewGroupSocialPassport(), 403);
 
         $validated = $request->validate([
+            'faculty' => ['nullable', 'string', 'max:255'],
             'group_name' => ['nullable', 'string', 'max:100'],
             'leader_full_name' => ['nullable', 'string', 'max:255'],
             'leader_phone' => ['nullable', 'string', 'max:100'],
@@ -31,6 +32,12 @@ class GroupSocialPassportController extends Controller
             'curator_full_name' => ['nullable', 'string', 'max:255'],
             'curator_phone' => ['nullable', 'string', 'max:100'],
             'curator_email' => ['nullable', 'email', 'max:255'],
+            'deputy_dean_ur_full_name' => ['nullable', 'string', 'max:255'],
+            'deputy_dean_ur_phone' => ['nullable', 'string', 'max:100'],
+            'deputy_dean_ur_email' => ['nullable', 'email', 'max:255'],
+            'deputy_dean_vr_full_name' => ['nullable', 'string', 'max:255'],
+            'deputy_dean_vr_phone' => ['nullable', 'string', 'max:100'],
+            'deputy_dean_vr_email' => ['nullable', 'email', 'max:255'],
             'students' => ['nullable', 'array'],
             'students.*.full_name' => ['nullable', 'string', 'max:255'],
             'students.*.birth_date' => ['nullable', 'date'],
@@ -76,6 +83,7 @@ class GroupSocialPassportController extends Controller
     private function payload(?GroupSocialPassport $passport): array
     {
         return [
+            'faculty' => $passport?->faculty ?? '',
             'group_name' => $passport?->group_name ?? '',
             'leader_full_name' => $passport?->leader_full_name ?? '',
             'leader_phone' => $passport?->leader_phone ?? '',
@@ -83,6 +91,12 @@ class GroupSocialPassportController extends Controller
             'curator_full_name' => $passport?->curator_full_name ?? '',
             'curator_phone' => $passport?->curator_phone ?? '',
             'curator_email' => $passport?->curator_email ?? '',
+            'deputy_dean_ur_full_name' => $passport?->deputy_dean_ur_full_name ?? '',
+            'deputy_dean_ur_phone' => $passport?->deputy_dean_ur_phone ?? '',
+            'deputy_dean_ur_email' => $passport?->deputy_dean_ur_email ?? '',
+            'deputy_dean_vr_full_name' => $passport?->deputy_dean_vr_full_name ?? '',
+            'deputy_dean_vr_phone' => $passport?->deputy_dean_vr_phone ?? '',
+            'deputy_dean_vr_email' => $passport?->deputy_dean_vr_email ?? '',
             'students' => $passport?->students ?? [],
             'summary' => $passport?->summary ?? [],
             'departed_students' => $passport?->departed_students ?? [],

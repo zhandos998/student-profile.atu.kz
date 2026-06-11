@@ -1,74 +1,72 @@
-import DangerButton from '@/Components/DangerButton';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import SecondaryButton from '@/Components/SecondaryButton';
-import TextInput from '@/Components/TextInput';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import DangerButton from "@/Components/DangerButton";
+import InputError from "@/Components/InputError";
+import InputLabel from "@/Components/InputLabel";
+import PrimaryButton from "@/Components/PrimaryButton";
+import SecondaryButton from "@/Components/SecondaryButton";
+import TextInput from "@/Components/TextInput";
+import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import { Head, router } from "@inertiajs/react";
+import { useState } from "react";
 
-const valueOrEmpty = (value) => value ?? '';
+const valueOrEmpty = (value) => value ?? "";
 
 const studentColumns = [
-    ['full_name', 'ФИО'],
-    ['birth_date', 'Дата рождения'],
-    ['study_form', 'Форма обучения'],
-    ['nationality', 'Национальность'],
-    ['iin', 'ИИН'],
-    ['identity_document_number', '№ уд.личн.'],
-    ['contact_details', 'Контактные данные'],
-    ['stay_address', 'Адрес пребывания'],
-    ['residence_address', 'Адрес проживания'],
-    ['parent_details', 'Сведения о родителях'],
-    ['social_status', 'Социальный статус'],
-    ['religion_details', 'Вероисповедание'],
+    ["full_name", "ФИО"],
+    ["birth_date", "Дата рождения"],
+    ["study_form", "Форма обучения"],
+    ["nationality", "Национальность"],
+    ["iin", "ИИН"],
+    ["identity_document_number", "№ уд.личн."],
+    ["contact_details", "Контактные данные(сотовый телефон)"],
+    ["stay_address", "Адрес пребывания"],
+    ["residence_address", "Адрес проживания"],
+    ["parent_details", "Сведения о родителях"],
+    ["social_status", "Социальный статус"],
+    ["religion_details", "Вероисповедание"],
 ];
 
 const summaryFields = [
-    ['disabled_students', 'Студенты инвалиды'],
-    ['orphan_students', 'Студенты сироты'],
-    ['incomplete_family_students', 'Студенты из неполной семьи'],
-    ['large_family_students', 'Студенты из многодетной семьи'],
-    ['low_income_students', 'Студенты из малообеспеченной семьи'],
-    ['married_students', 'Семейные студенты'],
-    ['foreign_students', 'Студенты иностранцы'],
-    ['dormitory_students', 'Студенты, проживающие в общежитии'],
-    ['relatives_living_students', 'Студенты, проживающие у родственников'],
-    ['rental_housing_students', 'Студенты, арендующие жилье'],
-    ['total_students', 'Общее количество студентов в группе'],
+    ["disabled_students", "Студенты инвалиды"],
+    ["orphan_students", "Студенты сироты"],
+    ["incomplete_family_students", "Студенты из неполной семьи"],
+    ["large_family_students", "Студенты из многодетной семьи"],
+    ["low_income_students", "Студенты из малообеспеченной семьи"],
+    ["married_students", "Семейные студенты"],
+    ["foreign_students", "Студенты иностранцы"],
+    ["dormitory_students", "Студенты, проживающие в общежитии"],
+    ["relatives_living_students", "Студенты, проживающие у родственников"],
+    ["rental_housing_students", "Студенты, арендующие жилье"],
+    ["total_students", "Общее количество студентов в группе"],
 ];
 
 const departedStudentColumns = [
-    ['full_name', 'ФИО'],
-    ['faculty', 'Факультет'],
-    ['education_program', 'Образовательная программа'],
-    ['group_name', 'Группа'],
-    ['course', 'Курс'],
-    ['reason', 'Причина'],
-    ['reason_other', 'Другое'],
+    ["full_name", "ФИО"],
+    ["faculty", "Факультет"],
+    ["education_program", "Образовательная программа"],
+    ["group_name", "Группа"],
+    ["course", "Курс"],
+    ["reason", "Причина"],
+    ["reason_other", "Другое"],
 ];
 
 const departureReasons = [
-    ['transferred', 'Переведен в другой университет'],
-    ['expelled', 'Отчислен'],
-    ['deported', 'Депортирован'],
-    ['death', 'Смерть'],
-    ['other', 'Другое'],
+    ["transferred", "Переведен в другой университет"],
+    ["expelled", "Отчислен"],
+    ["deported", "Депортирован"],
+    ["death", "Смерть"],
+    ["other", "Другое"],
 ];
 
 function emptyStudentRow() {
-    return Object.fromEntries(studentColumns.map(([key]) => [key, '']));
+    return Object.fromEntries(studentColumns.map(([key]) => [key, ""]));
 }
 
 function emptyDepartedStudentRow() {
-    return Object.fromEntries(
-        departedStudentColumns.map(([key]) => [key, '']),
-    );
+    return Object.fromEntries(departedStudentColumns.map(([key]) => [key, ""]));
 }
 
 function emptySummary() {
-    return Object.fromEntries(summaryFields.map(([key]) => [key, '']));
+    return Object.fromEntries(summaryFields.map(([key]) => [key, ""]));
 }
 
 function Field({ label, error, children }) {
@@ -94,6 +92,7 @@ function TextAreaCell({ value, onChange }) {
 
 export default function Edit({ passport }) {
     const [data, setData] = useState({
+        faculty: valueOrEmpty(passport.faculty),
         group_name: valueOrEmpty(passport.group_name),
         leader_full_name: valueOrEmpty(passport.leader_full_name),
         leader_phone: valueOrEmpty(passport.leader_phone),
@@ -101,6 +100,16 @@ export default function Edit({ passport }) {
         curator_full_name: valueOrEmpty(passport.curator_full_name),
         curator_phone: valueOrEmpty(passport.curator_phone),
         curator_email: valueOrEmpty(passport.curator_email),
+        deputy_dean_ur_full_name: valueOrEmpty(
+            passport.deputy_dean_ur_full_name,
+        ),
+        deputy_dean_ur_phone: valueOrEmpty(passport.deputy_dean_ur_phone),
+        deputy_dean_ur_email: valueOrEmpty(passport.deputy_dean_ur_email),
+        deputy_dean_vr_full_name: valueOrEmpty(
+            passport.deputy_dean_vr_full_name,
+        ),
+        deputy_dean_vr_phone: valueOrEmpty(passport.deputy_dean_vr_phone),
+        deputy_dean_vr_email: valueOrEmpty(passport.deputy_dean_vr_email),
         students:
             passport.students?.length > 0
                 ? passport.students
@@ -202,7 +211,7 @@ export default function Edit({ passport }) {
     const submit = (event) => {
         event.preventDefault();
 
-        router.post(route('group-social-passport.update'), data, {
+        router.post(route("group-social-passport.update"), data, {
             preserveScroll: true,
             onStart: () => {
                 setProcessing(true);
@@ -241,15 +250,37 @@ export default function Edit({ passport }) {
                                         Группа
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                <Field label="Группа" error={errors.group_name}>
-                                    <TextInput
-                                        value={data.group_name}
-                                        onChange={(event) =>
-                                            setField('group_name', event.target.value)
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
+                                        <Field
+                                            label="Факультет"
+                                            error={errors.faculty}
+                                        >
+                                            <TextInput
+                                                value={data.faculty}
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "faculty",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Группа"
+                                            error={errors.group_name}
+                                        >
+                                            <TextInput
+                                                value={data.group_name}
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "group_name",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
                                     </div>
                                 </div>
 
@@ -258,76 +289,238 @@ export default function Edit({ passport }) {
                                         Староста
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                <Field
-                                    label="ФИО"
-                                    error={errors.leader_full_name}
-                                >
-                                    <TextInput
-                                        value={data.leader_full_name}
-                                        onChange={(event) =>
-                                            setField('leader_full_name', event.target.value)
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-                                <Field label="Телефон" error={errors.leader_phone}>
-                                    <TextInput
-                                        value={data.leader_phone}
-                                        onChange={(event) =>
-                                            setField('leader_phone', event.target.value)
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-                                <Field label="Эл.адрес" error={errors.leader_email}>
-                                    <TextInput
-                                        type="email"
-                                        value={data.leader_email}
-                                        onChange={(event) =>
-                                            setField('leader_email', event.target.value)
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
+                                        <Field
+                                            label="ФИО"
+                                            error={errors.leader_full_name}
+                                        >
+                                            <TextInput
+                                                value={data.leader_full_name}
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "leader_full_name",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Телефон"
+                                            error={errors.leader_phone}
+                                        >
+                                            <TextInput
+                                                value={data.leader_phone}
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "leader_phone",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Эл.адрес"
+                                            error={errors.leader_email}
+                                        >
+                                            <TextInput
+                                                type="email"
+                                                value={data.leader_email}
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "leader_email",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
                                     </div>
                                 </div>
 
                                 <div className="border-t border-gray-100 pt-6">
                                     <h3 className="mb-5 text-base font-semibold text-gray-900">
-                                        Куратор
+                                        Куратор/эдвайзер
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                <Field
-                                    label="ФИО"
-                                    error={errors.curator_full_name}
-                                >
-                                    <TextInput
-                                        value={data.curator_full_name}
-                                        onChange={(event) =>
-                                            setField('curator_full_name', event.target.value)
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-                                <Field label="Телефон" error={errors.curator_phone}>
-                                    <TextInput
-                                        value={data.curator_phone}
-                                        onChange={(event) =>
-                                            setField('curator_phone', event.target.value)
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-                                <Field label="Эл.адрес" error={errors.curator_email}>
-                                    <TextInput
-                                        type="email"
-                                        value={data.curator_email}
-                                        onChange={(event) =>
-                                            setField('curator_email', event.target.value)
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
+                                        <Field
+                                            label="ФИО"
+                                            error={errors.curator_full_name}
+                                        >
+                                            <TextInput
+                                                value={data.curator_full_name}
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "curator_full_name",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Телефон"
+                                            error={errors.curator_phone}
+                                        >
+                                            <TextInput
+                                                value={data.curator_phone}
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "curator_phone",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Эл.адрес"
+                                            error={errors.curator_email}
+                                        >
+                                            <TextInput
+                                                type="email"
+                                                value={data.curator_email}
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "curator_email",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-6">
+                                    <h3 className="mb-5 text-base font-semibold text-gray-900">
+                                        Заместитель декана по УР
+                                    </h3>
+                                    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                        <Field
+                                            label="ФИО"
+                                            error={
+                                                errors.deputy_dean_ur_full_name
+                                            }
+                                        >
+                                            <TextInput
+                                                value={
+                                                    data.deputy_dean_ur_full_name
+                                                }
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "deputy_dean_ur_full_name",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Телефон"
+                                            error={
+                                                errors.deputy_dean_ur_phone
+                                            }
+                                        >
+                                            <TextInput
+                                                value={
+                                                    data.deputy_dean_ur_phone
+                                                }
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "deputy_dean_ur_phone",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Эл.адрес"
+                                            error={
+                                                errors.deputy_dean_ur_email
+                                            }
+                                        >
+                                            <TextInput
+                                                type="email"
+                                                value={
+                                                    data.deputy_dean_ur_email
+                                                }
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "deputy_dean_ur_email",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-6">
+                                    <h3 className="mb-5 text-base font-semibold text-gray-900">
+                                        Заместитель декана по ВР
+                                    </h3>
+                                    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                        <Field
+                                            label="ФИО"
+                                            error={
+                                                errors.deputy_dean_vr_full_name
+                                            }
+                                        >
+                                            <TextInput
+                                                value={
+                                                    data.deputy_dean_vr_full_name
+                                                }
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "deputy_dean_vr_full_name",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Телефон"
+                                            error={
+                                                errors.deputy_dean_vr_phone
+                                            }
+                                        >
+                                            <TextInput
+                                                value={
+                                                    data.deputy_dean_vr_phone
+                                                }
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "deputy_dean_vr_phone",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Эл.адрес"
+                                            error={
+                                                errors.deputy_dean_vr_email
+                                            }
+                                        >
+                                            <TextInput
+                                                type="email"
+                                                value={
+                                                    data.deputy_dean_vr_email
+                                                }
+                                                onChange={(event) =>
+                                                    setField(
+                                                        "deputy_dean_vr_email",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
                                     </div>
                                 </div>
                             </div>
@@ -338,7 +531,10 @@ export default function Edit({ passport }) {
                                 <h3 className="text-base font-semibold text-gray-900">
                                     Студенты группы
                                 </h3>
-                                <SecondaryButton type="button" onClick={addStudent}>
+                                <SecondaryButton
+                                    type="button"
+                                    onClick={addStudent}
+                                >
                                     Добавить студента
                                 </SecondaryButton>
                             </div>
@@ -377,7 +573,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'full_name',
+                                                                    "full_name",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -395,7 +591,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'birth_date',
+                                                                    "birth_date",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -412,7 +608,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'study_form',
+                                                                    "study_form",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -429,7 +625,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'nationality',
+                                                                    "nationality",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -446,7 +642,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'iin',
+                                                                    "iin",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -464,7 +660,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'identity_document_number',
+                                                                    "identity_document_number",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -480,7 +676,7 @@ export default function Edit({ passport }) {
                                                     Контакты и адреса
                                                 </h5>
                                                 <div className="grid gap-4 md:grid-cols-2">
-                                                    <Field label="Контактные данные">
+                                                    <Field label="Контактные данные(сотовый телефон)">
                                                         <textarea
                                                             value={valueOrEmpty(
                                                                 student.contact_details,
@@ -488,7 +684,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'contact_details',
+                                                                    "contact_details",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -506,7 +702,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'stay_address',
+                                                                    "stay_address",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -524,7 +720,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'residence_address',
+                                                                    "residence_address",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -549,7 +745,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'parent_details',
+                                                                    "parent_details",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -567,7 +763,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'social_status',
+                                                                    "social_status",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -585,7 +781,7 @@ export default function Edit({ passport }) {
                                                             onChange={(event) =>
                                                                 setStudentField(
                                                                     index,
-                                                                    'religion_details',
+                                                                    "religion_details",
                                                                     event.target
                                                                         .value,
                                                                 )
@@ -695,7 +891,7 @@ export default function Edit({ passport }) {
                                                                 ) =>
                                                                     setDepartedStudentField(
                                                                         index,
-                                                                        'full_name',
+                                                                        "full_name",
                                                                         event
                                                                             .target
                                                                             .value,
@@ -715,7 +911,7 @@ export default function Edit({ passport }) {
                                                                 ) =>
                                                                     setDepartedStudentField(
                                                                         index,
-                                                                        'faculty',
+                                                                        "faculty",
                                                                         event
                                                                             .target
                                                                             .value,
@@ -735,7 +931,7 @@ export default function Edit({ passport }) {
                                                                 ) =>
                                                                     setDepartedStudentField(
                                                                         index,
-                                                                        'education_program',
+                                                                        "education_program",
                                                                         event
                                                                             .target
                                                                             .value,
@@ -755,7 +951,7 @@ export default function Edit({ passport }) {
                                                                 ) =>
                                                                     setDepartedStudentField(
                                                                         index,
-                                                                        'group_name',
+                                                                        "group_name",
                                                                         event
                                                                             .target
                                                                             .value,
@@ -778,7 +974,7 @@ export default function Edit({ passport }) {
                                                                 ) =>
                                                                     setDepartedStudentField(
                                                                         index,
-                                                                        'course',
+                                                                        "course",
                                                                         event
                                                                             .target
                                                                             .value,
@@ -805,7 +1001,7 @@ export default function Edit({ passport }) {
                                                                 ) =>
                                                                     setDepartedStudentField(
                                                                         index,
-                                                                        'reason',
+                                                                        "reason",
                                                                         event
                                                                             .target
                                                                             .value,
@@ -848,7 +1044,7 @@ export default function Edit({ passport }) {
                                                                 ) =>
                                                                     setDepartedStudentField(
                                                                         index,
-                                                                        'reason_other',
+                                                                        "reason_other",
                                                                         event
                                                                             .target
                                                                             .value,
@@ -869,9 +1065,13 @@ export default function Edit({ passport }) {
 
                         <div className="flex items-center justify-end gap-4 bg-gray-50 px-6 py-4">
                             {recentlySuccessful && (
-                                <p className="text-sm text-gray-600">Сохранено</p>
+                                <p className="text-sm text-gray-600">
+                                    Сохранено
+                                </p>
                             )}
-                            <PrimaryButton disabled={processing}>Сохранить</PrimaryButton>
+                            <PrimaryButton disabled={processing}>
+                                Сохранить
+                            </PrimaryButton>
                         </div>
                     </form>
                 </div>

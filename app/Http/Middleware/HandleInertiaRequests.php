@@ -38,8 +38,11 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user,
                 'canViewPsychologicalProfile' => $user?->canViewPsychologicalProfile() ?? false,
+                'canViewHealthPassport' => $user?->canViewHealthPassport() ?? false,
                 'canViewGroupSocialPassport' => $user?->canViewGroupSocialPassport() ?? false,
                 'canViewAnalyticsDashboard' => $user?->canViewAnalyticsDashboard() ?? false,
+                'canManageStudentProfiles' => $user?->canManageStudentProfiles() ?? false,
+                'canUseOwnStudentProfile' => $user?->canUseOwnStudentProfile() ?? false,
             ],
             'csrfToken' => csrf_token(),
         ];
