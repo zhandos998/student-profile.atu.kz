@@ -1,0 +1,53 @@
+services:
+  app:
+    build:
+      context: .
+    image: student-profile-app:latest
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${APP_PORT:-8081}:80"
+    volumes:
+      - student_profile_storage:/var/www/html/storage
+      - student_profile_cache:/var/www/html/bootstrap/cache
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-student_profile}
+      MYSQL_USER: ${DB_USERNAME:-student_profile}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - student_profile_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 128M
+    ports:
+      - "127.0.0.1:${PHPMYADMIN_PORT:-8082}:80"
+
+volumes:
+  student_profile_mysql:
+  student_profile_storage:
+  student_profile_cache:
