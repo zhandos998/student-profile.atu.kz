@@ -18,17 +18,57 @@ function Field({ label, error, children, className = "" }) {
     );
 }
 
-export default function Create({ options }) {
+export default function Create({ options, availableGroups = [] }) {
     const form = useForm({
         name: "",
         email: "",
         password: "",
         full_name: "",
         faculty: "",
+        student_group_id: "",
         group_name: "",
         specialty: "",
         course: "",
     });
+    const visibleGroupOptions = availableGroups.filter(
+        (group) =>
+            !form.data.faculty ||
+            !group.faculty ||
+            group.faculty === form.data.faculty,
+    );
+
+    const setFaculty = (faculty) => {
+        const selectedGroup = availableGroups.find(
+            (group) =>
+                String(group.value) === String(form.data.student_group_id),
+        );
+
+        form.setData({
+            ...form.data,
+            faculty,
+            student_group_id:
+                selectedGroup?.faculty && selectedGroup.faculty !== faculty
+                    ? ""
+                    : form.data.student_group_id,
+            group_name:
+                selectedGroup?.faculty && selectedGroup.faculty !== faculty
+                    ? ""
+                    : form.data.group_name,
+        });
+    };
+
+    const setStudentGroupId = (studentGroupId) => {
+        const selectedGroup = availableGroups.find(
+            (group) => String(group.value) === String(studentGroupId),
+        );
+
+        form.setData({
+            ...form.data,
+            student_group_id: studentGroupId,
+            group_name: selectedGroup?.name || selectedGroup?.label || "",
+            faculty: selectedGroup?.faculty || form.data.faculty,
+        });
+    };
 
     const submit = (event) => {
         event.preventDefault();
@@ -63,9 +103,15 @@ export default function Create({ options }) {
                 <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
                     <form
                         onSubmit={submit}
-                        className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200/80"
+                        className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80"
                     >
-                        <div className="grid gap-5 md:grid-cols-2">
+                        <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                            <h3 className="text-base font-semibold text-[#274f93]">
+                                Данные нового студента
+                            </h3>
+                        </div>
+
+                        <div className="grid gap-5 p-6 md:grid-cols-2">
                             <Field
                                 label="Имя пользователя"
                                 error={form.errors.name}
@@ -73,10 +119,7 @@ export default function Create({ options }) {
                                 <TextInput
                                     value={form.data.name}
                                     onChange={(event) =>
-                                        form.setData(
-                                            "name",
-                                            event.target.value,
-                                        )
+                                        form.setData("name", event.target.value)
                                     }
                                     className="w-full"
                                 />
@@ -96,10 +139,7 @@ export default function Create({ options }) {
                                 />
                             </Field>
 
-                            <Field
-                                label="Пароль"
-                                error={form.errors.password}
-                            >
+                            <Field label="Пароль" error={form.errors.password}>
                                 <TextInput
                                     type="password"
                                     value={form.data.password}
@@ -137,10 +177,7 @@ export default function Create({ options }) {
                                 <select
                                     value={form.data.faculty}
                                     onChange={(event) =>
-                                        form.setData(
-                                            "faculty",
-                                            event.target.value,
-                                        )
+                                        setFaculty(event.target.value)
                                     }
                                     className={inputClass}
                                 >
@@ -158,24 +195,43 @@ export default function Create({ options }) {
 
                             <Field
                                 label="Группа"
-                                error={form.errors.group_name}
+                                error={
+                                    form.errors.student_group_id ||
+                                    form.errors.group_name
+                                }
                             >
-                                <TextInput
-                                    value={form.data.group_name}
+                                <select
+                                    value={form.data.student_group_id}
                                     onChange={(event) =>
-                                        form.setData(
-                                            "group_name",
-                                            event.target.value,
-                                        )
+                                        setStudentGroupId(event.target.value)
                                     }
-                                    className="w-full"
-                                />
+                                    disabled={availableGroups.length === 0}
+                                    className={`${inputClass} disabled:cursor-not-allowed disabled:bg-gray-50`}
+                                >
+                                    <option
+                                        value=""
+                                        label={
+                                            availableGroups.length === 0
+                                                ? "Сначала создайте группу"
+                                                : "Выберите группу"
+                                        }
+                                    >
+                                        {availableGroups.length === 0
+                                            ? "Сначала создайте группу"
+                                            : "Выберите группу"}
+                                    </option>
+                                    {visibleGroupOptions.map((group) => (
+                                        <option
+                                            key={group.value}
+                                            value={group.value}
+                                        >
+                                            {group.label}
+                                        </option>
+                                    ))}
+                                </select>
                             </Field>
 
-                            <Field
-                                label="Курс"
-                                error={form.errors.course}
-                            >
+                            <Field label="Курс" error={form.errors.course}>
                                 <TextInput
                                     type="number"
                                     min="1"
@@ -209,7 +265,7 @@ export default function Create({ options }) {
                             </Field>
                         </div>
 
-                        <div className="mt-6 flex items-center justify-end gap-4 border-t border-gray-100 pt-5">
+                        <div className="flex items-center justify-end gap-4 border-t border-gray-100 bg-gray-50 px-6 py-4">
                             <Link
                                 href={route("student-profiles.index")}
                                 className="text-sm font-medium text-gray-600 hover:text-gray-900"

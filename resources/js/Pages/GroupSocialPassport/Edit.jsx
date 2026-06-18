@@ -1,14 +1,24 @@
-import DangerButton from "@/Components/DangerButton";
 import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
 import PrimaryButton from "@/Components/PrimaryButton";
-import SecondaryButton from "@/Components/SecondaryButton";
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, router } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import { useState } from "react";
 
 const valueOrEmpty = (value) => value ?? "";
+
+const displayValue = (value) => {
+    const text = valueOrEmpty(value);
+
+    return text === "" ? "—" : text;
+};
+
+const compactValue = (value, limit = 80) => {
+    const text = displayValue(value);
+
+    return text.length > limit ? `${text.slice(0, limit)}...` : text;
+};
 
 const studentColumns = [
     ["full_name", "ФИО"],
@@ -39,31 +49,15 @@ const summaryFields = [
     ["total_students", "Общее количество студентов в группе"],
 ];
 
-const departedStudentColumns = [
-    ["full_name", "ФИО"],
-    ["faculty", "Факультет"],
-    ["education_program", "Образовательная программа"],
-    ["group_name", "Группа"],
-    ["course", "Курс"],
-    ["reason", "Причина"],
-    ["reason_other", "Другое"],
-];
+const sectionHeadingClass =
+    "-mx-6 -mt-6 mb-6 border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4 text-base font-semibold text-[#274f93]";
 
-const departureReasons = [
-    ["transferred", "Переведен в другой университет"],
-    ["expelled", "Отчислен"],
-    ["deported", "Депортирован"],
-    ["death", "Смерть"],
-    ["other", "Другое"],
-];
+const sectionHeadingBlockClass =
+    "-mx-6 -mt-6 mb-6 border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4";
 
-function emptyStudentRow() {
-    return Object.fromEntries(studentColumns.map(([key]) => [key, ""]));
-}
+const sectionHeadingTitleClass = "text-base font-semibold text-[#274f93]";
 
-function emptyDepartedStudentRow() {
-    return Object.fromEntries(departedStudentColumns.map(([key]) => [key, ""]));
-}
+const sectionHeadingDescriptionClass = "mt-1 text-sm text-[#426aa8]";
 
 function emptySummary() {
     return Object.fromEntries(summaryFields.map(([key]) => [key, ""]));
@@ -79,20 +73,15 @@ function Field({ label, error, children }) {
     );
 }
 
-function TextAreaCell({ value, onChange }) {
-    return (
-        <textarea
-            value={value}
-            onChange={onChange}
-            rows={2}
-            className="w-64 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-        />
-    );
-}
-
-export default function Edit({ passport }) {
+export default function Edit({
+    passport,
+    updateRoute = route("group-social-passport.update"),
+    groupsIndexUrl = route("groups.index"),
+    groupOptions = [],
+}) {
     const [data, setData] = useState({
         faculty: valueOrEmpty(passport.faculty),
+        student_group_id: valueOrEmpty(passport.student_group_id),
         group_name: valueOrEmpty(passport.group_name),
         leader_full_name: valueOrEmpty(passport.leader_full_name),
         leader_phone: valueOrEmpty(passport.leader_phone),
@@ -110,22 +99,24 @@ export default function Edit({ passport }) {
         ),
         deputy_dean_vr_phone: valueOrEmpty(passport.deputy_dean_vr_phone),
         deputy_dean_vr_email: valueOrEmpty(passport.deputy_dean_vr_email),
-        students:
-            passport.students?.length > 0
-                ? passport.students
-                : [emptyStudentRow()],
+        students: passport.students ?? [],
         summary: {
             ...emptySummary(),
             ...(passport.summary ?? {}),
         },
-        departed_students:
-            passport.departed_students?.length > 0
-                ? passport.departed_students
-                : [emptyDepartedStudentRow()],
+        departed_students: passport.departed_students ?? [],
     });
     const [errors, setErrors] = useState({});
     const [processing, setProcessing] = useState(false);
     const [recentlySuccessful, setRecentlySuccessful] = useState(false);
+    const [selectedStudentIndex, setSelectedStudentIndex] = useState(null);
+    const selectedStudent =
+        selectedStudentIndex === null
+            ? null
+            : data.students[selectedStudentIndex] ?? null;
+    const selectedGroup = groupOptions.find(
+        (group) => String(group.value) === String(data.student_group_id),
+    );
 
     const setField = (field, value) => {
         setData((current) => ({
@@ -134,84 +125,27 @@ export default function Edit({ passport }) {
         }));
     };
 
-    const setStudentField = (index, field, value) => {
-        setData((current) => ({
-            ...current,
-            students: current.students.map((student, studentIndex) =>
-                studentIndex === index
-                    ? { ...student, [field]: value }
-                    : student,
-            ),
-        }));
-    };
+    const changeGroup = (studentGroupId) => {
+        const group = groupOptions.find(
+            (option) => String(option.value) === String(studentGroupId),
+        );
 
-    const setSummaryField = (field, value) => {
         setData((current) => ({
             ...current,
-            summary: {
-                ...current.summary,
-                [field]: value,
-            },
+            student_group_id: studentGroupId,
+            group_name: group?.name ?? "",
+            faculty: group?.faculty ?? "",
         }));
-    };
 
-    const setDepartedStudentField = (index, field, value) => {
-        setData((current) => ({
-            ...current,
-            departed_students: current.departed_students.map(
-                (student, studentIndex) =>
-                    studentIndex === index
-                        ? { ...student, [field]: value }
-                        : student,
-            ),
-        }));
-    };
-
-    const addStudent = () => {
-        setData((current) => ({
-            ...current,
-            students: [...current.students, emptyStudentRow()],
-        }));
-    };
-
-    const addDepartedStudent = () => {
-        setData((current) => ({
-            ...current,
-            departed_students: [
-                ...current.departed_students,
-                emptyDepartedStudentRow(),
-            ],
-        }));
-    };
-
-    const removeStudent = (index) => {
-        setData((current) => ({
-            ...current,
-            students:
-                current.students.length === 1
-                    ? [emptyStudentRow()]
-                    : current.students.filter(
-                          (_, studentIndex) => studentIndex !== index,
-                      ),
-        }));
-    };
-
-    const removeDepartedStudent = (index) => {
-        setData((current) => ({
-            ...current,
-            departed_students:
-                current.departed_students.length === 1
-                    ? [emptyDepartedStudentRow()]
-                    : current.departed_students.filter(
-                          (_, studentIndex) => studentIndex !== index,
-                      ),
-        }));
+        if (studentGroupId) {
+            router.get(route("groups.social-passport.edit", studentGroupId));
+        }
     };
 
     const submit = (event) => {
         event.preventDefault();
 
-        router.post(route("group-social-passport.update"), data, {
+        router.post(updateRoute, data, {
             preserveScroll: true,
             onStart: () => {
                 setProcessing(true);
@@ -239,6 +173,14 @@ export default function Edit({ passport }) {
 
             <div className="py-8">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    <div className="mb-4 flex justify-end">
+                        <Link
+                            href={groupsIndexUrl}
+                            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                        >
+                            Все группы
+                        </Link>
+                    </div>
                     <form
                         onSubmit={submit}
                         className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
@@ -246,7 +188,7 @@ export default function Edit({ passport }) {
                         <section className="border-b border-gray-200 p-6">
                             <div className="space-y-6">
                                 <div>
-                                    <h3 className="mb-5 text-base font-semibold text-gray-900">
+                                    <h3 className={sectionHeadingClass}>
                                         Группа
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -254,38 +196,50 @@ export default function Edit({ passport }) {
                                             label="Факультет"
                                             error={errors.faculty}
                                         >
-                                            <TextInput
-                                                value={data.faculty}
-                                                onChange={(event) =>
-                                                    setField(
-                                                        "faculty",
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                className="w-full"
-                                            />
+                                            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
+                                                {displayValue(
+                                                    selectedGroup?.faculty ??
+                                                        data.faculty,
+                                                )}
+                                            </div>
                                         </Field>
 
                                         <Field
                                             label="Группа"
-                                            error={errors.group_name}
+                                            error={
+                                                errors.student_group_id ||
+                                                errors.group_name
+                                            }
                                         >
-                                            <TextInput
-                                                value={data.group_name}
+                                            <select
+                                                value={data.student_group_id}
                                                 onChange={(event) =>
-                                                    setField(
-                                                        "group_name",
+                                                    changeGroup(
                                                         event.target.value,
                                                     )
                                                 }
-                                                className="w-full"
-                                            />
+                                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
+                                            >
+                                                {groupOptions.length === 0 && (
+                                                    <option value="">
+                                                        Группы не найдены
+                                                    </option>
+                                                )}
+                                                {groupOptions.map((group) => (
+                                                    <option
+                                                        key={group.value}
+                                                        value={group.value}
+                                                    >
+                                                        {group.label}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </Field>
                                     </div>
                                 </div>
 
                                 <div className="border-t border-gray-100 pt-6">
-                                    <h3 className="mb-5 text-base font-semibold text-gray-900">
+                                    <h3 className={sectionHeadingClass}>
                                         Староста
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -339,7 +293,7 @@ export default function Edit({ passport }) {
                                 </div>
 
                                 <div className="border-t border-gray-100 pt-6">
-                                    <h3 className="mb-5 text-base font-semibold text-gray-900">
+                                    <h3 className={sectionHeadingClass}>
                                         Куратор/эдвайзер
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -393,7 +347,7 @@ export default function Edit({ passport }) {
                                 </div>
 
                                 <div className="border-t border-gray-100 pt-6">
-                                    <h3 className="mb-5 text-base font-semibold text-gray-900">
+                                    <h3 className={sectionHeadingClass}>
                                         Заместитель декана по УР
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -459,7 +413,7 @@ export default function Edit({ passport }) {
                                 </div>
 
                                 <div className="border-t border-gray-100 pt-6">
-                                    <h3 className="mb-5 text-base font-semibold text-gray-900">
+                                    <h3 className={sectionHeadingClass}>
                                         Заместитель декана по ВР
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -527,281 +481,109 @@ export default function Edit({ passport }) {
                         </section>
 
                         <section className="border-b border-gray-200 p-6">
-                            <div className="mb-5 flex items-center justify-between gap-4">
-                                <h3 className="text-base font-semibold text-gray-900">
+                            <div className={sectionHeadingBlockClass}>
+                                <h3 className={sectionHeadingTitleClass}>
                                     Студенты группы
                                 </h3>
-                                <SecondaryButton
-                                    type="button"
-                                    onClick={addStudent}
-                                >
-                                    Добавить студента
-                                </SecondaryButton>
+                                <p className={sectionHeadingDescriptionClass}>
+                                    Список формируется из анкет студентов,
+                                    которые выбрали эту группу.
+                                </p>
                             </div>
 
-                            <div className="space-y-5">
-                                {data.students.map((student, index) => (
-                                    <div
-                                        key={index}
-                                        className="rounded-md border border-gray-200"
-                                    >
-                                        <div className="flex items-center justify-between gap-4 border-b border-gray-200 bg-gray-50 px-4 py-3">
-                                            <h4 className="text-sm font-semibold text-gray-900">
-                                                Студент №{index + 1}
-                                            </h4>
-                                            <DangerButton
-                                                type="button"
-                                                onClick={() =>
-                                                    removeStudent(index)
-                                                }
-                                            >
-                                                Удалить
-                                            </DangerButton>
-                                        </div>
-
-                                        <div className="space-y-6 p-4">
-                                            <div>
-                                                <h5 className="mb-4 text-sm font-medium text-gray-700">
-                                                    Основные данные
-                                                </h5>
-                                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                                    <Field label="ФИО">
-                                                        <TextInput
-                                                            value={valueOrEmpty(
-                                                                student.full_name,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "full_name",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className="w-full"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="Дата рождения">
-                                                        <TextInput
-                                                            type="date"
-                                                            value={valueOrEmpty(
-                                                                student.birth_date,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "birth_date",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className="w-full"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="Форма обучения">
-                                                        <TextInput
-                                                            value={valueOrEmpty(
-                                                                student.study_form,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "study_form",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className="w-full"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="Национальность">
-                                                        <TextInput
-                                                            value={valueOrEmpty(
-                                                                student.nationality,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "nationality",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className="w-full"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="ИИН">
-                                                        <TextInput
-                                                            value={valueOrEmpty(
-                                                                student.iin,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "iin",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            maxLength="12"
-                                                            className="w-full"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="№ уд.личн.">
-                                                        <TextInput
-                                                            value={valueOrEmpty(
-                                                                student.identity_document_number,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "identity_document_number",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className="w-full"
-                                                        />
-                                                    </Field>
-                                                </div>
-                                            </div>
-
-                                            <div className="border-t border-gray-100 pt-5">
-                                                <h5 className="mb-4 text-sm font-medium text-gray-700">
-                                                    Контакты и адреса
-                                                </h5>
-                                                <div className="grid gap-4 md:grid-cols-2">
-                                                    <Field label="Контактные данные(сотовый телефон)">
-                                                        <textarea
-                                                            value={valueOrEmpty(
-                                                                student.contact_details,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "contact_details",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            rows={3}
-                                                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="Адрес пребывания">
-                                                        <textarea
-                                                            value={valueOrEmpty(
-                                                                student.stay_address,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "stay_address",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            rows={3}
-                                                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="Адрес проживания">
-                                                        <textarea
-                                                            value={valueOrEmpty(
-                                                                student.residence_address,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "residence_address",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            rows={3}
-                                                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                        />
-                                                    </Field>
-                                                </div>
-                                            </div>
-
-                                            <div className="border-t border-gray-100 pt-5">
-                                                <h5 className="mb-4 text-sm font-medium text-gray-700">
-                                                    Семья и социальные сведения
-                                                </h5>
-                                                <div className="grid gap-4 md:grid-cols-2">
-                                                    <Field label="Сведения о родителях">
-                                                        <textarea
-                                                            value={valueOrEmpty(
-                                                                student.parent_details,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "parent_details",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            rows={3}
-                                                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="Социальный статус">
-                                                        <textarea
-                                                            value={valueOrEmpty(
-                                                                student.social_status,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "social_status",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            rows={3}
-                                                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                        />
-                                                    </Field>
-
-                                                    <Field label="Вероисповедание">
-                                                        <textarea
-                                                            value={valueOrEmpty(
-                                                                student.religion_details,
-                                                            )}
-                                                            onChange={(event) =>
-                                                                setStudentField(
-                                                                    index,
-                                                                    "religion_details",
-                                                                    event.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            rows={3}
-                                                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                        />
-                                                    </Field>
-                                                </div>
-                                            </div>
-                                        </div>
+                            {data.students.length === 0 ? (
+                                <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-500 ring-1 ring-gray-200/70">
+                                    Студенты появятся здесь после того, как выберут эту группу в анкете.
+                                </p>
+                            ) : (
+                                <div className="overflow-hidden rounded-md border border-gray-200">
+                                    <div className="hidden grid-cols-[48px_1.4fr_120px_120px_1.2fr_1.4fr_120px] gap-3 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 lg:grid">
+                                        <span>№</span>
+                                        <span>ФИО</span>
+                                        <span>Дата рожд.</span>
+                                        <span>ИИН</span>
+                                        <span>Контакты</span>
+                                        <span>Социальный статус</span>
+                                        <span className="text-right">
+                                            Действие
+                                        </span>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="divide-y divide-gray-200">
+                                        {data.students.map((student, index) => (
+                                            <div
+                                                key={
+                                                    student.profile_id ??
+                                                    student.user_id ??
+                                                    index
+                                                }
+                                                className="grid gap-3 px-4 py-4 text-sm lg:grid-cols-[48px_1.4fr_120px_120px_1.2fr_1.4fr_120px] lg:items-center"
+                                            >
+                                                <div className="font-semibold text-gray-500">
+                                                    {index + 1}
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-gray-950">
+                                                        {displayValue(
+                                                            student.full_name,
+                                                        )}
+                                                    </p>
+                                                    <p className="mt-1 text-xs text-gray-500 lg:hidden">
+                                                        ИИН:{" "}
+                                                        {displayValue(
+                                                            student.iin,
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                <div className="text-gray-700">
+                                                    {displayValue(
+                                                        student.birth_date,
+                                                    )}
+                                                </div>
+                                                <div className="hidden text-gray-700 lg:block">
+                                                    {displayValue(student.iin)}
+                                                </div>
+                                                <div className="text-gray-700">
+                                                    {compactValue(
+                                                        student.contact_details,
+                                                        60,
+                                                    )}
+                                                </div>
+                                                <div className="text-gray-700">
+                                                    {compactValue(
+                                                        student.social_status,
+                                                        85,
+                                                    )}
+                                                </div>
+                                                <div className="flex justify-start lg:justify-end">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setSelectedStudentIndex(
+                                                                index,
+                                                            )
+                                                        }
+                                                        className="inline-flex items-center justify-center rounded-md border border-[#355da8] px-3 py-2 text-sm font-semibold text-[#355da8] transition hover:bg-[#f4f7fc]"
+                                                    >
+                                                        Подробнее
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </section>
 
                         <section className="border-b border-gray-200 p-6">
-                            <h3 className="mb-5 text-base font-semibold text-gray-900">
-                                Социальный статус
-                            </h3>
+                            <div className={sectionHeadingBlockClass}>
+                                <h3 className={sectionHeadingTitleClass}>
+                                    Социальный статус
+                                </h3>
+                                <p className={sectionHeadingDescriptionClass}>
+                                    Показатели считаются автоматически по
+                                    анкетам студентов этой группы.
+                                </p>
+                            </div>
                             <div className="divide-y divide-gray-200 rounded-md border border-gray-200">
                                 {summaryFields.map(([key, label]) => (
                                     <div
@@ -825,13 +607,8 @@ export default function Edit({ passport }) {
                                             value={valueOrEmpty(
                                                 data.summary[key],
                                             )}
-                                            onChange={(event) =>
-                                                setSummaryField(
-                                                    key,
-                                                    event.target.value,
-                                                )
-                                            }
-                                            className="w-24 shrink-0 text-right"
+                                            readOnly
+                                            className="w-24 shrink-0 bg-gray-50 text-right text-gray-700"
                                         />
                                     </div>
                                 ))}
@@ -839,228 +616,91 @@ export default function Edit({ passport }) {
                         </section>
 
                         <section className="border-b border-gray-200 p-6">
-                            <div className="mb-5 flex items-center justify-between gap-4">
-                                <h3 className="text-base font-semibold text-gray-900">
+                            <div className={sectionHeadingBlockClass}>
+                                <h3 className={sectionHeadingTitleClass}>
                                     Выбывшие студенты
                                 </h3>
-                                <SecondaryButton
-                                    type="button"
-                                    onClick={addDepartedStudent}
-                                >
-                                    Добавить студента
-                                </SecondaryButton>
+                                <p className={sectionHeadingDescriptionClass}>
+                                    Список формируется автоматически из
+                                    портретов студентов со статусом
+                                    &quot;Выбыл&quot;.
+                                </p>
                             </div>
 
-                            <div className="space-y-5">
-                                {data.departed_students.map(
-                                    (student, index) => (
-                                        <div
-                                            key={index}
-                                            className="rounded-md border border-gray-200"
-                                        >
-                                            <div className="flex items-center justify-between gap-4 border-b border-gray-200 bg-gray-50 px-4 py-3">
-                                                <h4 className="text-sm font-semibold text-gray-900">
-                                                    Выбывший студент №
-                                                    {index + 1}
-                                                </h4>
-                                                <DangerButton
-                                                    type="button"
-                                                    onClick={() =>
-                                                        removeDepartedStudent(
-                                                            index,
-                                                        )
+                            {data.departed_students.length === 0 ? (
+                                <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-500 ring-1 ring-gray-200/70">
+                                    Выбывших студентов в этой группе нет.
+                                </p>
+                            ) : (
+                                <div className="overflow-hidden rounded-md border border-gray-200">
+                                    <div className="hidden grid-cols-[48px_1.4fr_1.2fr_1.2fr_120px_120px_1.4fr] gap-3 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 lg:grid">
+                                        <span>№</span>
+                                        <span>ФИО</span>
+                                        <span>Факультет</span>
+                                        <span>ОП</span>
+                                        <span>Группа</span>
+                                        <span>Дата</span>
+                                        <span>Причина</span>
+                                    </div>
+                                    <div className="divide-y divide-gray-200">
+                                        {data.departed_students.map(
+                                            (student, index) => (
+                                                <div
+                                                    key={
+                                                        student.profile_id ??
+                                                        student.user_id ??
+                                                        index
                                                     }
+                                                    className="grid gap-3 px-4 py-4 text-sm lg:grid-cols-[48px_1.4fr_1.2fr_1.2fr_120px_120px_1.4fr] lg:items-center"
                                                 >
-                                                    Удалить
-                                                </DangerButton>
-                                            </div>
-
-                                            <div className="space-y-6 p-4">
-                                                <div>
-                                                    <h5 className="mb-4 text-sm font-medium text-gray-700">
-                                                        Данные студента
-                                                    </h5>
-                                                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                                        <Field label="ФИО">
-                                                            <TextInput
-                                                                value={valueOrEmpty(
-                                                                    student.full_name,
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    setDepartedStudentField(
-                                                                        index,
-                                                                        "full_name",
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
+                                                    <div className="font-semibold text-gray-500">
+                                                        {index + 1}
+                                                    </div>
+                                                    <div className="font-medium text-gray-950">
+                                                        {displayValue(
+                                                            student.full_name,
+                                                        )}
+                                                    </div>
+                                                    <div className="text-gray-700">
+                                                        {compactValue(
+                                                            student.faculty,
+                                                            60,
+                                                        )}
+                                                    </div>
+                                                    <div className="text-gray-700">
+                                                        {compactValue(
+                                                            student.education_program,
+                                                            60,
+                                                        )}
+                                                    </div>
+                                                    <div className="text-gray-700">
+                                                        {displayValue(
+                                                            student.group_name,
+                                                        )}
+                                                    </div>
+                                                    <div className="text-gray-700">
+                                                        {displayValue(
+                                                            student.departed_at,
+                                                        )}
+                                                    </div>
+                                                    <div className="text-gray-700">
+                                                        {displayValue(
+                                                            student.reason_label,
+                                                        )}
+                                                        {student.reason_other && (
+                                                            <span className="block text-xs text-gray-500">
+                                                                {
+                                                                    student.reason_other
                                                                 }
-                                                                className="w-full"
-                                                            />
-                                                        </Field>
-
-                                                        <Field label="Факультет">
-                                                            <TextInput
-                                                                value={valueOrEmpty(
-                                                                    student.faculty,
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    setDepartedStudentField(
-                                                                        index,
-                                                                        "faculty",
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                className="w-full"
-                                                            />
-                                                        </Field>
-
-                                                        <Field label="Образовательная программа">
-                                                            <TextInput
-                                                                value={valueOrEmpty(
-                                                                    student.education_program,
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    setDepartedStudentField(
-                                                                        index,
-                                                                        "education_program",
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                className="w-full"
-                                                            />
-                                                        </Field>
-
-                                                        <Field label="Группа">
-                                                            <TextInput
-                                                                value={valueOrEmpty(
-                                                                    student.group_name,
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    setDepartedStudentField(
-                                                                        index,
-                                                                        "group_name",
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                className="w-full"
-                                                            />
-                                                        </Field>
-
-                                                        <Field label="Курс">
-                                                            <TextInput
-                                                                type="number"
-                                                                min="1"
-                                                                max="8"
-                                                                value={valueOrEmpty(
-                                                                    student.course,
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    setDepartedStudentField(
-                                                                        index,
-                                                                        "course",
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                className="w-full"
-                                                            />
-                                                        </Field>
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
-
-                                                <div className="border-t border-gray-100 pt-5">
-                                                    <h5 className="mb-4 text-sm font-medium text-gray-700">
-                                                        Причина выбытия
-                                                    </h5>
-                                                    <div className="grid gap-4 md:grid-cols-2">
-                                                        <Field label="Причина">
-                                                            <select
-                                                                value={valueOrEmpty(
-                                                                    student.reason,
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    setDepartedStudentField(
-                                                                        index,
-                                                                        "reason",
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                            >
-                                                                <option value="">
-                                                                    Не указано
-                                                                </option>
-                                                                {departureReasons.map(
-                                                                    ([
-                                                                        value,
-                                                                        label,
-                                                                    ]) => (
-                                                                        <option
-                                                                            key={
-                                                                                value
-                                                                            }
-                                                                            value={
-                                                                                value
-                                                                            }
-                                                                        >
-                                                                            {
-                                                                                label
-                                                                            }
-                                                                        </option>
-                                                                    ),
-                                                                )}
-                                                            </select>
-                                                        </Field>
-
-                                                        <Field label="Другое">
-                                                            <textarea
-                                                                value={valueOrEmpty(
-                                                                    student.reason_other,
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    setDepartedStudentField(
-                                                                        index,
-                                                                        "reason_other",
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                rows={3}
-                                                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                            />
-                                                        </Field>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ),
-                                )}
-                            </div>
+                                            ),
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </section>
 
                         <div className="flex items-center justify-end gap-4 bg-gray-50 px-6 py-4">
@@ -1076,6 +716,68 @@ export default function Edit({ passport }) {
                     </form>
                 </div>
             </div>
+
+            {selectedStudent && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 px-4 py-6">
+                    <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-xl">
+                        <div className="flex items-start justify-between gap-4 border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-[#426aa8]">
+                                    Студент группы
+                                </p>
+                                <h3 className="mt-1 text-lg font-semibold text-[#274f93]">
+                                    {displayValue(selectedStudent.full_name)}
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedStudentIndex(null)}
+                                className="rounded-md px-3 py-2 text-sm font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                            >
+                                Закрыть
+                            </button>
+                        </div>
+
+                        <div className="max-h-[calc(90vh-150px)] overflow-y-auto px-6 py-5">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {studentColumns.map(([key, label]) => (
+                                    <div
+                                        key={key}
+                                        className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3"
+                                    >
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            {label}
+                                        </p>
+                                        <p className="mt-1 whitespace-pre-wrap text-sm text-gray-900">
+                                            {displayValue(
+                                                selectedStudent[key],
+                                            )}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                            {selectedStudent.profile_url && (
+                                <Link
+                                    href={selectedStudent.profile_url}
+                                    className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f5192]"
+                                >
+                                    Открыть портрет
+                                </Link>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setSelectedStudentIndex(null)}
+                                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Закрыть
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </AuthenticatedLayout>
     );
 }

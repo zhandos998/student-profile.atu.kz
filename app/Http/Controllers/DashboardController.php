@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\AcademicProfile;
 use App\Models\ExtracurricularAchievement;
 use App\Models\PortfolioItem;
-use App\Models\Role;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\StudentRiskService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -15,6 +15,10 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly StudentRiskService $riskService)
+    {
+    }
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -28,13 +32,13 @@ class DashboardController extends Controller
         ]);
 
         return Inertia::render('Dashboard', [
-            'studentHome' => $user?->role?->slug === Role::STUDENT
+            'studentHome' => $user?->canUseOwnStudentProfile()
                 ? $this->studentHome($user)
                 : null,
-            'curatorAdvisorHome' => in_array($user?->role?->slug, [Role::CURATOR, Role::ADVISOR], true)
-                ? $this->curatorAdvisorHome()
+            'curatorAdvisorHome' => $user?->canViewCuratorAdvisorDashboard()
+                ? $this->curatorAdvisorHome($user)
                 : null,
-            'administrationHome' => in_array($user?->role?->slug, [Role::ADMINISTRATION, Role::ADMINISTRATOR_DIT], true)
+            'administrationHome' => $user?->canViewAnalyticsDashboard()
                 ? $this->administrationHome()
                 : null,
         ]);
@@ -85,33 +89,7 @@ class DashboardController extends Controller
 
     private function profileCompletion(User $user): int
     {
-        $profile = $user->studentProfile;
-
-        if ($profile === null) {
-            return 0;
-        }
-
-        return $this->studentProfileCompletion($profile);
-    }
-
-    private function studentProfileCompletion(StudentProfile $profile): int
-    {
-        $fields = [
-            $profile->full_name,
-            $profile->birth_date,
-            $profile->faculty,
-            $profile->group_name,
-            $profile->specialty,
-            $profile->course,
-            $profile->contact_details,
-            $profile->residence_address,
-        ];
-
-        $filled = collect($fields)
-            ->filter(fn ($value): bool => filled($value))
-            ->count();
-
-        return (int) round(($filled / count($fields)) * 100);
+        return $this->riskService->profileCompletion($user->studentProfile);
     }
 
     /**
@@ -124,9 +102,9 @@ class DashboardController extends Controller
      *     notifications: array<int, array{title: string, description: string, target: int}>
      * }
      */
-    private function curatorAdvisorHome(): array
+    private function curatorAdvisorHome(User $user): array
     {
-        $profiles = $this->studentProfilesForSupervision();
+        $profiles = $this->studentProfilesForSupervision($user);
 
         return [
             'students' => [
@@ -156,13 +134,28 @@ class DashboardController extends Controller
     /**
      * @return Collection<int, StudentProfile>
      */
-    private function studentProfilesForSupervision(): Collection
+    private function studentProfilesForSupervision(?User $user = null): Collection
     {
-        return StudentProfile::query()
+        $query = StudentProfile::query()
             ->with(['user.academicProfile', 'user.extracurricularAchievements', 'user.portfolioItems'])
             ->orderBy('group_name')
-            ->orderBy('full_name')
-            ->get();
+            ->orderBy('full_name');
+
+        if ($user && ! $user->canManageStudentProfiles() && ! $user->canViewAllStudentData()) {
+            $groups = $user->studentGroups()->get(['id', 'name']);
+            $groupIds = $groups->pluck('id');
+            $groupNames = $groups->pluck('name')->filter()->values();
+
+            $query->where(function ($query) use ($groupIds, $groupNames): void {
+                $query->whereIn('student_group_id', $groupIds);
+
+                if ($groupNames->isNotEmpty()) {
+                    $query->orWhereIn('group_name', $groupNames);
+                }
+            });
+        }
+
+        return $query->get();
     }
 
     /**
@@ -172,35 +165,13 @@ class DashboardController extends Controller
     private function socialPassportRows(Collection $profiles): array
     {
         return $profiles
-            ->filter(fn (StudentProfile $profile): bool => $this->studentSocialStatuses($profile) !== [])
+            ->filter(fn (StudentProfile $profile): bool => $this->riskService->socialStatusLabels($profile) !== [])
             ->take(6)
             ->map(fn (StudentProfile $profile): array => [
                 'name' => $profile->full_name ?: $profile->user?->name ?: 'Без имени',
                 'group' => $profile->group_name,
-                'statuses' => $this->studentSocialStatuses($profile),
+                'statuses' => $this->riskService->socialStatusLabels($profile),
             ])
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function studentSocialStatuses(StudentProfile $profile): array
-    {
-        return collect([
-            filled($profile->disability_group) ? 'Инвалид: '.$profile->disability_group : null,
-            filled($profile->disabled_parent_group) ? 'Родитель инвалид: '.$profile->disabled_parent_group : null,
-            filled($profile->disabled_sibling_group) ? 'Брат/сестра инвалид: '.$profile->disabled_sibling_group : null,
-            $profile->is_orphan ? 'Сирота' : null,
-            $profile->is_half_orphan ? 'Полусирота'.(filled($profile->half_orphan_type) ? ': '.$profile->half_orphan_type : '') : null,
-            $profile->is_incomplete_family ? 'Неполная семья' : null,
-            $profile->is_large_family ? 'Многодетная семья' : null,
-            $profile->is_low_income ? 'Малообеспеченная семья' : null,
-            filled($profile->foreign_student_country) ? 'Иностранный студент: '.$profile->foreign_student_country : null,
-            filled($profile->dormitory_details) ? 'Проживает в общежитии' : null,
-        ])
-            ->filter()
             ->values()
             ->all();
     }
@@ -215,25 +186,25 @@ class DashboardController extends Controller
             [
                 'label' => 'Снижение успеваемости',
                 'count' => $profiles
-                    ->filter(fn (StudentProfile $profile): bool => $this->hasLowGpa($profile->user?->academicProfile))
+                    ->filter(fn (StudentProfile $profile): bool => $this->riskService->hasLowGpa($profile->user?->academicProfile))
                     ->count(),
             ],
             [
                 'label' => 'Академическая задолженность',
                 'count' => $profiles
-                    ->filter(fn (StudentProfile $profile): bool => $this->hasAcademicDebt($profile->user?->academicProfile?->academic_debt))
+                    ->filter(fn (StudentProfile $profile): bool => $this->riskService->hasAcademicDebt($profile->user?->academicProfile?->academic_debt))
                     ->count(),
             ],
             [
                 'label' => 'Социальные факторы',
                 'count' => $profiles
-                    ->filter(fn (StudentProfile $profile): bool => $this->studentSocialStatuses($profile) !== [])
+                    ->filter(fn (StudentProfile $profile): bool => $this->riskService->socialStatusLabels($profile) !== [])
                     ->count(),
             ],
             [
                 'label' => 'Нужно обновить данные',
                 'count' => $profiles
-                    ->filter(fn (StudentProfile $profile): bool => $this->studentProfileCompletion($profile) < 80)
+                    ->filter(fn (StudentProfile $profile): bool => $this->riskService->profileCompletion($profile) < 80)
                     ->count(),
             ],
         ];
@@ -249,39 +220,12 @@ class DashboardController extends Controller
             ->map(fn (StudentProfile $profile): array => [
                 'name' => $profile->full_name ?: $profile->user?->name ?: 'Без имени',
                 'group' => $profile->group_name,
-                'reasons' => $this->studentRiskReasons($profile),
+                'reasons' => $this->riskService->dashboardRiskReasons($profile),
             ])
             ->filter(fn (array $student): bool => $student['reasons'] !== [])
             ->take(6)
             ->values()
             ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function studentRiskReasons(StudentProfile $profile): array
-    {
-        $reasons = [];
-        $academic = $profile->user?->academicProfile;
-
-        if ($this->hasLowGpa($academic)) {
-            $reasons[] = 'GPA ниже 2.5';
-        }
-
-        if ($this->hasAcademicDebt($academic?->academic_debt)) {
-            $reasons[] = 'Есть академическая задолженность';
-        }
-
-        if ($this->studentSocialStatuses($profile) !== []) {
-            $reasons[] = 'Есть социальные факторы';
-        }
-
-        if ($this->studentProfileCompletion($profile) < 80) {
-            $reasons[] = 'Анкета заполнена не полностью';
-        }
-
-        return $reasons;
     }
 
     /**
@@ -311,7 +255,7 @@ class DashboardController extends Controller
                 ? (int) round(($engagedCount / $profiles->count()) * 100)
                 : 0,
             'incompleteProfiles' => $profiles
-                ->filter(fn (StudentProfile $profile): bool => $this->studentProfileCompletion($profile) < 80)
+                ->filter(fn (StudentProfile $profile): bool => $this->riskService->profileCompletion($profile) < 80)
                 ->count(),
             'byGroups' => $this->analyticsByGroups($profiles),
         ];
@@ -337,7 +281,7 @@ class DashboardController extends Controller
                     'students' => $groupProfiles->count(),
                     'averageGpa' => $gpaValues->isNotEmpty() ? round((float) $gpaValues->avg(), 2) : null,
                     'risks' => $groupProfiles
-                        ->filter(fn (StudentProfile $profile): bool => $this->studentRiskReasons($profile) !== [])
+                        ->filter(fn (StudentProfile $profile): bool => $this->riskService->dashboardRiskReasons($profile) !== [])
                         ->count(),
                 ];
             })
@@ -387,7 +331,7 @@ class DashboardController extends Controller
         $studentCount = $profiles->count();
         $averageGpa = $this->averageGpa($profiles);
         $riskCount = $profiles
-            ->filter(fn (StudentProfile $profile): bool => $this->studentRiskReasons($profile) !== [])
+            ->filter(fn (StudentProfile $profile): bool => $this->riskService->dashboardRiskReasons($profile) !== [])
             ->count();
         $engagedCount = $profiles
             ->filter(fn (StudentProfile $profile): bool => ($profile->user?->extracurricularAchievements?->isNotEmpty() ?? false)
@@ -535,13 +479,13 @@ class DashboardController extends Controller
     {
         $studentCount = $profiles->count();
         $averageCompletion = $studentCount > 0
-            ? (int) round($profiles->map(fn (StudentProfile $profile): int => $this->studentProfileCompletion($profile))->avg())
+            ? (int) round($profiles->map(fn (StudentProfile $profile): int => $this->riskService->profileCompletion($profile))->avg())
             : 0;
         $academicDebtCount = $profiles
-            ->filter(fn (StudentProfile $profile): bool => $this->hasAcademicDebt($profile->user?->academicProfile?->academic_debt))
+            ->filter(fn (StudentProfile $profile): bool => $this->riskService->hasAcademicDebt($profile->user?->academicProfile?->academic_debt))
             ->count();
         $lowGpaCount = $profiles
-            ->filter(fn (StudentProfile $profile): bool => $this->hasLowGpa($profile->user?->academicProfile))
+            ->filter(fn (StudentProfile $profile): bool => $this->riskService->hasLowGpa($profile->user?->academicProfile))
             ->count();
         $portfolioFiles = PortfolioItem::query()->count();
         $achievements = ExtracurricularAchievement::query()->count();
@@ -646,14 +590,4 @@ class DashboardController extends Controller
         ];
     }
 
-    private function hasLowGpa(?AcademicProfile $academic): bool
-    {
-        return $academic?->gpa !== null && (float) $academic->gpa < 2.5;
-    }
-
-    private function hasAcademicDebt(?string $academicDebt): bool
-    {
-        return $academicDebt !== null
-            && ! in_array(trim($academicDebt), ['', 'Нет', 'нет', 'НЕТ'], true);
-    }
 }

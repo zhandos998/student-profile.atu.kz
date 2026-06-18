@@ -3,50 +3,42 @@
 namespace App\Http\Controllers;
 
 use App\Models\HealthPassport;
+use App\Models\Role;
+use App\Models\User;
 use App\Support\StudentProfileOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class HealthPassportController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): RedirectResponse
     {
         abort_unless($request->user()?->canViewHealthPassport(), 403);
 
-        $passport = $request->user()->healthPassport;
-
-        return Inertia::render('HealthPassport/Index', [
-            'passport' => [
-                'fluorography_date' => $passport?->fluorography_date?->format('Y-m-d') ?? '',
-                'fluorography_image_url' => $passport?->fluorography_image_path
-                    ? Storage::disk('public')->url($passport->fluorography_image_path)
-                    : null,
-                'dispensary_accounting' => $passport?->dispensary_accounting === null
-                    ? ''
-                    : (string) (int) $passport->dispensary_accounting,
-                'diagnosis' => $passport?->diagnosis ?? '',
-                'disability_group' => $passport?->disability_group ?? '',
-                'psychological_diagnosis' => $passport?->psychological_diagnosis ?? '',
-                'pregnancy' => $passport?->pregnancy ?? '',
-            ],
-            'options' => [
-                'dispensaryAccounting' => [
-                    ['value' => '1', 'label' => 'Да'],
-                    ['value' => '0', 'label' => 'Нет'],
-                ],
-                'disabilityGroups' => StudentProfileOptions::toSelectOptions(StudentProfileOptions::DISABILITY_GROUPS),
-            ],
-        ]);
+        return redirect()->route('student-profiles.index');
     }
 
     public function update(Request $request): RedirectResponse
     {
         abort_unless($request->user()?->canViewHealthPassport(), 403);
 
+        return redirect()->route('student-profiles.index');
+    }
+
+    public function updateForStudent(Request $request, User $student): RedirectResponse
+    {
+        abort_unless($request->user()?->canEditStudentHealthPassport(), 403);
+        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+
+        $this->persist($request, $student);
+
+        return back()->with('status', 'student-health-passport-saved');
+    }
+
+    private function persist(Request $request, User $user): HealthPassport
+    {
         $validated = $request->validate([
             'fluorography_date' => ['nullable', 'date'],
             'fluorography_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
@@ -57,7 +49,7 @@ class HealthPassportController extends Controller
             'pregnancy' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $passport = HealthPassport::query()->firstOrNew(['user_id' => $request->user()->id]);
+        $passport = HealthPassport::query()->firstOrNew(['user_id' => $user->id]);
 
         if ($request->hasFile('fluorography_image')) {
             if ($passport->fluorography_image_path) {
@@ -77,6 +69,6 @@ class HealthPassportController extends Controller
         $passport->fill($validated);
         $passport->save();
 
-        return back()->with('status', 'health-passport-saved');
+        return $passport;
     }
 }

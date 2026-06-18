@@ -13,9 +13,8 @@ function formatValue(value, fallback = 'Не указано') {
 function StudentPanel({ title, children }) {
     return (
         <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
-            <div className="flex items-center gap-3 px-5 pt-5">
-                <span className="h-5 w-1 rounded-full bg-[#355da8]" />
-                <h3 className="text-lg font-semibold text-gray-950">
+            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
+                <h3 className="text-base font-semibold text-[#274f93]">
                     {title}
                 </h3>
             </div>
@@ -268,7 +267,7 @@ function CuratorAdvisorHome({ data }) {
                         </p>
                     </div>
                     <Link
-                        href={route('group-social-passport.edit')}
+                        href={route('groups.index')}
                         className={actionClass}
                     >
                         Социальный паспорт группы
@@ -599,20 +598,24 @@ function AdministrationHome({ data }) {
                     {data.reports.map((report) => (
                         <div
                             key={report.type}
-                            className="flex flex-col rounded-md bg-gray-50 p-4 ring-1 ring-gray-200/70"
+                            className="flex flex-col overflow-hidden rounded-md bg-white ring-1 ring-[#dbe5f6]"
                         >
-                            <h4 className="text-base font-semibold text-gray-900">
-                                {report.title}
-                            </h4>
-                            <p className="mt-3 flex-1 text-sm text-gray-600">
-                                {report.description}
-                            </p>
-                            <a
-                                href={report.exportUrl}
-                                className={`${actionClass} mt-4`}
-                            >
-                                Excel
-                            </a>
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
+                                <h4 className="text-base font-semibold text-[#274f93]">
+                                    {report.title}
+                                </h4>
+                            </div>
+                            <div className="flex flex-1 flex-col p-4">
+                                <p className="flex-1 text-sm text-gray-600">
+                                    {report.description}
+                                </p>
+                                <a
+                                    href={report.exportUrl}
+                                    className={`${actionClass} mt-4`}
+                                >
+                                    Excel
+                                </a>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -623,12 +626,18 @@ function AdministrationHome({ data }) {
 
 function ModuleCard({ title, description, href }) {
     return (
-        <div className="flex flex-col rounded-md bg-gray-50 p-4 ring-1 ring-gray-200/70">
-            <h3 className="text-base font-semibold text-gray-950">{title}</h3>
-            <p className="mt-2 flex-1 text-sm text-gray-600">{description}</p>
-            <Link href={href} className={`${actionClass} mt-4`}>
-                Открыть
-            </Link>
+        <div className="flex flex-col overflow-hidden rounded-md bg-white ring-1 ring-[#dbe5f6]">
+            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
+                <h3 className="text-base font-semibold text-[#274f93]">
+                    {title}
+                </h3>
+            </div>
+            <div className="flex flex-1 flex-col p-4">
+                <p className="flex-1 text-sm text-gray-600">{description}</p>
+                <Link href={href} className={`${actionClass} mt-4`}>
+                    Открыть
+                </Link>
+            </div>
         </div>
     );
 }
@@ -780,9 +789,9 @@ export default function Dashboard({
                             )}
                             {canViewGroupSocialPassport && (
                                 <ModuleCard
-                                    title="Социальный паспорт"
+                                    title="Социальный паспорт группы"
                                     description="Сведения о группе, студентах и количественный социальный статус."
-                                    href={route('group-social-passport.edit')}
+                                    href={route('groups.index')}
                                 />
                             )}
                             {canViewAnalyticsDashboard && (

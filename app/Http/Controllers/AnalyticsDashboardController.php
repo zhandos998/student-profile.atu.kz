@@ -10,6 +10,7 @@ use App\Models\PsychologicalProfile;
 use App\Models\Role;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\StudentRiskService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -18,6 +19,10 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AnalyticsDashboardController extends Controller
 {
+    public function __construct(private readonly StudentRiskService $riskService)
+    {
+    }
+
     public function index(Request $request): Response
     {
         abort_unless($request->user()?->canViewAnalyticsDashboard(), 403);
@@ -124,15 +129,9 @@ class AnalyticsDashboardController extends Controller
     private function academicRiskUserIds(): Collection
     {
         return AcademicProfile::query()
-            ->whereNotNull('gpa')
-            ->where('gpa', '<', 2)
+            ->get(['user_id', 'gpa', 'academic_debt'])
+            ->filter(fn (AcademicProfile $profile): bool => $this->riskService->academicRiskReasons($profile) !== [])
             ->pluck('user_id')
-            ->merge(
-                AcademicProfile::query()
-                    ->whereNotNull('academic_debt')
-                    ->whereNotIn('academic_debt', ['', 'Нет', 'нет', 'НЕТ'])
-                    ->pluck('user_id'),
-            )
             ->unique()
             ->values();
     }
@@ -156,7 +155,7 @@ class AnalyticsDashboardController extends Controller
                 'benefits',
                 'social_support_need_status',
             ])
-            ->filter(fn (StudentProfile $profile): bool => $this->hasSocialRisk($profile))
+            ->filter(fn (StudentProfile $profile): bool => $this->riskService->hasSocialRisk($profile))
             ->pluck('user_id')
             ->unique()
             ->values();
@@ -169,13 +168,13 @@ class AnalyticsDashboardController extends Controller
     {
         return PsychologicalProfile::query()
             ->get(['user_id', 'testing_results', 'individual_features'])
-            ->filter(fn (PsychologicalProfile $profile): bool => $this->hasMeaningfulText($profile->testing_results)
-                || $this->hasMeaningfulText($profile->individual_features))
+            ->filter(fn (PsychologicalProfile $profile): bool => $this->riskService->hasMeaningfulText($profile->testing_results)
+                || $this->riskService->hasMeaningfulText($profile->individual_features))
             ->pluck('user_id')
             ->merge(
                 HealthPassport::query()
                     ->get(['user_id', 'psychological_diagnosis'])
-                    ->filter(fn (HealthPassport $passport): bool => $this->hasMeaningfulText($passport->psychological_diagnosis))
+                    ->filter(fn (HealthPassport $passport): bool => $this->riskService->hasMeaningfulText($passport->psychological_diagnosis))
                     ->pluck('user_id'),
             )
             ->unique()
@@ -195,38 +194,10 @@ class AnalyticsDashboardController extends Controller
                 'disability_group',
                 'pregnancy',
             ])
-            ->filter(fn (HealthPassport $passport): bool => $passport->dispensary_accounting === true
-                || $this->hasMeaningfulText($passport->diagnosis)
-                || $this->hasMeaningfulText($passport->disability_group)
-                || $this->hasMeaningfulText($passport->pregnancy))
+            ->filter(fn (HealthPassport $passport): bool => $this->riskService->medicalRiskReasons($passport) !== [])
             ->pluck('user_id')
             ->unique()
             ->values();
-    }
-
-    private function hasSocialRisk(StudentProfile $profile): bool
-    {
-        return $this->hasMeaningfulText($profile->disability_group)
-            || $this->hasMeaningfulText($profile->disabled_parent_group)
-            || $this->hasMeaningfulText($profile->disabled_sibling_group)
-            || (bool) $profile->is_orphan
-            || (bool) $profile->is_half_orphan
-            || (bool) $profile->is_incomplete_family
-            || (bool) $profile->is_large_family
-            || (bool) $profile->is_low_income
-            || filled($profile->benefits)
-            || $profile->social_support_need_status === 'needs';
-    }
-
-    private function hasMeaningfulText(mixed $value): bool
-    {
-        if ($value === null) {
-            return false;
-        }
-
-        $text = trim((string) $value);
-
-        return ! in_array($text, ['', 'Нет', 'нет', 'НЕТ', 'Не указано', 'не указано'], true);
     }
 
     /**
@@ -598,7 +569,7 @@ class AnalyticsDashboardController extends Controller
             ->filter(fn ($gpa): bool => $gpa !== null);
 
         $debtCount = $profiles
-            ->filter(fn (StudentProfile $profile): bool => $this->hasAcademicDebt($profile->user?->academicProfile?->academic_debt))
+            ->filter(fn (StudentProfile $profile): bool => $this->riskService->hasAcademicDebt($profile->user?->academicProfile?->academic_debt))
             ->count();
 
         $base = [
@@ -625,8 +596,7 @@ class AnalyticsDashboardController extends Controller
         return AcademicProfile::query()
             ->with('user.studentProfile')
             ->get()
-            ->filter(fn (AcademicProfile $profile): bool => ($profile->gpa !== null && (float) $profile->gpa < 2)
-                || $this->hasAcademicDebt($profile->academic_debt))
+            ->filter(fn (AcademicProfile $profile): bool => $this->riskService->academicRiskReasons($profile) !== [])
             ->map(function (AcademicProfile $profile): array {
                 $student = $profile->user?->studentProfile;
 
@@ -638,10 +608,7 @@ class AnalyticsDashboardController extends Controller
                     $student?->course,
                     $profile->gpa !== null ? (float) $profile->gpa : null,
                     $profile->academic_debt,
-                    $this->riskReasonText([
-                        $profile->gpa !== null && (float) $profile->gpa < 2 ? 'Низкий GPA' : null,
-                        $this->hasAcademicDebt($profile->academic_debt) ? 'Академическая задолженность' : null,
-                    ]),
+                    $this->riskReasonText($this->riskService->academicRiskReasons($profile)),
                 ];
             })
             ->values()
@@ -656,14 +623,14 @@ class AnalyticsDashboardController extends Controller
         return StudentProfile::query()
             ->with('user')
             ->get()
-            ->filter(fn (StudentProfile $profile): bool => $this->hasSocialRisk($profile))
+            ->filter(fn (StudentProfile $profile): bool => $this->riskService->hasSocialRisk($profile))
             ->map(fn (StudentProfile $profile): array => [
                 $this->reportStudentName($profile->user),
                 $profile->user?->email,
                 $profile->faculty,
                 $profile->group_name,
                 $profile->course,
-                $this->riskReasonText($this->socialRiskReasons($profile)),
+                $this->riskReasonText($this->riskService->socialRiskReasons($profile)),
             ])
             ->values()
             ->all();
@@ -684,7 +651,7 @@ class AnalyticsDashboardController extends Controller
             ->get()
             ->map(fn (User $user): array => [
                 'user' => $user,
-                'reasons' => $this->psychologicalRiskReasons($user),
+                'reasons' => $this->riskService->psychologicalRiskReasons($user),
             ])
             ->filter(fn (array $row): bool => $row['reasons'] !== [])
             ->map(function (array $row): array {
@@ -714,7 +681,7 @@ class AnalyticsDashboardController extends Controller
             ->get()
             ->map(fn (HealthPassport $passport): array => [
                 'passport' => $passport,
-                'reasons' => $this->medicalRiskReasons($passport),
+                'reasons' => $this->riskService->medicalRiskReasons($passport),
             ])
             ->filter(fn (array $row): bool => $row['reasons'] !== [])
             ->map(function (array $row): array {
@@ -730,64 +697,6 @@ class AnalyticsDashboardController extends Controller
                     $this->riskReasonText($row['reasons']),
                 ];
             })
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function socialRiskReasons(StudentProfile $profile): array
-    {
-        return collect([
-            $this->hasMeaningfulText($profile->disability_group) ? 'Инвалидность студента: '.$profile->disability_group : null,
-            $this->hasMeaningfulText($profile->disabled_parent_group) ? 'Родитель/ли инвалиды: '.$profile->disabled_parent_group : null,
-            $this->hasMeaningfulText($profile->disabled_sibling_group) ? 'Сестра/брат инвалид: '.$profile->disabled_sibling_group : null,
-            $profile->is_orphan ? 'Сирота'.($this->hasMeaningfulText($profile->legal_representative) ? ': '.$profile->legal_representative : '') : null,
-            $profile->is_half_orphan ? 'Полусирота'.($this->hasMeaningfulText($profile->half_orphan_type) ? ': '.$profile->half_orphan_type : '') : null,
-            $profile->is_incomplete_family ? 'Неполная семья' : null,
-            $profile->is_large_family ? 'Многодетная семья' : null,
-            $profile->is_low_income ? 'Малообеспеченная семья' : null,
-            filled($profile->benefits) ? 'Льготы: '.$this->listValue($profile->benefits) : null,
-            $profile->social_support_need_status === 'needs'
-                ? 'Нуждается в социальной поддержке'.($this->hasMeaningfulText($profile->social_support_need_details) ? ': '.$profile->social_support_need_details : '')
-                : null,
-        ])
-            ->filter()
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function psychologicalRiskReasons(User $user): array
-    {
-        $profile = $user->psychologicalProfile;
-        $passport = $user->healthPassport;
-
-        return collect([
-            $this->hasMeaningfulText($profile?->testing_results) ? 'Результаты тестирований' : null,
-            $this->hasMeaningfulText($profile?->individual_features) ? 'Индивидуальные особенности' : null,
-            $this->hasMeaningfulText($passport?->psychological_diagnosis) ? 'Психологический диагноз: '.$passport?->psychological_diagnosis : null,
-        ])
-            ->filter()
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function medicalRiskReasons(HealthPassport $passport): array
-    {
-        return collect([
-            $passport->dispensary_accounting === true ? 'Диспансерный учет' : null,
-            $this->hasMeaningfulText($passport->diagnosis) ? 'Диагноз: '.$passport->diagnosis : null,
-            $this->hasMeaningfulText($passport->disability_group) ? 'Группа инвалидности: '.$passport->disability_group : null,
-            $this->hasMeaningfulText($passport->pregnancy) ? 'Беременность: '.$passport->pregnancy : null,
-        ])
-            ->filter()
             ->values()
             ->all();
     }
@@ -808,22 +717,6 @@ class AnalyticsDashboardController extends Controller
             ->filter()
             ->unique()
             ->implode(', ');
-    }
-
-    private function listValue(mixed $value): string
-    {
-        if (is_array($value)) {
-            return collect($value)
-                ->filter(fn (mixed $item): bool => $this->hasMeaningfulText($item))
-                ->implode(', ');
-        }
-
-        return trim((string) $value);
-    }
-
-    private function hasAcademicDebt(?string $value): bool
-    {
-        return $value !== null && ! in_array(trim($value), ['', 'Нет', 'нет', 'НЕТ'], true);
     }
 
     /**

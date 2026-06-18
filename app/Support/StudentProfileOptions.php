@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\StudentProfile;
+
 class StudentProfileOptions
 {
     public const GENDERS = [
@@ -124,6 +126,8 @@ class StudentProfileOptions
             'achievementLevels' => self::toSelectOptions(self::ACHIEVEMENT_LEVELS),
             'achievementResults' => self::toSelectOptions(self::ACHIEVEMENT_RESULTS),
             'portfolioTypes' => self::toSelectOptions(self::PORTFOLIO_TYPES),
+            'studentStatuses' => self::toSelectOptions(StudentProfile::STUDENT_STATUS_LABELS),
+            'departureReasons' => self::toSelectOptions(StudentProfile::DEPARTURE_REASONS),
         ];
     }
 

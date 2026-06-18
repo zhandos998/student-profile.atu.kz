@@ -8,6 +8,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'user_id',
+    'student_group_id',
+    'profile_status',
+    'student_status',
+    'departure_reason',
+    'departure_reason_other',
+    'departed_at',
+    'submitted_at',
+    'verified_at',
+    'reviewed_by_id',
+    'revision_comment',
+    'social_review_status',
+    'social_review_comment',
+    'social_reviewed_at',
+    'social_reviewed_by_id',
     'full_name',
     'birth_date',
     'study_form',
@@ -43,6 +57,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'stay_address',
     'residence_address',
     'contact_details',
+    'personal_email',
+    'parent_guardian_contacts',
     'foreign_student_country',
     'kandas_country',
     'dormitory_details',
@@ -51,12 +67,91 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class StudentProfile extends Model
 {
+    public const STATUS_NOT_STARTED = 'not_started';
+
+    public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_SUBMITTED = 'submitted';
+
+    public const STATUS_VERIFIED = 'verified';
+
+    public const STATUS_NEEDS_REVISION = 'needs_revision';
+
+    public const STUDENT_STATUS_ACTIVE = 'active';
+
+    public const STUDENT_STATUS_DEPARTED = 'departed';
+
+    public const REVIEW_PENDING = 'pending';
+
+    public const REVIEW_VERIFIED = 'verified';
+
+    public const REVIEW_NEEDS_REVISION = 'needs_revision';
+
+    public const STATUSES = [
+        self::STATUS_NOT_STARTED,
+        self::STATUS_DRAFT,
+        self::STATUS_SUBMITTED,
+        self::STATUS_VERIFIED,
+        self::STATUS_NEEDS_REVISION,
+    ];
+
+    public const STATUS_LABELS = [
+        self::STATUS_NOT_STARTED => 'Не заполнена',
+        self::STATUS_DRAFT => 'Черновик',
+        self::STATUS_SUBMITTED => 'Отправлена',
+        self::STATUS_VERIFIED => 'Проверена куратором',
+        self::STATUS_NEEDS_REVISION => 'Требует исправления',
+    ];
+
+    public const REVIEW_LABELS = [
+        self::REVIEW_PENDING => 'Ожидает проверки',
+        self::REVIEW_VERIFIED => 'Подтверждено',
+        self::REVIEW_NEEDS_REVISION => 'Требует исправления',
+    ];
+
+    public const STUDENT_STATUS_LABELS = [
+        self::STUDENT_STATUS_ACTIVE => 'Обучается',
+        self::STUDENT_STATUS_DEPARTED => 'Выбыл',
+    ];
+
+    public const DEPARTURE_REASONS = [
+        'transferred' => 'Переведен в другой университет',
+        'expelled' => 'Отчислен',
+        'deported' => 'Депортирован',
+        'death' => 'Смерть',
+        'other' => 'Другое',
+    ];
+
     /**
      * @return BelongsTo<User, StudentProfile>
      */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<StudentGroup, StudentProfile>
+     */
+    public function studentGroup(): BelongsTo
+    {
+        return $this->belongsTo(StudentGroup::class);
+    }
+
+    /**
+     * @return BelongsTo<User, StudentProfile>
+     */
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by_id');
+    }
+
+    /**
+     * @return BelongsTo<User, StudentProfile>
+     */
+    public function socialReviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'social_reviewed_by_id');
     }
 
     /**
@@ -68,7 +163,14 @@ class StudentProfile extends Model
     {
         return [
             'birth_date' => 'date:Y-m-d',
+            'departed_at' => 'date:Y-m-d',
             'course' => 'integer',
+            'student_group_id' => 'integer',
+            'submitted_at' => 'datetime',
+            'verified_at' => 'datetime',
+            'reviewed_by_id' => 'integer',
+            'social_reviewed_at' => 'datetime',
+            'social_reviewed_by_id' => 'integer',
             'admission_year' => 'integer',
             'is_orphan' => 'boolean',
             'is_half_orphan' => 'boolean',

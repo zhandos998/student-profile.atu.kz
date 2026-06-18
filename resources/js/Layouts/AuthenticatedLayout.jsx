@@ -9,7 +9,6 @@ export default function AuthenticatedLayout({ header, children }) {
     const {
         user,
         canViewPsychologicalProfile,
-        canViewHealthPassport,
         canViewGroupSocialPassport,
         canViewAnalyticsDashboard,
         canManageStudentProfiles,
@@ -74,26 +73,17 @@ export default function AuthenticatedLayout({ header, children }) {
                                         Психологический профиль
                                     </NavLink>
                                 )}
-                                {canViewHealthPassport && (
-                                    <NavLink
-                                        href={route('health-passport.index')}
-                                        active={route().current(
-                                            'health-passport.*',
-                                        )}
-                                    >
-                                        Паспорт здоровья
-                                    </NavLink>
-                                )}
                                 {canViewGroupSocialPassport && (
                                     <NavLink
-                                        href={route(
-                                            'group-social-passport.edit',
-                                        )}
-                                        active={route().current(
-                                            'group-social-passport.*',
-                                        )}
+                                        href={route('groups.index')}
+                                        active={
+                                            route().current('groups.*') ||
+                                            route().current(
+                                                'group-social-passport.*',
+                                            )
+                                        }
                                     >
-                                        Социальный паспорт
+                                        Социальный паспорт группы
                                     </NavLink>
                                 )}
                                 {canViewAnalyticsDashboard && (
@@ -238,22 +228,15 @@ export default function AuthenticatedLayout({ header, children }) {
                                 Психологический профиль
                             </ResponsiveNavLink>
                         )}
-                        {canViewHealthPassport && (
-                            <ResponsiveNavLink
-                                href={route('health-passport.index')}
-                                active={route().current('health-passport.*')}
-                            >
-                                Паспорт здоровья
-                            </ResponsiveNavLink>
-                        )}
                         {canViewGroupSocialPassport && (
                             <ResponsiveNavLink
-                                href={route('group-social-passport.edit')}
-                                active={route().current(
-                                    'group-social-passport.*',
-                                )}
+                                href={route('groups.index')}
+                                active={
+                                    route().current('groups.*') ||
+                                    route().current('group-social-passport.*')
+                                }
                             >
-                                Социальный паспорт
+                                Социальный паспорт группы
                             </ResponsiveNavLink>
                         )}
                         {canViewAnalyticsDashboard && (

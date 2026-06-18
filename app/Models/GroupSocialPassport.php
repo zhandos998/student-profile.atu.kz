@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'user_id',
+    'student_group_id',
     'faculty',
     'group_name',
     'leader_full_name',
@@ -37,11 +38,20 @@ class GroupSocialPassport extends Model
     }
 
     /**
+     * @return BelongsTo<StudentGroup, GroupSocialPassport>
+     */
+    public function studentGroup(): BelongsTo
+    {
+        return $this->belongsTo(StudentGroup::class);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
+            'student_group_id' => 'integer',
             'students' => 'array',
             'summary' => 'array',
             'departed_students' => 'array',

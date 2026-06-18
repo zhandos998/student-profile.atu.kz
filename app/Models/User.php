@@ -20,6 +20,11 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    public const READONLY_STUDENT_PROFILE_POSITIONS = [
+        'Психолог',
+        'Здравпункт',
+    ];
+
     public const PSYCHOLOGICAL_PROFILE_POSITIONS = [
         'Психолог',
         'Проректор ВР',
@@ -39,66 +44,104 @@ class User extends Authenticatable
 
     public function canViewPsychologicalProfile(): bool
     {
-        $this->loadMissing('role');
-
-        if ($this->role?->slug === Role::ADMINISTRATOR_DIT) {
+        if ($this->hasAnyRole([Role::ADMINISTRATOR_DIT])) {
             return true;
         }
 
-        return $this->role?->slug === Role::ADMINISTRATION
+        return $this->hasAnyRole([Role::ADMINISTRATION])
             && in_array($this->position, self::PSYCHOLOGICAL_PROFILE_POSITIONS, true);
     }
 
     public function canViewHealthPassport(): bool
     {
-        $this->loadMissing('role');
-
-        if ($this->role?->slug === Role::ADMINISTRATOR_DIT) {
+        if ($this->hasAnyRole([Role::ADMINISTRATOR_DIT])) {
             return true;
         }
 
-        return $this->role?->slug === Role::ADMINISTRATION
+        return $this->hasAnyRole([Role::ADMINISTRATION])
             && in_array($this->position, self::HEALTH_PASSPORT_POSITIONS, true);
     }
 
     public function canViewGroupSocialPassport(): bool
     {
-        $this->loadMissing('role');
-
-        return in_array($this->role?->slug, [
+        return $this->hasAnyRole([
             Role::ADMINISTRATOR_DIT,
             Role::ADMINISTRATION,
             Role::CURATOR,
             Role::ADVISOR,
-        ], true);
+        ]);
+    }
+
+    public function canViewAllStudentData(): bool
+    {
+        return $this->hasAnyRole([
+            Role::ADMINISTRATOR_DIT,
+            Role::ADMINISTRATION,
+        ]);
     }
 
     public function canManageStudentProfiles(): bool
     {
-        $this->loadMissing('role');
-
-        return in_array($this->role?->slug, [
+        return $this->hasAnyRole([
             Role::ADMINISTRATOR_DIT,
             Role::ADMINISTRATION,
+            Role::CURATOR,
             Role::ADVISOR,
-        ], true);
+        ]);
+    }
+
+    public function canEditStudentProfileData(): bool
+    {
+        if ($this->hasAnyRole([Role::ADMINISTRATOR_DIT, Role::CURATOR, Role::ADVISOR])) {
+            return true;
+        }
+
+        return $this->hasAnyRole([Role::ADMINISTRATION])
+            && ! in_array($this->position, self::READONLY_STUDENT_PROFILE_POSITIONS, true);
+    }
+
+    public function canEditStudentHealthPassport(): bool
+    {
+        if ($this->hasAnyRole([Role::ADMINISTRATOR_DIT])) {
+            return true;
+        }
+
+        return $this->hasAnyRole([Role::ADMINISTRATION])
+            && $this->position === 'Здравпункт';
     }
 
     public function canUseOwnStudentProfile(): bool
     {
-        $this->loadMissing('role');
+        return $this->hasAnyRole([
+            Role::STUDENT,
+            Role::GROUP_LEADER,
+        ]);
+    }
 
-        return $this->role?->slug !== Role::ADVISOR;
+    public function canViewCuratorAdvisorDashboard(): bool
+    {
+        return $this->hasAnyRole([
+            Role::CURATOR,
+            Role::ADVISOR,
+        ]);
     }
 
     public function canViewAnalyticsDashboard(): bool
     {
-        $this->loadMissing('role');
-
-        return in_array($this->role?->slug, [
+        return $this->hasAnyRole([
             Role::ADMINISTRATOR_DIT,
             Role::ADMINISTRATION,
-        ], true);
+        ]);
+    }
+
+    /**
+     * @param  array<int, string>  $roles
+     */
+    public function hasAnyRole(array $roles): bool
+    {
+        $this->loadMissing('role');
+
+        return in_array($this->role?->slug, $roles, true);
     }
 
     /**
@@ -147,6 +190,14 @@ class User extends Authenticatable
     public function groupSocialPassport(): HasOne
     {
         return $this->hasOne(GroupSocialPassport::class);
+    }
+
+    /**
+     * @return HasMany<StudentGroup>
+     */
+    public function studentGroups(): HasMany
+    {
+        return $this->hasMany(StudentGroup::class, 'curator_id');
     }
 
     /**

@@ -9,9 +9,13 @@ const secondaryButton =
 
 function StudentCard({ title, text }) {
     return (
-        <article className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-[#dfe7f5]">
-            <h3 className="text-base font-semibold text-gray-950">{title}</h3>
-            <p className="mt-2 text-sm leading-6 text-gray-600">{text}</p>
+        <article className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-[#dfe7f5]">
+            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
+                <h3 className="text-base font-semibold text-[#274f93]">
+                    {title}
+                </h3>
+            </div>
+            <p className="p-5 text-sm leading-6 text-gray-600">{text}</p>
         </article>
     );
 }

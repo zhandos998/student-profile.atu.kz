@@ -255,18 +255,18 @@ function RecommendationGrid({ items }) {
             {items.map((item) => (
                 <div
                     key={item.type}
-                    className="rounded-md border border-gray-200 p-4"
+                    className="overflow-hidden rounded-md border border-gray-200"
                 >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-4 border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-[#426aa8]">
                                 {item.type}
                             </p>
-                            <h4 className="mt-1 text-sm font-semibold text-gray-900">
+                            <h4 className="mt-1 text-sm font-semibold text-[#274f93]">
                                 {item.title}
                             </h4>
                         </div>
-                        <div className="rounded-md bg-gray-900 px-3 py-2 text-center text-white">
+                        <div className="rounded-md bg-[#355da8] px-3 py-2 text-center text-white">
                             <p className="text-lg font-semibold tabular-nums">
                                 {item.target}
                             </p>
@@ -275,8 +275,12 @@ function RecommendationGrid({ items }) {
                             </p>
                         </div>
                     </div>
-                    <p className="mt-3 text-sm text-gray-600">{item.basis}</p>
-                    <p className="mt-3 text-sm text-gray-800">{item.action}</p>
+                    <div className="p-4">
+                        <p className="text-sm text-gray-600">{item.basis}</p>
+                        <p className="mt-3 text-sm text-gray-800">
+                            {item.action}
+                        </p>
+                    </div>
                 </div>
             ))}
         </div>
@@ -289,22 +293,24 @@ function NotificationChannels({ channels }) {
             {channels.map((channel) => (
                 <div
                     key={channel.name}
-                    className="rounded-md border border-gray-200 p-4"
+                    className="overflow-hidden rounded-md border border-gray-200"
                 >
-                    <div className="flex items-center justify-between gap-3">
-                        <h4 className="text-base font-semibold text-gray-900">
+                    <div className="flex items-center justify-between gap-3 border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
+                        <h4 className="text-base font-semibold text-[#274f93]">
                             {channel.name}
                         </h4>
-                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#355da8] ring-1 ring-[#dbe5f6]">
                             Канал
                         </span>
                     </div>
-                    <p className="mt-3 text-sm text-gray-600">
-                        {channel.description}
-                    </p>
-                    <p className="mt-3 text-sm font-medium text-gray-800">
-                        {channel.status}
-                    </p>
+                    <div className="p-4">
+                        <p className="text-sm text-gray-600">
+                            {channel.description}
+                        </p>
+                        <p className="mt-3 text-sm font-medium text-gray-800">
+                            {channel.status}
+                        </p>
+                    </div>
                 </div>
             ))}
         </div>
@@ -317,20 +323,24 @@ function NotificationEvents({ events }) {
             {events.map((event) => (
                 <div
                     key={event.name}
-                    className="rounded-md border border-gray-200 p-4"
+                    className="overflow-hidden rounded-md border border-gray-200"
                 >
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Событие
-                    </p>
-                    <h4 className="mt-1 text-base font-semibold text-gray-900">
-                        {event.name}
-                    </h4>
-                    <p className="mt-3 text-sm text-gray-600">
-                        {event.description}
-                    </p>
-                    <p className="mt-3 text-sm font-medium text-gray-800">
-                        Получатели: {event.audience}
-                    </p>
+                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#426aa8]">
+                            Событие
+                        </p>
+                        <h4 className="mt-1 text-base font-semibold text-[#274f93]">
+                            {event.name}
+                        </h4>
+                    </div>
+                    <div className="p-4">
+                        <p className="text-sm text-gray-600">
+                            {event.description}
+                        </p>
+                        <p className="mt-3 text-sm font-medium text-gray-800">
+                            Получатели: {event.audience}
+                        </p>
+                    </div>
                 </div>
             ))}
         </div>
@@ -343,23 +353,27 @@ function ReportGrid({ reports }) {
             {reports.map((report) => (
                 <div
                     key={report.type}
-                    className="flex flex-col rounded-md border border-gray-200 p-4"
+                    className="flex flex-col overflow-hidden rounded-md border border-gray-200"
                 >
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Отчет
-                    </p>
-                    <h4 className="mt-1 text-base font-semibold text-gray-900">
-                        {report.title}
-                    </h4>
-                    <p className="mt-3 flex-1 text-sm text-gray-600">
-                        {report.description}
-                    </p>
-                    <a
-                        href={report.exportUrl}
-                        className="mt-4 inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
-                    >
-                        Excel
-                    </a>
+                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#426aa8]">
+                            Отчет
+                        </p>
+                        <h4 className="mt-1 text-base font-semibold text-[#274f93]">
+                            {report.title}
+                        </h4>
+                    </div>
+                    <div className="flex flex-1 flex-col p-4">
+                        <p className="flex-1 text-sm text-gray-600">
+                            {report.description}
+                        </p>
+                        <a
+                            href={report.exportUrl}
+                            className="mt-4 inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2"
+                        >
+                            Excel
+                        </a>
+                    </div>
                 </div>
             ))}
         </div>
@@ -372,27 +386,29 @@ function IntegrationGrid({ integrations }) {
             {integrations.map((integration) => (
                 <div
                     key={integration.name}
-                    className="rounded-md border border-gray-200 p-4"
+                    className="overflow-hidden rounded-md border border-gray-200"
                 >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-4 border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-[#426aa8]">
                                 Интеграция
                             </p>
-                            <h4 className="mt-1 text-base font-semibold text-gray-900">
+                            <h4 className="mt-1 text-base font-semibold text-[#274f93]">
                                 {integration.name}
                             </h4>
                         </div>
-                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#355da8] ring-1 ring-[#dbe5f6]">
                             {integration.status}
                         </span>
                     </div>
-                    <p className="mt-3 text-sm text-gray-600">
-                        {integration.description}
-                    </p>
-                    <p className="mt-3 text-sm font-medium text-gray-800">
-                        Данные: {integration.data}
-                    </p>
+                    <div className="p-4">
+                        <p className="text-sm text-gray-600">
+                            {integration.description}
+                        </p>
+                        <p className="mt-3 text-sm font-medium text-gray-800">
+                            Данные: {integration.data}
+                        </p>
+                    </div>
                 </div>
             ))}
         </div>
@@ -401,9 +417,9 @@ function IntegrationGrid({ integrations }) {
 
 function Panel({ title, children }) {
     return (
-        <section className="rounded-md border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-5 py-4">
-                <h3 className="text-base font-semibold text-gray-900">
+        <section className="overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
+                <h3 className="text-base font-semibold text-[#274f93]">
                     {title}
                 </h3>
             </div>

@@ -49,6 +49,12 @@ export default function Index({ profile }) {
                         onSubmit={submit}
                         className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
                     >
+                        <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                            <h3 className="text-base font-semibold text-[#274f93]">
+                                Психолого-педагогический профиль
+                            </h3>
+                        </div>
+
                         <div className="space-y-6 p-6">
                             <TextAreaField
                                 label="Результаты тестирований"

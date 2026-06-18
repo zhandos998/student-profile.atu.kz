@@ -18,12 +18,14 @@ class PortfolioItemController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        abort_unless($request->user()?->canUseOwnStudentProfile(), 403);
+
         return $this->storeForUser($request, $request->user());
     }
 
     public function storeForStudent(Request $request, User $student): RedirectResponse
     {
-        abort_unless($request->user()?->canManageStudentProfiles(), 403);
+        abort_unless($request->user()?->canEditStudentProfileData(), 403);
         abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
 
         return $this->storeForUser($request, $student);
@@ -34,6 +36,7 @@ class PortfolioItemController extends Controller
      */
     public function destroy(Request $request, PortfolioItem $portfolioItem): RedirectResponse
     {
+        abort_unless($request->user()?->canUseOwnStudentProfile(), 403);
         abort_unless($portfolioItem->user_id === $request->user()->id, 404);
 
         $this->deletePortfolioItem($portfolioItem);
@@ -43,7 +46,7 @@ class PortfolioItemController extends Controller
 
     public function destroyForStudent(Request $request, User $student, PortfolioItem $portfolioItem): RedirectResponse
     {
-        abort_unless($request->user()?->canManageStudentProfiles(), 403);
+        abort_unless($request->user()?->canEditStudentProfileData(), 403);
         abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
         abort_unless($portfolioItem->user_id === $student->id, 404);
 

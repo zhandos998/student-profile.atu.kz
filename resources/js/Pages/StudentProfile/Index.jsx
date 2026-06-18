@@ -23,13 +23,62 @@ function completionClass(value) {
     return "bg-rose-50 text-rose-700";
 }
 
-export default function Index({ students, filters, options }) {
+export default function Index({
+    students,
+    filters,
+    options,
+    availableGroups = [],
+    profileStatusOptions = [],
+    canCreateStudentProfiles = true,
+}) {
     const [filterData, setFilterData] = useState(filters);
+    const visibleGroupOptions = availableGroups.filter(
+        (group) =>
+            !filterData.faculty ||
+            !group.faculty ||
+            group.faculty === filterData.faculty,
+    );
 
     const setFilter = (field, value) => {
         setFilterData((current) => ({
             ...current,
             [field]: value,
+        }));
+    };
+
+    const setFacultyFilter = (faculty) => {
+        setFilterData((current) => {
+            const selectedGroup = availableGroups.find(
+                (group) =>
+                    String(group.value) ===
+                    String(current.student_group_id),
+            );
+
+            return {
+                ...current,
+                faculty,
+                student_group_id:
+                    selectedGroup?.faculty && selectedGroup.faculty !== faculty
+                        ? ""
+                        : current.student_group_id,
+                group_name:
+                    selectedGroup?.faculty && selectedGroup.faculty !== faculty
+                        ? ""
+                        : current.group_name,
+            };
+        });
+    };
+
+    const setStudentGroupFilter = (studentGroupId) => {
+        const selectedGroup = availableGroups.find(
+            (group) => String(group.value) === String(studentGroupId),
+        );
+
+        setFilterData((current) => ({
+            ...current,
+            student_group_id: studentGroupId,
+            group_name: selectedGroup?.name || "",
+            faculty: selectedGroup?.faculty || current.faculty,
         }));
     };
 
@@ -46,6 +95,7 @@ export default function Index({ students, filters, options }) {
         const emptyFilters = {
             search: "",
             faculty: "",
+            student_group_id: "",
             group_name: "",
             course: "",
             profile_status: "",
@@ -71,12 +121,14 @@ export default function Index({ students, filters, options }) {
                             нового портрета.
                         </p>
                     </div>
-                    <Link
-                        href={route("student-profiles.create")}
-                        className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192]"
-                    >
-                        Создать портрет
-                    </Link>
+                    {canCreateStudentProfiles && (
+                        <Link
+                            href={route("student-profiles.create")}
+                            className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192]"
+                        >
+                            Создать портрет
+                        </Link>
+                    )}
                 </div>
             }
         >
@@ -84,10 +136,15 @@ export default function Index({ students, filters, options }) {
 
             <div className="bg-[#f4f7fc] py-8">
                 <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-                    <section className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200/80">
+                    <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
+                        <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
+                            <h3 className="text-base font-semibold text-[#274f93]">
+                                Фильтр портретов
+                            </h3>
+                        </div>
                         <form
                             onSubmit={submitFilters}
-                            className="grid gap-4 md:grid-cols-2 xl:grid-cols-5"
+                            className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-5"
                         >
                             <div className="xl:col-span-2">
                                 <label className="text-sm font-medium text-gray-700">
@@ -113,10 +170,7 @@ export default function Index({ students, filters, options }) {
                                 <select
                                     value={filterData.faculty}
                                     onChange={(event) =>
-                                        setFilter(
-                                            "faculty",
-                                            event.target.value,
-                                        )
+                                        setFacultyFilter(event.target.value)
                                     }
                                     className={`${inputClass} mt-1`}
                                 >
@@ -136,16 +190,30 @@ export default function Index({ students, filters, options }) {
                                 <label className="text-sm font-medium text-gray-700">
                                     Группа
                                 </label>
-                                <input
-                                    value={filterData.group_name}
+                                <select
+                                    value={filterData.student_group_id}
                                     onChange={(event) =>
-                                        setFilter(
-                                            "group_name",
+                                        setStudentGroupFilter(
                                             event.target.value,
                                         )
                                     }
-                                    className={`${inputClass} mt-1`}
-                                />
+                                    disabled={availableGroups.length === 0}
+                                    className={`${inputClass} mt-1 disabled:cursor-not-allowed disabled:bg-gray-50`}
+                                >
+                                    <option value="">
+                                        {availableGroups.length === 0
+                                            ? "Сначала создайте группу"
+                                            : "Все группы"}
+                                    </option>
+                                    {visibleGroupOptions.map((group) => (
+                                        <option
+                                            key={group.value}
+                                            value={group.value}
+                                        >
+                                            {group.label}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div>
@@ -185,6 +253,14 @@ export default function Index({ students, filters, options }) {
                                     <option value="without_profile">
                                         Нет портрета
                                     </option>
+                                    {profileStatusOptions.map((status) => (
+                                        <option
+                                            key={status.value}
+                                            value={status.value}
+                                        >
+                                            {status.label}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 
@@ -207,8 +283,8 @@ export default function Index({ students, filters, options }) {
                     </section>
 
                     <section className="rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
-                        <div className="border-b border-gray-200 px-5 py-4">
-                            <h3 className="text-base font-semibold text-gray-900">
+                        <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
+                            <h3 className="text-base font-semibold text-[#274f93]">
                                 Список портретов
                             </h3>
                         </div>
@@ -269,6 +345,9 @@ export default function Index({ students, filters, options }) {
                                                     student.gpa,
                                                     "нет",
                                                 )}
+                                            </span>
+                                            <span className="rounded-full bg-[#f4f7fc] px-3 py-1 text-xs font-medium text-[#355da8]">
+                                                {student.profileStatusLabel}
                                             </span>
                                         </div>
 

@@ -14,18 +14,73 @@ const valueOrEmpty = (value) => value ?? "";
 const optionLabel = (options, value) =>
     options.find((option) => option.value === value)?.label ?? value;
 
-function Section({ title, children, actions = null }) {
+const optionLabels = (options, values = []) =>
+    values
+        .map((value) => optionLabel(options, value))
+        .filter(Boolean)
+        .join(", ");
+
+const yesNo = (value) => (value ? "Да" : "Нет");
+
+const primaryActionClass =
+    "inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f5192] disabled:opacity-50";
+
+const revisionActionClass =
+    "inline-flex items-center justify-center rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50";
+
+const dispensaryAccountingOptions = [
+    { value: "1", label: "Да" },
+    { value: "0", label: "Нет" },
+];
+
+function Section({
+    title,
+    children,
+    actions = null,
+    hidden = false,
+    tone = "default",
+}) {
+    if (hidden) {
+        return null;
+    }
+
+    const danger = tone === "danger";
+
     return (
-        <section className="border-b border-gray-200 bg-white p-6 last:border-b-0">
-            <h3 className="mb-5 text-base font-semibold text-gray-900">
-                {title}
-            </h3>
-            {children}
-            {actions && (
-                <div className="mt-6 flex items-center justify-end gap-4 border-t border-gray-100 pt-4">
-                    {actions}
-                </div>
-            )}
+        <section
+            className={`overflow-hidden rounded-lg border shadow-sm ${
+                danger
+                    ? "border-red-200 bg-red-50/80"
+                    : "border-gray-200 bg-white"
+            }`}
+        >
+            <div
+                className={`border-b px-6 py-4 ${
+                    danger
+                        ? "border-red-200 bg-red-100"
+                        : "border-[#dbe5f6] bg-[#edf3ff]"
+                }`}
+            >
+                <h3
+                    className={`text-base font-semibold ${
+                        danger ? "text-red-800" : "text-[#274f93]"
+                    }`}
+                >
+                    {title}
+                </h3>
+            </div>
+            <div className="p-6">
+                {children}
+                {actions && (
+                    <div
+                        className={`mt-6 flex items-center justify-end gap-4 border-t pt-4 ${
+                            danger ? "border-red-200" : "border-gray-100"
+                        }`}
+                    >
+                        {actions}
+                    </div>
+                )}
+            </div>
         </section>
     );
 }
@@ -36,6 +91,21 @@ function Field({ label, error, children, className = "" }) {
             <InputLabel value={label} />
             <div className="mt-1">{children}</div>
             <InputError message={error} className="mt-2" />
+        </div>
+    );
+}
+
+function DisplayField({ label, value, className = "" }) {
+    return (
+        <div className={className}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {label}
+            </p>
+            <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-gray-900">
+                {value === null || value === undefined || value === ""
+                    ? "Не указано"
+                    : value}
+            </p>
         </div>
     );
 }
@@ -52,7 +122,7 @@ function SelectInput({
             value={value}
             onChange={onChange}
             disabled={disabled}
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-50"
+            className="w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8] disabled:cursor-not-allowed disabled:bg-gray-50"
         >
             <option value="">{placeholder}</option>
             {options.map((option) => (
@@ -71,7 +141,7 @@ function TextAreaInput({ value, onChange, rows = 3, disabled = false }) {
             onChange={onChange}
             rows={rows}
             disabled={disabled}
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-50"
+            className="w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8] disabled:cursor-not-allowed disabled:bg-gray-50"
         />
     );
 }
@@ -124,7 +194,7 @@ function FileLink({ href, label }) {
             href={href}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 inline-flex text-sm font-medium text-indigo-700 hover:text-indigo-900"
+            className="mt-2 inline-flex text-sm font-medium text-[#355da8] hover:text-[#2f5192]"
         >
             {label}
         </a>
@@ -144,14 +214,21 @@ function FileSize({ size }) {
 export default function Edit({
     profile,
     academicProfile,
+    healthPassport = {},
     achievements,
     portfolioItems,
     options,
+    availableGroups = [],
+    profileStatusOptions = [],
     isManagedProfile = false,
+    canEditProfile = true,
+    canEditHealthPassport = false,
+    healthPassportUpdateUrl = null,
     targetUser = null,
 }) {
     const [achievementFileKey, setAchievementFileKey] = useState(0);
     const [portfolioFileKey, setPortfolioFileKey] = useState(0);
+    const [healthPassportFileKey, setHealthPassportFileKey] = useState(0);
     const [socialSupport, setSocialSupport] = useState({
         is_orphan: Boolean(profile.is_orphan),
         is_half_orphan: Boolean(profile.is_half_orphan),
@@ -172,6 +249,10 @@ export default function Edit({
         study_form: valueOrEmpty(profile.study_form),
         nationality: valueOrEmpty(profile.nationality),
         citizenship: valueOrEmpty(profile.citizenship),
+        student_status: valueOrEmpty(profile.student_status),
+        departure_reason: valueOrEmpty(profile.departure_reason),
+        departure_reason_other: valueOrEmpty(profile.departure_reason_other),
+        departed_at: valueOrEmpty(profile.departed_at),
         military_department_status: valueOrEmpty(
             profile.military_department_status,
         ),
@@ -186,6 +267,7 @@ export default function Edit({
         identity_card: null,
         gender: valueOrEmpty(profile.gender),
         faculty: valueOrEmpty(profile.faculty),
+        student_group_id: valueOrEmpty(profile.student_group_id),
         group_name: valueOrEmpty(profile.group_name),
         specialty: valueOrEmpty(profile.specialty),
         course: valueOrEmpty(profile.course),
@@ -207,6 +289,10 @@ export default function Edit({
         stay_address: valueOrEmpty(profile.stay_address),
         residence_address: valueOrEmpty(profile.residence_address),
         contact_details: valueOrEmpty(profile.contact_details),
+        personal_email: valueOrEmpty(profile.personal_email),
+        parent_guardian_contacts: valueOrEmpty(
+            profile.parent_guardian_contacts,
+        ),
         foreign_student_country: valueOrEmpty(profile.foreign_student_country),
         kandas_country: valueOrEmpty(profile.kandas_country),
         dormitory_details: valueOrEmpty(profile.dormitory_details),
@@ -219,14 +305,17 @@ export default function Edit({
         final_grades: valueOrEmpty(academicProfile.final_grades),
         current_performance: valueOrEmpty(academicProfile.current_performance),
         academic_debt: valueOrEmpty(academicProfile.academic_debt),
-        grade_dynamics: valueOrEmpty(academicProfile.grade_dynamics),
-        group_comparison: valueOrEmpty(academicProfile.group_comparison),
-        success_forecast: valueOrEmpty(academicProfile.success_forecast),
     });
     const [profileErrors, setProfileErrors] = useState({});
     const [profileProcessing, setProfileProcessing] = useState(false);
     const [profileRecentlySuccessful, setProfileRecentlySuccessful] =
         useState(false);
+    const [blockReviewComments, setBlockReviewComments] = useState({
+        social: "",
+        academic: "",
+    });
+    const [blockReviewErrors, setBlockReviewErrors] = useState({});
+    const [blockReviewProcessing, setBlockReviewProcessing] = useState(false);
 
     const profileForm = {
         data: profileData,
@@ -251,6 +340,47 @@ export default function Edit({
 
             setProfileData(fieldOrData);
         },
+    };
+    const visibleGroupOptions = availableGroups.filter(
+        (group) =>
+            !profileData.faculty ||
+            !group.faculty ||
+            group.faculty === profileData.faculty,
+    );
+
+    const setFaculty = (faculty) => {
+        profileForm.setData((current) => {
+            const selectedGroup = availableGroups.find(
+                (group) =>
+                    String(group.value) === String(current.student_group_id),
+            );
+
+            return {
+                ...current,
+                faculty,
+                student_group_id:
+                    selectedGroup?.faculty && selectedGroup.faculty !== faculty
+                        ? ""
+                        : current.student_group_id,
+                group_name:
+                    selectedGroup?.faculty && selectedGroup.faculty !== faculty
+                        ? ""
+                        : current.group_name,
+            };
+        });
+    };
+
+    const setStudentGroupId = (studentGroupId) => {
+        const selectedGroup = availableGroups.find(
+            (group) => String(group.value) === String(studentGroupId),
+        );
+
+        profileForm.setData((current) => ({
+            ...current,
+            student_group_id: studentGroupId,
+            group_name: selectedGroup?.name || selectedGroup?.label || "",
+            faculty: selectedGroup?.faculty || current.faculty,
+        }));
     };
 
     const setSocialSupportFlag = (field, checked) => {
@@ -300,10 +430,29 @@ export default function Edit({
         title: "",
         file: null,
     });
+    const statusForm = useForm({
+        profile_status: "verified",
+        revision_comment: "",
+    });
+    const healthPassportForm = useForm({
+        fluorography_date: healthPassport.fluorography_date ?? "",
+        fluorography_image: null,
+        dispensary_accounting: healthPassport.dispensary_accounting ?? "",
+        diagnosis: healthPassport.diagnosis ?? "",
+        disability_group: healthPassport.disability_group ?? "",
+        psychological_diagnosis: healthPassport.psychological_diagnosis ?? "",
+        pregnancy: healthPassport.pregnancy ?? "",
+    });
     const targetUserId = targetUser?.id;
     const profileUpdateUrl = isManagedProfile
         ? route("student-profiles.update", targetUserId)
         : route("student-profile.update");
+    const profileStatusUpdateUrl = isManagedProfile
+        ? route("student-profiles.status.update", targetUserId)
+        : null;
+    const blockReviewUpdateUrl = isManagedProfile
+        ? route("student-profiles.review-block.update", targetUserId)
+        : null;
     const achievementStoreUrl = isManagedProfile
         ? route("student-profiles.achievements.store", targetUserId)
         : route("student-profile.achievements.store");
@@ -332,6 +481,9 @@ export default function Edit({
             profileUpdateUrl,
             {
                 ...profileData,
+                group_name: profileData.student_group_id
+                    ? ""
+                    : profileData.group_name,
                 is_orphan: socialSupport.is_orphan ? "1" : "0",
                 legal_representative: socialSupport.is_orphan
                     ? legalRepresentative
@@ -377,6 +529,54 @@ export default function Edit({
         );
     };
 
+    const updateProfileStatus = (profileStatus) => {
+        statusForm
+            .transform((data) => ({
+                ...data,
+                profile_status: profileStatus,
+                revision_comment:
+                    profileStatus === "needs_revision"
+                        ? data.revision_comment
+                        : "",
+            }))
+            .post(profileStatusUpdateUrl, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    statusForm.reset("revision_comment");
+                },
+            });
+    };
+
+    const updateBlockReview = (block, reviewStatus) => {
+        router.post(
+            blockReviewUpdateUrl,
+            {
+                block,
+                review_status: reviewStatus,
+                review_comment:
+                    reviewStatus === "needs_revision"
+                        ? blockReviewComments[block]
+                        : "",
+            },
+            {
+                preserveScroll: true,
+                onStart: () => {
+                    setBlockReviewProcessing(true);
+                    setBlockReviewErrors({});
+                },
+                onError: (errors) => setBlockReviewErrors(errors),
+                onSuccess: () => {
+                    setBlockReviewErrors({});
+                    setBlockReviewComments((current) => ({
+                        ...current,
+                        [block]: "",
+                    }));
+                },
+                onFinish: () => setBlockReviewProcessing(false),
+            },
+        );
+    };
+
     const submitAchievement = (event) => {
         event.preventDefault();
 
@@ -403,6 +603,19 @@ export default function Edit({
         });
     };
 
+    const submitHealthPassport = (event) => {
+        event.preventDefault();
+
+        healthPassportForm.post(healthPassportUpdateUrl, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                healthPassportForm.setData("fluorography_image", null);
+                setHealthPassportFileKey((key) => key + 1);
+            },
+        });
+    };
+
     const renderSectionSave = () => (
         <>
             {profileForm.recentlySuccessful && (
@@ -412,6 +625,83 @@ export default function Edit({
                 Сохранить
             </PrimaryButton>
         </>
+    );
+
+    const currentStatusLabel =
+        profile.profile_status_label ||
+        profileStatusOptions.find(
+            (option) => option.value === profile.profile_status,
+        )?.label ||
+        profile.profile_status ||
+        "Не заполнена";
+
+    const renderBlockReview = ({
+        block,
+        statusLabel,
+        reviewedAtDisplay,
+        comment,
+    }) => (
+        <div className="mb-5 rounded-md bg-[#f4f7fc] px-4 py-3 ring-1 ring-[#dbe5f6]">
+            <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#355da8] ring-1 ring-[#dbe5f6]">
+                    {statusLabel}
+                </span>
+                {reviewedAtDisplay && (
+                    <span className="text-xs text-gray-500">
+                        Проверено: {reviewedAtDisplay}
+                    </span>
+                )}
+            </div>
+
+            {comment && (
+                <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-100">
+                    {comment}
+                </p>
+            )}
+
+            {isManagedProfile && (
+                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-start">
+                    <div>
+                        <textarea
+                            value={blockReviewComments[block]}
+                            onChange={(event) =>
+                                setBlockReviewComments((current) => ({
+                                    ...current,
+                                    [block]: event.target.value,
+                                }))
+                            }
+                            rows={2}
+                            placeholder="Комментарий для исправления"
+                            className="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
+                        />
+                        <InputError
+                            message={blockReviewErrors.review_comment}
+                            className="mt-2"
+                        />
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() =>
+                                updateBlockReview(block, "needs_revision")
+                            }
+                            disabled={blockReviewProcessing}
+                            className={revisionActionClass}
+                        >
+                            Вернуть
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => updateBlockReview(block, "verified")}
+                            disabled={blockReviewProcessing}
+                            className={primaryActionClass}
+                        >
+                            Подтвердить
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 
     return (
@@ -445,9 +735,339 @@ export default function Edit({
 
             <div className="py-8">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    {canEditProfile && (
+                    <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                        <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                            <h3 className="text-base font-semibold text-[#274f93]">
+                                Статус анкеты
+                            </h3>
+                        </div>
+
+                        <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="rounded-full bg-[#f4f7fc] px-3 py-1 text-sm font-semibold text-[#355da8] ring-1 ring-[#dbe5f6]">
+                                        {currentStatusLabel}
+                                    </span>
+                                    {profile.submitted_at_display && (
+                                        <span className="text-sm text-gray-500">
+                                            Отправлена:{" "}
+                                            {profile.submitted_at_display}
+                                        </span>
+                                    )}
+                                    {profile.verified_at_display && (
+                                        <span className="text-sm text-gray-500">
+                                            Проверена:{" "}
+                                            {profile.verified_at_display}
+                                        </span>
+                                    )}
+                                </div>
+                                {profile.revision_comment && (
+                                    <p className="mt-3 max-w-3xl rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-100">
+                                        {profile.revision_comment}
+                                    </p>
+                                )}
+                                <InputError
+                                    message={profileErrors.profile_status}
+                                    className="mt-2"
+                                />
+                            </div>
+
+                            {isManagedProfile && (
+                                <div className="w-full max-w-md space-y-3">
+                                    <textarea
+                                        value={statusForm.data.revision_comment}
+                                        onChange={(event) =>
+                                            statusForm.setData(
+                                                "revision_comment",
+                                                event.target.value,
+                                            )
+                                        }
+                                        rows={3}
+                                        placeholder="Комментарий для исправления"
+                                        className="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
+                                    />
+                                    <InputError
+                                        message={
+                                            statusForm.errors.revision_comment
+                                        }
+                                    />
+                                    <div className="flex flex-wrap justify-end gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                updateProfileStatus(
+                                                    "needs_revision",
+                                                )
+                                            }
+                                            disabled={statusForm.processing}
+                                            className={revisionActionClass}
+                                        >
+                                            Вернуть на исправление
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                updateProfileStatus("verified")
+                                            }
+                                            disabled={statusForm.processing}
+                                            className={primaryActionClass}
+                                        >
+                                            Проверить
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                    )}
+
+                    {!canEditProfile && (
+                        <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                <h3 className="text-base font-semibold text-[#274f93]">
+                                    Карточка студента
+                                </h3>
+                            </div>
+
+                            <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
+                                <DisplayField
+                                    label="ФИО"
+                                    value={profile.full_name || targetUser?.name}
+                                />
+                                <DisplayField
+                                    label="Email"
+                                    value={targetUser?.email}
+                                />
+                                <DisplayField
+                                    label="Дата рождения"
+                                    value={profile.birth_date}
+                                />
+                                <DisplayField
+                                    label="Форма обучения"
+                                    value={profile.study_form}
+                                />
+                                <DisplayField
+                                    label="Национальность"
+                                    value={profile.nationality}
+                                />
+                                <DisplayField
+                                    label="Гражданство"
+                                    value={optionLabel(
+                                        options.citizenships,
+                                        profile.citizenship,
+                                    )}
+                                />
+                                <DisplayField label="ИИН" value={profile.iin} />
+                                <DisplayField
+                                    label="№ удостоверения личности"
+                                    value={profile.identity_document_number}
+                                />
+                                <DisplayField
+                                    label="Пол"
+                                    value={optionLabel(
+                                        options.genders,
+                                        profile.gender,
+                                    )}
+                                />
+                                <DisplayField
+                                    label="Факультет"
+                                    value={profile.faculty}
+                                />
+                                <DisplayField
+                                    label="Группа"
+                                    value={profile.group_name}
+                                />
+                                <DisplayField
+                                    label="Специальность"
+                                    value={profile.specialty}
+                                />
+                                <DisplayField label="Курс" value={profile.course} />
+                                <DisplayField
+                                    label="Год поступления"
+                                    value={profile.admission_year}
+                                />
+                                <DisplayField
+                                    label="Контактные данные"
+                                    value={profile.contact_details}
+                                    className="md:col-span-2 xl:col-span-3"
+                                />
+                            </div>
+                        </section>
+                    )}
+
+                    {!canEditProfile && (
+                        <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                <h3 className="text-base font-semibold text-[#274f93]">
+                                    Социальный статус
+                                </h3>
+                            </div>
+
+                            <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
+                                <DisplayField
+                                    label="Инвалид"
+                                    value={optionLabel(
+                                        options.disabilityGroups,
+                                        profile.disability_group,
+                                    )}
+                                />
+                                <DisplayField
+                                    label="Родитель/ли инвалиды"
+                                    value={optionLabel(
+                                        options.disabilityGroups,
+                                        profile.disabled_parent_group,
+                                    )}
+                                />
+                                <DisplayField
+                                    label="Сестра/брат инвалид"
+                                    value={optionLabel(
+                                        options.disabilityGroups,
+                                        profile.disabled_sibling_group,
+                                    )}
+                                />
+                                <DisplayField
+                                    label="Сирота"
+                                    value={yesNo(profile.is_orphan)}
+                                />
+                                <DisplayField
+                                    label="Законный представитель"
+                                    value={profile.legal_representative}
+                                />
+                                <DisplayField
+                                    label="Полусирота"
+                                    value={yesNo(profile.is_half_orphan)}
+                                />
+                                <DisplayField
+                                    label="Тип полусироты"
+                                    value={optionLabel(
+                                        options.halfOrphanTypes,
+                                        profile.half_orphan_type,
+                                    )}
+                                />
+                                <DisplayField
+                                    label="Неполная семья"
+                                    value={yesNo(profile.is_incomplete_family)}
+                                />
+                                <DisplayField
+                                    label="Многодетная семья"
+                                    value={yesNo(profile.is_large_family)}
+                                />
+                                <DisplayField
+                                    label="Малообеспеченная семья"
+                                    value={yesNo(profile.is_low_income)}
+                                />
+                            </div>
+                        </section>
+                    )}
+
+                    {!canEditProfile && (
+                        <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                <h3 className="text-base font-semibold text-[#274f93]">
+                                    Социальная поддержка
+                                </h3>
+                            </div>
+
+                            <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
+                                <DisplayField
+                                    label="Льготы"
+                                    value={optionLabels(
+                                        options.benefits,
+                                        profile.benefits ?? [],
+                                    )}
+                                    className="md:col-span-2 xl:col-span-3"
+                                />
+                                <DisplayField
+                                    label="Нуждающийся в социальной поддержке"
+                                    value={optionLabel(
+                                        options.socialSupportNeedStatuses,
+                                        profile.social_support_need_status,
+                                    )}
+                                />
+                                <DisplayField
+                                    label="В какой поддержке нуждается"
+                                    value={
+                                        profile.social_support_need_details
+                                    }
+                                    className="md:col-span-2"
+                                />
+                                <DisplayField
+                                    label="Особые образовательные потребности"
+                                    value={profile.special_educational_needs}
+                                    className="md:col-span-2 xl:col-span-3"
+                                />
+                            </div>
+                        </section>
+                    )}
+
+                    {!canEditProfile && !canEditHealthPassport && (
+                        <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                <h3 className="text-base font-semibold text-[#274f93]">
+                                    Паспорт здоровья обучающегося
+                                </h3>
+                            </div>
+
+                            <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
+                                <DisplayField
+                                    label="Флюорография: дата прохождения"
+                                    value={healthPassport.fluorography_date}
+                                />
+                                <DisplayField
+                                    label="Диспансерный учет"
+                                    value={
+                                        healthPassport.dispensary_accounting ===
+                                        ""
+                                            ? ""
+                                            : healthPassport.dispensary_accounting ===
+                                                "1"
+                                              ? "Да"
+                                              : "Нет"
+                                    }
+                                />
+                                <DisplayField
+                                    label="Группа инвалидности"
+                                    value={optionLabel(
+                                        options.disabilityGroups,
+                                        healthPassport.disability_group,
+                                    )}
+                                />
+                                <DisplayField
+                                    label="Диагноз"
+                                    value={healthPassport.diagnosis}
+                                    className="md:col-span-2 xl:col-span-3"
+                                />
+                                <DisplayField
+                                    label="Психологический диагноз"
+                                    value={
+                                        healthPassport.psychological_diagnosis
+                                    }
+                                    className="md:col-span-2 xl:col-span-3"
+                                />
+                                <DisplayField
+                                    label="Беременность"
+                                    value={healthPassport.pregnancy}
+                                    className="md:col-span-2 xl:col-span-3"
+                                />
+                                {healthPassport.fluorography_image_url && (
+                                    <div className="md:col-span-2 xl:col-span-3">
+                                        <FileLink
+                                            href={
+                                                healthPassport.fluorography_image_url
+                                            }
+                                            label="Открыть снимок флюорографии"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+                    )}
+
+                    {canEditProfile && (
                     <form
                         onSubmit={submitProfile}
-                        className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+                        className="space-y-6"
                     >
                         <Section
                             title="Карточка студента"
@@ -694,27 +1314,34 @@ export default function Edit({
                                         options={options.faculties}
                                         placeholder="Выберите факультет"
                                         onChange={(event) =>
-                                            profileForm.setData(
-                                                "faculty",
-                                                event.target.value,
-                                            )
+                                            setFaculty(event.target.value)
                                         }
                                     />
                                 </Field>
 
                                 <Field
                                     label="Группа"
-                                    error={profileForm.errors.group_name}
+                                    error={
+                                        profileForm.errors.student_group_id ||
+                                        profileForm.errors.group_name
+                                    }
                                 >
-                                    <TextInput
-                                        value={profileForm.data.group_name}
+                                    <SelectInput
+                                        value={
+                                            profileForm.data.student_group_id
+                                        }
+                                        options={visibleGroupOptions}
+                                        placeholder={
+                                            availableGroups.length === 0
+                                                ? "Сначала создайте группу"
+                                                : "Выберите группу"
+                                        }
+                                        disabled={availableGroups.length === 0}
                                         onChange={(event) =>
-                                            profileForm.setData(
-                                                "group_name",
+                                            setStudentGroupId(
                                                 event.target.value,
                                             )
                                         }
-                                        className="w-full"
                                     />
                                 </Field>
 
@@ -759,7 +1386,7 @@ export default function Edit({
                                 >
                                     <TextInput
                                         type="number"
-                                        min="1900"
+                                        min="2000"
                                         value={profileForm.data.admission_year}
                                         onChange={(event) =>
                                             profileForm.setData(
@@ -793,6 +1420,13 @@ export default function Edit({
                             title="Социальный статус"
                             actions={renderSectionSave()}
                         >
+                            {renderBlockReview({
+                                block: "social",
+                                statusLabel: profile.social_review_status_label,
+                                reviewedAtDisplay:
+                                    profile.social_reviewed_at_display,
+                                comment: profile.social_review_comment,
+                            })}
                             <div className="space-y-6">
                                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                     <Field
@@ -1092,6 +1726,44 @@ export default function Edit({
                                 </Field>
 
                                 <Field
+                                    label="Электронная почта"
+                                    error={profileForm.errors.personal_email}
+                                >
+                                    <TextInput
+                                        type="email"
+                                        value={profileForm.data.personal_email}
+                                        onChange={(event) =>
+                                            profileForm.setData(
+                                                "personal_email",
+                                                event.target.value,
+                                            )
+                                        }
+                                        className="w-full"
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="Контактные данные родителей/опекунов"
+                                    error={
+                                        profileForm.errors
+                                            .parent_guardian_contacts
+                                    }
+                                >
+                                    <TextAreaInput
+                                        value={
+                                            profileForm.data
+                                                .parent_guardian_contacts
+                                        }
+                                        onChange={(event) =>
+                                            profileForm.setData(
+                                                "parent_guardian_contacts",
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+
+                                <Field
                                     label="Адрес пребывания"
                                     error={profileForm.errors.stay_address}
                                 >
@@ -1150,9 +1822,7 @@ export default function Edit({
                                     error={profileForm.errors.kandas_country}
                                 >
                                     <TextInput
-                                        value={
-                                            profileForm.data.kandas_country
-                                        }
+                                        value={profileForm.data.kandas_country}
                                         onChange={(event) =>
                                             profileForm.setData(
                                                 "kandas_country",
@@ -1231,6 +1901,15 @@ export default function Edit({
                             title="Академический профиль"
                             actions={renderSectionSave()}
                         >
+                            {renderBlockReview({
+                                block: "academic",
+                                statusLabel:
+                                    academicProfile.academic_review_status_label,
+                                reviewedAtDisplay:
+                                    academicProfile.academic_reviewed_at_display,
+                                comment:
+                                    academicProfile.academic_review_comment,
+                            })}
                             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                 <Field
                                     label="Язык обучения"
@@ -1322,16 +2001,32 @@ export default function Edit({
                                         }
                                     />
                                 </Field>
+                            </div>
+                        </Section>
 
+                        <Section
+                            title="Учебный статус"
+                            actions={renderSectionSave()}
+                            hidden={!isManagedProfile}
+                            tone="danger"
+                        >
+                            <p className="mb-5 rounded-md bg-red-100 px-4 py-3 text-sm font-medium text-red-800 ring-1 ring-red-200">
+                                Служебный блок. Изменение статуса на
+                                &quot;Выбыл&quot; перенесет студента в список
+                                выбывших в социальном паспорте группы.
+                            </p>
+                            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                 <Field
-                                    label="Динамика оценок"
-                                    error={profileForm.errors.grade_dynamics}
+                                    label="Статус студента"
+                                    error={profileForm.errors.student_status}
                                 >
-                                    <TextAreaInput
-                                        value={profileForm.data.grade_dynamics}
+                                    <SelectInput
+                                        value={profileForm.data.student_status}
+                                        options={options.studentStatuses}
+                                        placeholder="Обучается"
                                         onChange={(event) =>
                                             profileForm.setData(
-                                                "grade_dynamics",
+                                                "student_status",
                                                 event.target.value,
                                             )
                                         }
@@ -1339,16 +2034,21 @@ export default function Edit({
                                 </Field>
 
                                 <Field
-                                    label="Сравнение с группой"
-                                    error={profileForm.errors.group_comparison}
+                                    label="Причина выбытия"
+                                    error={profileForm.errors.departure_reason}
                                 >
-                                    <TextAreaInput
+                                    <SelectInput
                                         value={
-                                            profileForm.data.group_comparison
+                                            profileForm.data.departure_reason
+                                        }
+                                        options={options.departureReasons}
+                                        disabled={
+                                            profileForm.data.student_status !==
+                                            "departed"
                                         }
                                         onChange={(event) =>
                                             profileForm.setData(
-                                                "group_comparison",
+                                                "departure_reason",
                                                 event.target.value,
                                             )
                                         }
@@ -1356,16 +2056,48 @@ export default function Edit({
                                 </Field>
 
                                 <Field
-                                    label="Прогноз академической успешности"
-                                    error={profileForm.errors.success_forecast}
+                                    label="Дата выбытия"
+                                    error={profileForm.errors.departed_at}
                                 >
-                                    <TextAreaInput
-                                        value={
-                                            profileForm.data.success_forecast
+                                    <TextInput
+                                        type="date"
+                                        value={profileForm.data.departed_at}
+                                        disabled={
+                                            profileForm.data.student_status !==
+                                            "departed"
                                         }
                                         onChange={(event) =>
                                             profileForm.setData(
-                                                "success_forecast",
+                                                "departed_at",
+                                                event.target.value,
+                                            )
+                                        }
+                                        className="w-full disabled:cursor-not-allowed disabled:bg-gray-50"
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="Другое"
+                                    error={
+                                        profileForm.errors
+                                            .departure_reason_other
+                                    }
+                                    className="md:col-span-2 xl:col-span-3"
+                                >
+                                    <TextAreaInput
+                                        value={
+                                            profileForm.data
+                                                .departure_reason_other
+                                        }
+                                        disabled={
+                                            profileForm.data.student_status !==
+                                                "departed" ||
+                                            profileForm.data
+                                                .departure_reason !== "other"
+                                        }
+                                        onChange={(event) =>
+                                            profileForm.setData(
+                                                "departure_reason_other",
                                                 event.target.value,
                                             )
                                         }
@@ -1374,11 +2106,197 @@ export default function Edit({
                             </div>
                         </Section>
                     </form>
+                    )}
 
+                    {canEditHealthPassport && (
+                        <section className="mt-8 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                <h3 className="text-base font-semibold text-[#274f93]">
+                                    Паспорт здоровья обучающегося
+                                </h3>
+                            </div>
+
+                            <form onSubmit={submitHealthPassport}>
+                                <div className="grid gap-5 p-6 md:grid-cols-2">
+                                    <Field
+                                        label="Флюорография: дата прохождения"
+                                        error={
+                                            healthPassportForm.errors
+                                                .fluorography_date
+                                        }
+                                    >
+                                        <TextInput
+                                            type="date"
+                                            value={
+                                                healthPassportForm.data
+                                                    .fluorography_date
+                                            }
+                                            onChange={(event) =>
+                                                healthPassportForm.setData(
+                                                    "fluorography_date",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Флюорография: фото снимка"
+                                        error={
+                                            healthPassportForm.errors
+                                                .fluorography_image
+                                        }
+                                    >
+                                        <input
+                                            key={healthPassportFileKey}
+                                            type="file"
+                                            accept="image/jpeg,image/png"
+                                            onChange={(event) =>
+                                                healthPassportForm.setData(
+                                                    "fluorography_image",
+                                                    event.target.files[0],
+                                                )
+                                            }
+                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                                        />
+                                        <FileLink
+                                            href={
+                                                healthPassport.fluorography_image_url
+                                            }
+                                            label="Открыть текущий снимок"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Диспансерный учет"
+                                        error={
+                                            healthPassportForm.errors
+                                                .dispensary_accounting
+                                        }
+                                    >
+                                        <SelectInput
+                                            value={
+                                                healthPassportForm.data
+                                                    .dispensary_accounting
+                                            }
+                                            options={
+                                                dispensaryAccountingOptions
+                                            }
+                                            placeholder="Выберите значение"
+                                            onChange={(event) =>
+                                                healthPassportForm.setData(
+                                                    "dispensary_accounting",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Группа инвалидности"
+                                        error={
+                                            healthPassportForm.errors
+                                                .disability_group
+                                        }
+                                    >
+                                        <SelectInput
+                                            value={
+                                                healthPassportForm.data
+                                                    .disability_group
+                                            }
+                                            options={options.disabilityGroups}
+                                            placeholder="Не указано"
+                                            onChange={(event) =>
+                                                healthPassportForm.setData(
+                                                    "disability_group",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Диагноз"
+                                        error={healthPassportForm.errors.diagnosis}
+                                        className="md:col-span-2"
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                healthPassportForm.data.diagnosis
+                                            }
+                                            onChange={(event) =>
+                                                healthPassportForm.setData(
+                                                    "diagnosis",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Психологический диагноз"
+                                        error={
+                                            healthPassportForm.errors
+                                                .psychological_diagnosis
+                                        }
+                                        className="md:col-span-2"
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                healthPassportForm.data
+                                                    .psychological_diagnosis
+                                            }
+                                            onChange={(event) =>
+                                                healthPassportForm.setData(
+                                                    "psychological_diagnosis",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Беременность"
+                                        error={healthPassportForm.errors.pregnancy}
+                                        className="md:col-span-2"
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                healthPassportForm.data.pregnancy
+                                            }
+                                            rows={3}
+                                            onChange={(event) =>
+                                                healthPassportForm.setData(
+                                                    "pregnancy",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                                    {healthPassportForm.recentlySuccessful && (
+                                        <p className="text-sm text-gray-600">
+                                            Сохранено
+                                        </p>
+                                    )}
+                                    <PrimaryButton
+                                        disabled={healthPassportForm.processing}
+                                    >
+                                        Сохранить
+                                    </PrimaryButton>
+                                </div>
+                            </form>
+                        </section>
+                    )}
+
+                    {canEditProfile && (
                     <div className="mt-8 grid gap-8 xl:grid-cols-2">
                         <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                            <div className="border-b border-gray-200 p-6">
-                                <h3 className="text-base font-semibold text-gray-900">
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                <h3 className="text-base font-semibold text-[#274f93]">
                                     Внеучебная деятельность
                                 </h3>
                             </div>
@@ -1575,8 +2493,8 @@ export default function Edit({
                         </section>
 
                         <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                            <div className="border-b border-gray-200 p-6">
-                                <h3 className="text-base font-semibold text-gray-900">
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                <h3 className="text-base font-semibold text-[#274f93]">
                                     Цифровое портфолио
                                 </h3>
                             </div>
@@ -1699,6 +2617,7 @@ export default function Edit({
                             </div>
                         </section>
                     </div>
+                    )}
                 </div>
             </div>
         </AuthenticatedLayout>
