@@ -199,6 +199,29 @@ class DashboardTest extends TestCase
             );
     }
 
+    public function test_group_leader_dashboard_has_group_management_blocks(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $role = Role::query()->where('slug', Role::GROUP_LEADER)->firstOrFail();
+        $leader = User::factory()->create([
+            'role_id' => $role->id,
+            'position' => 'Староста',
+        ]);
+
+        $this->actingAs($leader)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(
+                fn(Assert $page) => $page
+                    ->component('Dashboard')
+                    ->has('studentHome')
+                    ->where('curatorAdvisorHome.students.total', 0)
+                    ->where('curatorAdvisorHome.analytics.totalStudents', 0)
+            );
+    }
+
+
     public function test_administration_dashboard_has_administration_home_blocks(): void
     {
         $this->seed(RoleSeeder::class);
@@ -257,9 +280,9 @@ class DashboardTest extends TestCase
                     ->has('administrationHome.monitoring', 5)
                     ->has('administrationHome.responsiblePersons', 4)
                     ->where('administrationHome.responsiblePersons.0.risk', 'Социальные риски')
-                    ->where('administrationHome.responsiblePersons.0.responsible', 'Зам.деканы по ВР и кураторы/эдвайзеры')
+                    ->where('administrationHome.responsiblePersons.0.responsible', 'Зам.деканы по ВР и кураторы / эдвайзеры')
                     ->where('administrationHome.responsiblePersons.1.risk', 'Академические риски')
-                    ->where('administrationHome.responsiblePersons.1.responsible', 'Зам.декана по УР и кураторы/эдвайзеры')
+                    ->where('administrationHome.responsiblePersons.1.responsible', 'Зам.декана по УР и кураторы / эдвайзеры')
                     ->where('administrationHome.responsiblePersons.2.risk', 'Психологические риски')
                     ->where('administrationHome.responsiblePersons.2.responsible', 'СПП')
                     ->where('administrationHome.responsiblePersons.3.risk', 'Медицинские риски')

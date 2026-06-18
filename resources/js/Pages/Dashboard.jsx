@@ -676,7 +676,7 @@ function dashboardHeroData({ studentHome, curatorAdvisorHome, administrationHome
         );
 
         return {
-            title: 'Главная страница куратора и эдвайзера',
+            title: 'Главная страница куратора / эдвайзера',
             subtitle:
                 'Быстрый обзор студентов, социальных статусов, групп риска, аналитики группы и уведомлений.',
             stats: [

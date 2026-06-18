@@ -43,7 +43,7 @@ class GroupSocialPassportTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_group_leader_cannot_view_group_list_page(): void
+    public function test_group_leader_can_view_group_list_page(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -51,7 +51,11 @@ class GroupSocialPassportTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('groups.index'))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('StudentGroups/Index')
+                ->has('groups', 0)
+            );
     }
 
     public function test_curator_can_create_multiple_groups(): void
@@ -74,6 +78,33 @@ class GroupSocialPassportTest extends TestCase
         $this->assertSame(2, StudentGroup::query()->where('curator_id', $user->id)->count());
         $this->assertSame(2, GroupSocialPassport::query()->where('user_id', $user->id)->count());
     }
+
+    public function test_group_leader_can_create_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = $this->userWithRole(Role::GROUP_LEADER, 'Group leader');
+        $faculty = StudentProfileOptions::facultyNames()[3];
+
+        $this->actingAs($user)
+            ->post(route('groups.store'), [
+                'faculty' => $faculty,
+                'name' => 'IS-23-1',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('student_groups', [
+            'curator_id' => $user->id,
+            'faculty' => $faculty,
+            'name' => 'IS-23-1',
+        ]);
+        $this->assertDatabaseHas('group_social_passports', [
+            'user_id' => $user->id,
+            'group_name' => 'IS-23-1',
+        ]);
+    }
+
 
     public function test_administration_can_filter_group_list(): void
     {
@@ -337,7 +368,7 @@ class GroupSocialPassportTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_group_leader_cannot_save_group_social_passport(): void
+    public function test_group_leader_cannot_save_another_responsibles_group_social_passport(): void
     {
         $this->seed(RoleSeeder::class);
 

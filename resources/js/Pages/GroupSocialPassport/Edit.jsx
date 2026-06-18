@@ -294,7 +294,7 @@ export default function Edit({
 
                                 <div className="border-t border-gray-100 pt-6">
                                     <h3 className={sectionHeadingClass}>
-                                        Куратор/эдвайзер
+                                        Куратор / эдвайзер
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                         <Field

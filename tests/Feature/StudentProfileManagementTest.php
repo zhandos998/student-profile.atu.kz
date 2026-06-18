@@ -101,6 +101,37 @@ class StudentProfileManagementTest extends TestCase
         ]);
     }
 
+    public function test_group_leader_can_create_student_profile_for_student(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $leader = $this->userWithRole(Role::GROUP_LEADER, 'Group leader');
+        $group = StudentGroup::query()->create([
+            'curator_id' => $leader->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-103',
+        ]);
+
+        $this->actingAs($leader)
+            ->post(route('student-profiles.store'), [
+                'name' => 'Leader Created Student',
+                'email' => 'leader.created@example.com',
+                'password' => 'password123',
+                'full_name' => 'Leader Created Student',
+                'student_group_id' => $group->id,
+                'group_name' => 'IS-103',
+                'course' => 1,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('student_profiles', [
+            'full_name' => 'Leader Created Student',
+            'student_group_id' => $group->id,
+        ]);
+    }
+
+
     public function test_advisor_can_edit_selected_student_profile(): void
     {
         $this->seed(RoleSeeder::class);

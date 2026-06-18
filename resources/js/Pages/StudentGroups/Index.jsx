@@ -166,7 +166,7 @@ export default function Index({
                             </div>
 
                             <div>
-                                <InputLabel value="Куратор/эдвайзер" />
+                                <InputLabel value="Ответственный" />
                                 <select
                                     value={filterData.curator_id}
                                     onChange={(event) =>
@@ -250,7 +250,7 @@ export default function Index({
                                                 </div>
                                                 <div className="rounded-md bg-gray-50 p-3 ring-1 ring-gray-200/70">
                                                     <p className="text-xs font-medium text-gray-500">
-                                                        Куратор
+                                                        Ответственный
                                                     </p>
                                                     <p className="mt-1 truncate text-sm font-semibold text-gray-950">
                                                         {valueOrEmpty(

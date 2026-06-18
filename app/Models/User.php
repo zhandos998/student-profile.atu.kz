@@ -42,6 +42,12 @@ class User extends Authenticatable
         'Здравпункт',
     ];
 
+    public const GROUP_DATA_MANAGER_ROLES = [
+        Role::CURATOR,
+        Role::ADVISOR,
+        Role::GROUP_LEADER,
+    ];
+
     public function canViewPsychologicalProfile(): bool
     {
         if ($this->hasAnyRole([Role::ADMINISTRATOR_DIT])) {
@@ -67,8 +73,7 @@ class User extends Authenticatable
         return $this->hasAnyRole([
             Role::ADMINISTRATOR_DIT,
             Role::ADMINISTRATION,
-            Role::CURATOR,
-            Role::ADVISOR,
+            ...self::GROUP_DATA_MANAGER_ROLES,
         ]);
     }
 
@@ -85,14 +90,13 @@ class User extends Authenticatable
         return $this->hasAnyRole([
             Role::ADMINISTRATOR_DIT,
             Role::ADMINISTRATION,
-            Role::CURATOR,
-            Role::ADVISOR,
+            ...self::GROUP_DATA_MANAGER_ROLES,
         ]);
     }
 
     public function canEditStudentProfileData(): bool
     {
-        if ($this->hasAnyRole([Role::ADMINISTRATOR_DIT, Role::CURATOR, Role::ADVISOR])) {
+        if ($this->hasAnyRole([Role::ADMINISTRATOR_DIT, ...self::GROUP_DATA_MANAGER_ROLES])) {
             return true;
         }
 
@@ -120,10 +124,7 @@ class User extends Authenticatable
 
     public function canViewCuratorAdvisorDashboard(): bool
     {
-        return $this->hasAnyRole([
-            Role::CURATOR,
-            Role::ADVISOR,
-        ]);
+        return $this->hasAnyRole(self::GROUP_DATA_MANAGER_ROLES);
     }
 
     public function canViewAnalyticsDashboard(): bool

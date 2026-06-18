@@ -26,6 +26,14 @@ class UserRolesTest extends TestCase
             'slug' => Role::ADMINISTRATOR_DIT,
             'name' => 'Администратор (ДИТ)',
         ]);
+        $this->assertDatabaseHas('roles', [
+            'slug' => Role::CURATOR,
+            'name' => 'Куратор / эдвайзер',
+        ]);
+        $this->assertDatabaseHas('roles', [
+            'slug' => Role::ADVISOR,
+            'name' => 'Куратор / эдвайзер',
+        ]);
 
         $this->assertDatabaseHas('users', [
             'email' => 'admin.dit@atu.kz',
