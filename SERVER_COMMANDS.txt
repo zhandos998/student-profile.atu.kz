@@ -67,6 +67,7 @@ Set real values:
   DB_USERNAME=student_profile
   DB_PASSWORD=<strong_mysql_password>
   MYSQL_ROOT_PASSWORD=<strong_mysql_root_password>
+  SESSION_SECURE_COOKIE=true
 
 Generate APP_KEY:
   docker compose --env-file .env.docker -f docker-compose.prod.yml run --rm --no-deps --build app php artisan key:generate --show
@@ -101,16 +102,34 @@ Paste:
 
   server {
       listen 80;
+      listen [::]:80;
       server_name student-profile.atu.kz;
+
+      return 301 https://student-profile.atu.kz$request_uri;
+  }
+
+  server {
+      listen 443 ssl;
+      listen [::]:443 ssl;
+      server_name student-profile.atu.kz;
+
+      ssl_certificate /etc/ssl/atussl/ssl-bundle.crt;
+      ssl_certificate_key /etc/ssl/atussl/atu.key;
+      ssl_prefer_server_ciphers on;
 
       client_max_body_size 128M;
 
       location / {
           proxy_pass http://127.0.0.1:8111;
+          proxy_http_version 1.1;
           proxy_set_header Host $host;
           proxy_set_header X-Real-IP $remote_addr;
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-Host $host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
       }
   }
 
@@ -119,13 +138,6 @@ Enable:
   sudo ln -s /etc/nginx/sites-available/student-profile.atu.kz /etc/nginx/sites-enabled/student-profile.atu.kz
   sudo nginx -t
   sudo systemctl reload nginx
-
-
-HTTPS certificate
------------------
-If certbot is installed:
-
-  sudo certbot --nginx -d student-profile.atu.kz
 
 
 Check containers
