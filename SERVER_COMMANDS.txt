@@ -13,6 +13,12 @@ Project path on server:
 Domain:
   student-profile.atu.kz
 
+Git repository:
+  https://github.com/zhandos998/student-profile.atu.kz.git
+
+Git branch:
+  main
+
 Important:
   Do not commit .env.docker.
   Do not write SSH, MySQL, API, or mail passwords into this file.
@@ -38,22 +44,15 @@ If Docker is not installed on Ubuntu:
 After usermod, reconnect to SSH.
 
 
-First upload from local computer
---------------------------------
-Create deploy archive from the project folder on your computer:
-
-  tar -czf student_profile_deploy.tar.gz --exclude=.git --exclude=.env --exclude=.env.docker --exclude=.env.backup --exclude=.env.production --exclude=docs --exclude=*.docx --exclude=.phpunit.result.cache --exclude=node_modules --exclude=vendor --exclude=public/build --exclude=public/hot --exclude=public/storage --exclude=storage/app/public --exclude=storage/framework/cache --exclude=storage/framework/sessions --exclude=storage/framework/testing --exclude=storage/framework/views --exclude=storage/logs --exclude=database/database.sqlite* --exclude=*.tar.gz --exclude=*.sql .
-
-Upload archive:
-
-  scp student_profile_deploy.tar.gz zhagparovr@172.20.252.171:/tmp/student_profile_deploy.tar.gz
-
+First deploy from Git
+---------------------
 Prepare project folder on server:
 
   ssh zhagparovr@172.20.252.171
   sudo mkdir -p /opt/apps/student_profile
   sudo chown -R zhagparovr:zhagparovr /opt/apps/student_profile
-  tar -xzf /tmp/student_profile_deploy.tar.gz -C /opt/apps/student_profile
+  rm -rf /opt/apps/student_profile/*
+  git clone --branch main https://github.com/zhandos998/student-profile.atu.kz.git /opt/apps/student_profile
 
 
 Create .env.docker on server
@@ -107,7 +106,7 @@ Paste:
       client_max_body_size 128M;
 
       location / {
-          proxy_pass http://127.0.0.1:8081;
+          proxy_pass http://127.0.0.1:8111;
           proxy_set_header Host $host;
           proxy_set_header X-Real-IP $remote_addr;
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -158,27 +157,15 @@ Restart all:
 
 Update project after code changes
 ---------------------------------
-If you upload by archive from local computer:
-
-  tar -czf student_profile_deploy.tar.gz --exclude=.git --exclude=.env --exclude=.env.docker --exclude=.env.backup --exclude=.env.production --exclude=docs --exclude=*.docx --exclude=.phpunit.result.cache --exclude=node_modules --exclude=vendor --exclude=public/build --exclude=public/hot --exclude=public/storage --exclude=storage/app/public --exclude=storage/framework/cache --exclude=storage/framework/sessions --exclude=storage/framework/testing --exclude=storage/framework/views --exclude=storage/logs --exclude=database/database.sqlite* --exclude=*.tar.gz --exclude=*.sql .
-  scp student_profile_deploy.tar.gz zhagparovr@172.20.252.171:/tmp/student_profile_deploy.tar.gz
-
-Then on server:
-
-  cd /opt/apps/student_profile
-  tar -xzf /tmp/student_profile_deploy.tar.gz -C /opt/apps/student_profile
-  docker compose --env-file .env.docker -f docker-compose.prod.yml up -d --build
-  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan migrate --force
-  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan optimize:clear
-  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan config:cache
-  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan view:cache
-
-If you use Git:
+On server:
 
   cd /opt/apps/student_profile
   git pull origin main
   docker compose --env-file .env.docker -f docker-compose.prod.yml up -d --build
   docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan migrate --force
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan optimize:clear
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan config:cache
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan view:cache
 
 
 Laravel commands
@@ -205,14 +192,14 @@ Backup database:
 phpMyAdmin
 ----------
 phpMyAdmin is bound only to server localhost:
-  http://127.0.0.1:8082
+  http://127.0.0.1:8112
 
 Open phpMyAdmin from your computer with SSH tunnel:
 
-  ssh -L 8082:127.0.0.1:8082 zhagparovr@172.20.252.171
+  ssh -L 8112:127.0.0.1:8112 zhagparovr@172.20.252.171
 
 Then open in browser on your computer:
-  http://127.0.0.1:8082
+  http://127.0.0.1:8112
 
 phpMyAdmin login:
   Server: mysql
@@ -224,7 +211,7 @@ phpMyAdmin login:
 Health checks
 -------------
 Check local app from server:
-  curl -I http://127.0.0.1:8081/
+  curl -I http://127.0.0.1:8111/
 
 Check public domain:
   curl -I http://student-profile.atu.kz/
