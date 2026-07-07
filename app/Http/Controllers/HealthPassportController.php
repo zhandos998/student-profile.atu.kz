@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\HealthPassport;
-use App\Models\Role;
 use App\Models\User;
 use App\Support\StudentProfileOptions;
 use Illuminate\Http\RedirectResponse;
@@ -30,7 +29,7 @@ class HealthPassportController extends Controller
     public function updateForStudent(Request $request, User $student): RedirectResponse
     {
         abort_unless($request->user()?->canEditStudentHealthPassport(), 403);
-        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
 
         $this->persist($request, $student);
 

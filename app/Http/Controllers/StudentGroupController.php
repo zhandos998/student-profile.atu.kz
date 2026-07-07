@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GroupSocialPassport;
 use App\Models\StudentGroup;
 use App\Models\User;
+use App\Support\FacultyDeputyDeanContacts;
 use App\Support\StudentProfileOptions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -74,11 +75,17 @@ class StudentGroupController extends Controller
             'name' => $validated['name'],
         ]);
 
+        $deputyDeanContacts = FacultyDeputyDeanContacts::passportDefaults($group->faculty);
+
         GroupSocialPassport::query()->create([
             'user_id' => $request->user()->id,
             'student_group_id' => $group->id,
             'faculty' => $group->faculty,
             'group_name' => $group->name,
+            'curator_full_name' => $request->user()->name,
+            'curator_phone' => $request->user()->phone,
+            'curator_email' => $request->user()->email,
+            ...$deputyDeanContacts,
             'students' => [],
             'summary' => [],
             'departed_students' => [],
@@ -100,7 +107,11 @@ class StudentGroupController extends Controller
         return StudentGroup::query()
             ->when(
                 ! $user?->canViewAllStudentData(),
-                fn (Builder $query) => $query->where('curator_id', $user?->id),
+                fn (Builder $query) => $query->where(function (Builder $query) use ($user): void {
+                    $query
+                        ->where('curator_id', $user?->id)
+                        ->orWhere('leader_id', $user?->id);
+                }),
             );
     }
 

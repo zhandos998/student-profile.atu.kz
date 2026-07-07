@@ -30,6 +30,22 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('dashboard', absolute: false));
     }
 
+    public function test_users_can_authenticate_using_phone_number(): void
+    {
+        $user = User::factory()->create([
+            'phone' => '+7 700 000 00 00',
+            'phone_normalized' => '77000000000',
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => '8 700 000 00 00',
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
     public function test_users_can_not_authenticate_with_invalid_password(): void
     {
         $user = User::factory()->create();

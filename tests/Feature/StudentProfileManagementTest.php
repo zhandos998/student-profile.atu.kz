@@ -131,6 +131,94 @@ class StudentProfileManagementTest extends TestCase
         ]);
     }
 
+    public function test_group_leader_can_edit_student_from_led_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Curator');
+        $leader = $this->userWithRole(Role::GROUP_LEADER, 'Староста');
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = StudentGroup::query()->create([
+            'curator_id' => $curator->id,
+            'leader_id' => $leader->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-104',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'full_name' => 'Group Student',
+        ]);
+
+        $this->actingAs($leader)
+            ->get(route('student-profiles.edit', $student))
+            ->assertOk();
+
+        $this->actingAs($leader)
+            ->post(route('student-profiles.update', $student), [
+                'full_name' => 'Updated By Leader',
+                'student_group_id' => $group->id,
+                'course' => 2,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('student_profiles', [
+            'user_id' => $student->id,
+            'full_name' => 'Updated By Leader',
+            'student_group_id' => $group->id,
+        ]);
+    }
+
+    public function test_group_leader_cannot_edit_student_from_other_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Curator');
+        $leader = $this->userWithRole(Role::GROUP_LEADER, 'Староста');
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $ownGroup = StudentGroup::query()->create([
+            'curator_id' => $curator->id,
+            'leader_id' => $leader->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-105',
+        ]);
+        $otherGroup = StudentGroup::query()->create([
+            'curator_id' => $curator->id,
+            'faculty' => StudentProfileOptions::facultyNames()[4],
+            'name' => 'TPP-105',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $otherGroup->id,
+            'faculty' => $otherGroup->faculty,
+            'group_name' => $otherGroup->name,
+            'full_name' => 'Other Group Student',
+        ]);
+
+        $this->actingAs($leader)
+            ->get(route('student-profiles.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('availableGroups', 1)
+                ->where('availableGroups.0.value', (string) $ownGroup->id)
+                ->has('students.data', 0)
+            );
+
+        $this->actingAs($leader)
+            ->get(route('student-profiles.edit', $student))
+            ->assertForbidden();
+
+        $this->actingAs($leader)
+            ->post(route('student-profiles.update', $student), [
+                'full_name' => 'Illegal Update',
+                'student_group_id' => $ownGroup->id,
+            ])
+            ->assertForbidden();
+    }
+
 
     public function test_advisor_can_edit_selected_student_profile(): void
     {
@@ -142,6 +230,13 @@ class StudentProfileManagementTest extends TestCase
             'curator_id' => $advisor->id,
             'faculty' => StudentProfileOptions::facultyNames()[5],
             'name' => 'EK-201',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'full_name' => 'Old Student Name',
         ]);
 
         $this->actingAs($advisor)
@@ -189,10 +284,23 @@ class StudentProfileManagementTest extends TestCase
 
         $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
         $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-104',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'full_name' => 'Active Student',
+        ]);
 
         $this->actingAs($advisor)
             ->post(route('student-profiles.update', $student), [
                 'full_name' => 'Departed Student',
+                'student_group_id' => $group->id,
                 'student_status' => StudentProfile::STUDENT_STATUS_DEPARTED,
                 'departure_reason' => 'expelled',
                 'departure_reason_other' => '',
@@ -214,6 +322,18 @@ class StudentProfileManagementTest extends TestCase
 
         $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
         $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-105',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'full_name' => 'Known Group Student',
+        ]);
 
         $this->actingAs($advisor)
             ->post(route('student-profiles.update', $student), [
@@ -236,16 +356,27 @@ class StudentProfileManagementTest extends TestCase
         $draftStudent = $this->userWithRole(Role::STUDENT, 'Student', [
             'name' => 'Draft Student',
         ]);
+        $group = StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-106',
+        ]);
 
         StudentProfile::query()->create([
             'user_id' => $submittedStudent->id,
             'profile_status' => StudentProfile::STATUS_SUBMITTED,
             'full_name' => 'Submitted Student',
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
         ]);
         StudentProfile::query()->create([
             'user_id' => $draftStudent->id,
             'profile_status' => StudentProfile::STATUS_DRAFT,
             'full_name' => 'Draft Student',
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
         ]);
 
         $this->actingAs($advisor)
@@ -266,10 +397,18 @@ class StudentProfileManagementTest extends TestCase
 
         $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
         $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-107',
+        ]);
         $profile = StudentProfile::query()->create([
             'user_id' => $student->id,
             'profile_status' => StudentProfile::STATUS_SUBMITTED,
             'full_name' => 'Submitted Student',
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
         ]);
 
         $this->actingAs($advisor)
@@ -307,11 +446,19 @@ class StudentProfileManagementTest extends TestCase
 
         $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
         $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-108',
+        ]);
         $profile = StudentProfile::query()->create([
             'user_id' => $student->id,
             'profile_status' => StudentProfile::STATUS_SUBMITTED,
             'full_name' => 'Submitted Student',
             'social_review_status' => StudentProfile::REVIEW_PENDING,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
         ]);
         $academic = AcademicProfile::query()->create([
             'user_id' => $student->id,
@@ -357,6 +504,18 @@ class StudentProfileManagementTest extends TestCase
 
         $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
         $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-109',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'full_name' => 'Achievement Student',
+        ]);
 
         $this->actingAs($advisor)
             ->post(route('student-profiles.achievements.store', $student), [

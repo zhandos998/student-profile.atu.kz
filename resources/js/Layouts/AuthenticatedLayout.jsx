@@ -1,14 +1,15 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
+import LanguageSwitcher from '@/Components/LanguageSwitcher';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
+import LanguageDomTranslator from '@/i18n/LanguageDomTranslator';
 import { Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 export default function AuthenticatedLayout({ header, children }) {
     const {
         user,
-        canViewPsychologicalProfile,
         canViewGroupSocialPassport,
         canViewAnalyticsDashboard,
         canManageStudentProfiles,
@@ -20,6 +21,7 @@ export default function AuthenticatedLayout({ header, children }) {
 
     return (
         <div className="min-h-screen bg-white">
+            <LanguageDomTranslator />
             <nav className="border-b border-[#dbe5f6] bg-white">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 justify-between">
@@ -61,18 +63,6 @@ export default function AuthenticatedLayout({ header, children }) {
                                         Портреты студентов
                                     </NavLink>
                                 )}
-                                {canViewPsychologicalProfile && (
-                                    <NavLink
-                                        href={route(
-                                            'psychological-profile.index',
-                                        )}
-                                        active={route().current(
-                                            'psychological-profile.*',
-                                        )}
-                                    >
-                                        Психологический профиль
-                                    </NavLink>
-                                )}
                                 {canViewGroupSocialPassport && (
                                     <NavLink
                                         href={route('groups.index')}
@@ -102,6 +92,8 @@ export default function AuthenticatedLayout({ header, children }) {
                         </div>
 
                         <div className="hidden sm:ms-6 sm:flex sm:items-center">
+                            <LanguageSwitcher compact />
+
                             <div className="relative ms-3">
                                 <Dropdown>
                                     <Dropdown.Trigger>
@@ -218,16 +210,6 @@ export default function AuthenticatedLayout({ header, children }) {
                                 Портреты студентов
                             </ResponsiveNavLink>
                         )}
-                        {canViewPsychologicalProfile && (
-                            <ResponsiveNavLink
-                                href={route('psychological-profile.index')}
-                                active={route().current(
-                                    'psychological-profile.*',
-                                )}
-                            >
-                                Психологический профиль
-                            </ResponsiveNavLink>
-                        )}
                         {canViewGroupSocialPassport && (
                             <ResponsiveNavLink
                                 href={route('groups.index')}
@@ -253,6 +235,9 @@ export default function AuthenticatedLayout({ header, children }) {
 
                     <div className="border-t border-[#dbe5f6] pb-1 pt-4">
                         <div className="px-4">
+                            <div className="mb-3">
+                                <LanguageSwitcher />
+                            </div>
                             <div className="text-base font-medium text-gray-800">
                                 {user.name}
                             </div>

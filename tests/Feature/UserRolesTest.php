@@ -52,6 +52,7 @@ class UserRolesTest extends TestCase
         $this->post('/register', [
             'name' => 'New Student',
             'email' => 'new.student@atu.kz',
+            'phone' => '+7 701 000 00 00',
             'password' => 'password',
             'password_confirmation' => 'password',
         ])->assertRedirect(route('dashboard', absolute: false));

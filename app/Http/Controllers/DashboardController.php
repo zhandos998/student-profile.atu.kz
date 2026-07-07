@@ -8,6 +8,7 @@ use App\Models\PortfolioItem;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Services\StudentRiskService;
+use App\Support\StudentProfileAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -141,18 +142,8 @@ class DashboardController extends Controller
             ->orderBy('group_name')
             ->orderBy('full_name');
 
-        if ($user && ! $user->canManageStudentProfiles() && ! $user->canViewAllStudentData()) {
-            $groups = $user->studentGroups()->get(['id', 'name']);
-            $groupIds = $groups->pluck('id');
-            $groupNames = $groups->pluck('name')->filter()->values();
-
-            $query->where(function ($query) use ($groupIds, $groupNames): void {
-                $query->whereIn('student_group_id', $groupIds);
-
-                if ($groupNames->isNotEmpty()) {
-                    $query->orWhereIn('group_name', $groupNames);
-                }
-            });
+        if ($user) {
+            StudentProfileAccess::scopeStudentProfiles($query, $user);
         }
 
         return $query->get();

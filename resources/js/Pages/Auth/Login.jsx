@@ -21,14 +21,15 @@ export default function Login({ status, canResetPassword, csrfToken, errors = {}
                 <input type="hidden" name="_token" value={csrfToken} />
 
                 <div>
-                    <InputLabel htmlFor="email" value="Email" />
+                    <InputLabel htmlFor="email" value="Email или телефон" />
 
                     <TextInput
                         id="email"
-                        type="email"
+                        type="text"
                         name="email"
                         className="mt-1 block w-full"
                         autoComplete="username"
+                        placeholder="email@atu.kz или +7 700 000 00 00"
                         isFocused={true}
                         required
                     />

@@ -5,9 +5,9 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExtracurricularAchievementController;
 use App\Http\Controllers\GroupSocialPassportController;
 use App\Http\Controllers\HealthPassportController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\PsychologicalProfileController;
 use App\Http\Controllers\StudentGroupController;
 use App\Http\Controllers\StudentProfileController;
 use Illuminate\Foundation\Application;
@@ -22,6 +22,8 @@ Route::get('/', function () {
         'phpVersion' => PHP_VERSION,
     ]);
 });
+
+Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -43,6 +45,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/student-profiles', [StudentProfileController::class, 'index'])->name('student-profiles.index');
     Route::get('/student-profiles/create', [StudentProfileController::class, 'createManaged'])->name('student-profiles.create');
     Route::post('/student-profiles', [StudentProfileController::class, 'storeManaged'])->name('student-profiles.store');
+    Route::get('/student-profiles/{student}', [StudentProfileController::class, 'editManaged'])->name('student-profiles.show');
     Route::get('/student-profiles/{student}/edit', [StudentProfileController::class, 'editManaged'])->name('student-profiles.edit');
     Route::post('/student-profiles/{student}', [StudentProfileController::class, 'updateManaged'])->name('student-profiles.update');
     Route::post('/student-profiles/{student}/status', [StudentProfileController::class, 'updateStatus'])->name('student-profiles.status.update');
@@ -52,9 +55,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/student-profiles/{student}/achievements/{achievement}', [ExtracurricularAchievementController::class, 'destroyForStudent'])->name('student-profiles.achievements.destroy');
     Route::post('/student-profiles/{student}/portfolio', [PortfolioItemController::class, 'storeForStudent'])->name('student-profiles.portfolio.store');
     Route::delete('/student-profiles/{student}/portfolio/{portfolioItem}', [PortfolioItemController::class, 'destroyForStudent'])->name('student-profiles.portfolio.destroy');
-
-    Route::get('/psychological-profile', [PsychologicalProfileController::class, 'index'])->name('psychological-profile.index');
-    Route::post('/psychological-profile', [PsychologicalProfileController::class, 'update'])->name('psychological-profile.update');
 
     Route::get('/health-passport', [HealthPassportController::class, 'index'])->name('health-passport.index');
     Route::post('/health-passport', [HealthPassportController::class, 'update'])->name('health-passport.update');

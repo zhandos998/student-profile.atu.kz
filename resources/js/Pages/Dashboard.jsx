@@ -726,7 +726,6 @@ export default function Dashboard({
 }) {
     const {
         user,
-        canViewPsychologicalProfile,
         canViewGroupSocialPassport,
         canViewAnalyticsDashboard,
         canManageStudentProfiles,
@@ -778,13 +777,6 @@ export default function Dashboard({
                                     title="Портреты студентов"
                                     description="Список студентов, фильтры, создание и редактирование портретов."
                                     href={route('student-profiles.index')}
-                                />
-                            )}
-                            {canViewPsychologicalProfile && (
-                                <ModuleCard
-                                    title="Психологический профиль"
-                                    description="Результаты психотестов и индивидуальные особенности студента."
-                                    href={route('psychological-profile.index')}
                                 />
                             )}
                             {canViewGroupSocialPassport && (

@@ -221,6 +221,69 @@ class DashboardTest extends TestCase
             );
     }
 
+    public function test_group_leader_dashboard_is_scoped_to_led_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $leaderRole = Role::query()->where('slug', Role::GROUP_LEADER)->firstOrFail();
+        $curatorRole = Role::query()->where('slug', Role::CURATOR)->firstOrFail();
+        $studentRole = Role::query()->where('slug', Role::STUDENT)->firstOrFail();
+        $leader = User::factory()->create([
+            'role_id' => $leaderRole->id,
+            'position' => 'Староста',
+        ]);
+        $curator = User::factory()->create([
+            'role_id' => $curatorRole->id,
+            'position' => 'Куратор',
+        ]);
+        $ownStudent = User::factory()->create([
+            'role_id' => $studentRole->id,
+            'name' => 'Own Group Student',
+            'position' => 'Студент',
+        ]);
+        $otherStudent = User::factory()->create([
+            'role_id' => $studentRole->id,
+            'name' => 'Other Group Student',
+            'position' => 'Студент',
+        ]);
+        $ownGroup = StudentGroup::query()->create([
+            'curator_id' => $curator->id,
+            'leader_id' => $leader->id,
+            'faculty' => 'Факультет информационных технологий',
+            'name' => 'ИС-201',
+        ]);
+        $otherGroup = StudentGroup::query()->create([
+            'curator_id' => $curator->id,
+            'faculty' => 'Факультет пищевых технологий',
+            'name' => 'ТПП-201',
+        ]);
+
+        StudentProfile::query()->create([
+            'user_id' => $ownStudent->id,
+            'student_group_id' => $ownGroup->id,
+            'full_name' => 'Own Group Student',
+            'faculty' => $ownGroup->faculty,
+            'group_name' => $ownGroup->name,
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $otherStudent->id,
+            'student_group_id' => $otherGroup->id,
+            'full_name' => 'Other Group Student',
+            'faculty' => $otherGroup->faculty,
+            'group_name' => $otherGroup->name,
+        ]);
+
+        $this->actingAs($leader)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(
+                fn(Assert $page) => $page
+                    ->component('Dashboard')
+                    ->where('curatorAdvisorHome.students.total', 1)
+                    ->where('curatorAdvisorHome.students.items.0.name', 'Own Group Student')
+            );
+    }
+
 
     public function test_administration_dashboard_has_administration_home_blocks(): void
     {

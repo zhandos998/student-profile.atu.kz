@@ -62,7 +62,10 @@ class GroupSocialPassportTest extends TestCase
     {
         $this->seed(RoleSeeder::class);
 
-        $user = $this->userWithRole(Role::CURATOR, 'Curator');
+        $user = $this->userWithRole(Role::CURATOR, 'Curator', [
+            'phone' => '+7 700 000 00 00',
+            'phone_normalized' => '77000000000',
+        ]);
         $faculty = StudentProfileOptions::facultyNames()[3];
 
         foreach (['IS-23-1', 'IS-23-2'] as $groupName) {
@@ -77,6 +80,13 @@ class GroupSocialPassportTest extends TestCase
 
         $this->assertSame(2, StudentGroup::query()->where('curator_id', $user->id)->count());
         $this->assertSame(2, GroupSocialPassport::query()->where('user_id', $user->id)->count());
+        $this->assertDatabaseHas('group_social_passports', [
+            'user_id' => $user->id,
+            'group_name' => 'IS-23-1',
+            'curator_full_name' => $user->name,
+            'curator_phone' => '+7 700 000 00 00',
+            'curator_email' => $user->email,
+        ]);
     }
 
     public function test_group_leader_can_create_group(): void
@@ -103,6 +113,61 @@ class GroupSocialPassportTest extends TestCase
             'user_id' => $user->id,
             'group_name' => 'IS-23-1',
         ]);
+    }
+
+    public function test_group_social_passport_uses_faculty_deputy_dean_defaults(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = $this->userWithRole(Role::CURATOR, 'Curator');
+        $faculty = StudentProfileOptions::facultyNames()[3];
+
+        config([
+            "faculty_deputy_deans.contacts.{$faculty}" => [
+                'ur' => [
+                    'full_name' => 'Default UR',
+                    'phone' => '+7 702 111 22 33',
+                    'email' => 'default.ur@atu.kz',
+                ],
+                'vr' => [
+                    'full_name' => 'Default VR',
+                    'phone' => '+7 703 111 22 33',
+                    'email' => 'default.vr@atu.kz',
+                ],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('groups.store'), [
+                'faculty' => $faculty,
+                'name' => 'IS-23-3',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $group = StudentGroup::query()->where('name', 'IS-23-3')->firstOrFail();
+
+        $this->assertDatabaseHas('group_social_passports', [
+            'student_group_id' => $group->id,
+            'deputy_dean_ur_full_name' => 'Default UR',
+            'deputy_dean_ur_phone' => '+7 702 111 22 33',
+            'deputy_dean_ur_email' => 'default.ur@atu.kz',
+            'deputy_dean_vr_full_name' => 'Default VR',
+            'deputy_dean_vr_phone' => '+7 703 111 22 33',
+            'deputy_dean_vr_email' => 'default.vr@atu.kz',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('groups.social-passport.edit', $group))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('passport.deputy_dean_ur_full_name', 'Default UR')
+                ->where('passport.deputy_dean_ur_phone', '+7 702 111 22 33')
+                ->where('passport.deputy_dean_ur_email', 'default.ur@atu.kz')
+                ->where('passport.deputy_dean_vr_full_name', 'Default VR')
+                ->where('passport.deputy_dean_vr_phone', '+7 703 111 22 33')
+                ->where('passport.deputy_dean_vr_email', 'default.vr@atu.kz')
+            );
     }
 
 
@@ -269,6 +334,147 @@ class GroupSocialPassportTest extends TestCase
         $this->assertSame(0, $passport->summary['total_students']);
         $this->assertSame(0, $passport->summary['disabled_students']);
         $this->assertSame([], $passport->departed_students);
+    }
+
+    public function test_curator_can_select_group_leader_from_group_students(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Куратор / эдвайзер', [
+            'name' => 'Petr Curator',
+            'email' => 'curator@atu.kz',
+            'phone' => '+7 701 000 00 00',
+            'phone_normalized' => '77010000000',
+        ]);
+        $student = $this->userWithRole(Role::STUDENT, 'Студент', [
+            'name' => 'Student User',
+            'email' => 'student.user@atu.kz',
+        ]);
+        $group = $this->studentGroup($curator, 'IS-23-1');
+
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'full_name' => 'Ivan Leader',
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'contact_details' => '+7 700 000 00 00',
+            'personal_email' => 'ivan.leader@atu.kz',
+        ]);
+
+        $this->actingAs($curator)
+            ->get(route('groups.social-passport.edit', $group))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('passport.curator_full_name', 'Petr Curator')
+                ->where('passport.curator_email', 'curator@atu.kz')
+                ->where('passport.leader_options.0.value', (string) $student->id)
+                ->where('passport.leader_options.0.full_name', 'Ivan Leader')
+            );
+
+        $this->actingAs($curator)
+            ->post(route('groups.social-passport.update', $group), [
+                'faculty' => $group->faculty,
+                'student_group_id' => $group->id,
+                'group_name' => $group->name,
+                'leader_user_id' => $student->id,
+                'curator_full_name' => 'Manual Curator',
+                'curator_email' => 'manual.curator@atu.kz',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $group->refresh();
+        $student->refresh()->loadMissing('role');
+        $passport = GroupSocialPassport::query()
+            ->where('student_group_id', $group->id)
+            ->firstOrFail();
+
+        $this->assertSame($student->id, $group->leader_id);
+        $this->assertSame(Role::GROUP_LEADER, $student->role?->slug);
+        $this->assertSame('Староста', $student->position);
+        $this->assertSame('Ivan Leader', $passport->leader_full_name);
+        $this->assertSame('+7 700 000 00 00', $passport->leader_phone);
+        $this->assertSame('ivan.leader@atu.kz', $passport->leader_email);
+        $this->assertSame('Petr Curator', $passport->curator_full_name);
+        $this->assertSame('+7 701 000 00 00', $passport->curator_phone);
+        $this->assertSame('curator@atu.kz', $passport->curator_email);
+
+        $this->actingAs($student)
+            ->get(route('groups.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('groups', 1)
+                ->where('groups.0.name', 'IS-23-1')
+            );
+
+        $this->actingAs($student)
+            ->get(route('groups.social-passport.edit', $group))
+            ->assertOk();
+    }
+
+    public function test_changing_group_leader_demotes_previous_leader(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Куратор / эдвайзер');
+        $firstStudent = $this->userWithRole(Role::STUDENT, 'Студент', [
+            'name' => 'First Leader User',
+            'email' => 'first.leader@atu.kz',
+        ]);
+        $secondStudent = $this->userWithRole(Role::STUDENT, 'Студент', [
+            'name' => 'Second Leader User',
+            'email' => 'second.leader@atu.kz',
+        ]);
+        $group = $this->studentGroup($curator, 'IS-23-2');
+
+        foreach ([
+            [$firstStudent, 'Первый Староста'],
+            [$secondStudent, 'Второй Староста'],
+        ] as [$student, $fullName]) {
+            StudentProfile::query()->create([
+                'user_id' => $student->id,
+                'full_name' => $fullName,
+                'student_group_id' => $group->id,
+                'faculty' => $group->faculty,
+                'group_name' => $group->name,
+            ]);
+        }
+
+        $this->actingAs($curator)
+            ->post(route('groups.social-passport.update', $group), [
+                'faculty' => $group->faculty,
+                'student_group_id' => $group->id,
+                'group_name' => $group->name,
+                'leader_user_id' => $firstStudent->id,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $firstStudent->refresh()->loadMissing('role');
+
+        $this->assertSame(Role::GROUP_LEADER, $firstStudent->role?->slug);
+        $this->assertSame('Староста', $firstStudent->position);
+
+        $this->actingAs($curator)
+            ->post(route('groups.social-passport.update', $group), [
+                'faculty' => $group->faculty,
+                'student_group_id' => $group->id,
+                'group_name' => $group->name,
+                'leader_user_id' => $secondStudent->id,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $group->refresh();
+        $firstStudent->refresh()->loadMissing('role');
+        $secondStudent->refresh()->loadMissing('role');
+
+        $this->assertSame($secondStudent->id, $group->leader_id);
+        $this->assertSame(Role::STUDENT, $firstStudent->role?->slug);
+        $this->assertSame('Студент', $firstStudent->position);
+        $this->assertSame(Role::GROUP_LEADER, $secondStudent->role?->slug);
+        $this->assertSame('Староста', $secondStudent->position);
     }
 
     public function test_group_social_passport_loads_students_from_student_profiles(): void

@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'psychotest' => [
+        'base_url' => env('PSYCHOTEST_API_URL'),
+        'token' => env('PSYCHOTEST_API_TOKEN'),
+        'test_ids' => array_values(array_filter(array_map(
+            fn (string $id): string => trim($id),
+            explode(',', (string) env('PSYCHOTEST_TEST_IDS', '')),
+        ))),
+    ],
+
 ];

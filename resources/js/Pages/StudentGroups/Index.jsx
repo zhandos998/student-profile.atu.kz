@@ -336,6 +336,7 @@ export default function Index({
                             />
                             <InputError message={errors.name} className="mt-2" />
                         </div>
+
                     </div>
 
                     <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\ExtracurricularAchievement;
-use App\Models\Role;
 use App\Models\User;
+use App\Support\StudentProfileAccess;
 use App\Support\StudentProfileOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +26,8 @@ class ExtracurricularAchievementController extends Controller
     public function storeForStudent(Request $request, User $student): RedirectResponse
     {
         abort_unless($request->user()?->canEditStudentProfileData(), 403);
-        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
 
         return $this->storeForUser($request, $student);
     }
@@ -47,7 +48,8 @@ class ExtracurricularAchievementController extends Controller
     public function destroyForStudent(Request $request, User $student, ExtracurricularAchievement $achievement): RedirectResponse
     {
         abort_unless($request->user()?->canEditStudentProfileData(), 403);
-        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
         abort_unless($achievement->user_id === $student->id, 404);
 
         $this->deleteAchievement($achievement);

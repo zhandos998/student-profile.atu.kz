@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\GroupSocialPassport;
+use App\Models\Role;
 use App\Models\StudentGroup;
 use App\Models\StudentProfile;
+use App\Models\User;
+use App\Support\FacultyDeputyDeanContacts;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -77,6 +81,7 @@ class GroupSocialPassportController extends Controller
             'faculty' => ['nullable', 'string', 'max:255'],
             'student_group_id' => ['nullable', 'integer', 'exists:student_groups,id'],
             'group_name' => ['nullable', 'string', 'max:100'],
+            'leader_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'leader_full_name' => ['nullable', 'string', 'max:255'],
             'leader_phone' => ['nullable', 'string', 'max:100'],
             'leader_email' => ['nullable', 'email', 'max:255'],
@@ -117,19 +122,32 @@ class GroupSocialPassportController extends Controller
         $validated['faculty'] = $studentGroup->faculty;
         $validated['group_name'] = $studentGroup->name;
         $summary = $this->summaryForGroup($studentGroup);
+        $leaderProfile = $this->selectedLeaderProfile($studentGroup, $validated['leader_user_id'] ?? null);
+        $leaderContact = $this->leaderContact($leaderProfile);
+        $creatorContact = $this->creatorContact($studentGroup, $validated);
 
         $passport = GroupSocialPassport::query()->firstOrNew([
             'student_group_id' => $studentGroup->id,
         ]);
+        $deputyDeanContacts = $this->deputyDeanContacts($studentGroup->faculty, $passport, $validated);
 
         $passport->fill([
             ...$validated,
             'user_id' => $passport->user_id ?: ($studentGroup->curator_id ?: $request->user()->id),
+            'leader_full_name' => $leaderContact['full_name'],
+            'leader_phone' => $leaderContact['phone'],
+            'leader_email' => $leaderContact['email'],
+            'curator_full_name' => $creatorContact['full_name'],
+            'curator_phone' => $creatorContact['phone'],
+            'curator_email' => $creatorContact['email'],
+            ...$deputyDeanContacts,
             'students' => [],
             'summary' => $summary,
             'departed_students' => $this->departedStudentRows($studentGroup),
         ]);
         $passport->save();
+
+        $this->syncGroupLeader($studentGroup, $leaderProfile);
 
         return back()->with('status', 'group-social-passport-saved');
     }
@@ -143,22 +161,24 @@ class GroupSocialPassportController extends Controller
         bool $canOpenStudentProfiles = false,
     ): array
     {
+        $leaderProfile = $this->currentLeaderProfile($studentGroup);
+        $leaderContact = $this->leaderContact($leaderProfile, $passport);
+        $creatorContact = $this->creatorContact($studentGroup, [], $passport);
+        $deputyDeanContacts = $this->deputyDeanContacts($studentGroup?->faculty ?? $passport?->faculty, $passport);
+
         return [
             'faculty' => $studentGroup?->faculty ?? $passport?->faculty ?? '',
             'student_group_id' => $studentGroup?->id ? (string) $studentGroup->id : ($passport?->student_group_id ? (string) $passport->student_group_id : ''),
             'group_name' => $studentGroup?->name ?? $passport?->group_name ?? '',
-            'leader_full_name' => $passport?->leader_full_name ?? '',
-            'leader_phone' => $passport?->leader_phone ?? '',
-            'leader_email' => $passport?->leader_email ?? '',
-            'curator_full_name' => $passport?->curator_full_name ?? '',
-            'curator_phone' => $passport?->curator_phone ?? '',
-            'curator_email' => $passport?->curator_email ?? '',
-            'deputy_dean_ur_full_name' => $passport?->deputy_dean_ur_full_name ?? '',
-            'deputy_dean_ur_phone' => $passport?->deputy_dean_ur_phone ?? '',
-            'deputy_dean_ur_email' => $passport?->deputy_dean_ur_email ?? '',
-            'deputy_dean_vr_full_name' => $passport?->deputy_dean_vr_full_name ?? '',
-            'deputy_dean_vr_phone' => $passport?->deputy_dean_vr_phone ?? '',
-            'deputy_dean_vr_email' => $passport?->deputy_dean_vr_email ?? '',
+            'leader_user_id' => $studentGroup?->leader_id ? (string) $studentGroup->leader_id : '',
+            'leader_full_name' => $leaderContact['full_name'],
+            'leader_phone' => $leaderContact['phone'],
+            'leader_email' => $leaderContact['email'],
+            'leader_options' => $this->leaderOptions($studentGroup, $passport),
+            'curator_full_name' => $creatorContact['full_name'],
+            'curator_phone' => $creatorContact['phone'],
+            'curator_email' => $creatorContact['email'],
+            ...$deputyDeanContacts,
             'students' => $this->studentRows($passport, $studentGroup, $canOpenStudentProfiles),
             'summary' => $this->summaryForGroup($studentGroup, $passport),
             'departed_students' => $this->departedStudentRows($studentGroup, $passport),
@@ -189,6 +209,7 @@ class GroupSocialPassportController extends Controller
                 'iin' => $profile->iin,
                 'identity_document_number' => $profile->identity_document_number,
                 'contact_details' => $profile->contact_details,
+                'personal_email' => $profile->personal_email ?: $profile->user?->email,
                 'stay_address' => $profile->stay_address,
                 'residence_address' => $profile->residence_address,
                 'parent_details' => $profile->parent_guardian_contacts,
@@ -322,7 +343,11 @@ class GroupSocialPassportController extends Controller
         return StudentGroup::query()
             ->when(
                 ! $user?->canViewAllStudentData(),
-                fn (Builder $query) => $query->where('curator_id', $user?->id),
+                fn (Builder $query) => $query->where(function (Builder $query) use ($user): void {
+                    $query
+                        ->where('curator_id', $user?->id)
+                        ->orWhere('leader_id', $user?->id);
+                }),
             );
     }
 
@@ -335,7 +360,8 @@ class GroupSocialPassportController extends Controller
             return true;
         }
 
-        return $studentGroup->curator_id === $user?->id;
+        return $studentGroup->curator_id === $user?->id
+            || $studentGroup->leader_id === $user?->id;
     }
 
     /**
@@ -385,5 +411,199 @@ class GroupSocialPassportController extends Controller
         }
 
         return StudentProfile::DEPARTURE_REASONS[$profile->departure_reason] ?? $profile->departure_reason;
+    }
+
+    private function selectedLeaderProfile(StudentGroup $studentGroup, mixed $leaderUserId): ?StudentProfile
+    {
+        if (blank($leaderUserId)) {
+            return null;
+        }
+
+        $profile = $this->studentProfilesForGroup($studentGroup, null, StudentProfile::STUDENT_STATUS_ACTIVE)
+            ->where('user_id', (int) $leaderUserId)
+            ->first();
+
+        if (! $profile) {
+            throw ValidationException::withMessages([
+                'leader_user_id' => 'Выберите старосту из студентов этой группы.',
+            ]);
+        }
+
+        return $profile;
+    }
+
+    private function currentLeaderProfile(?StudentGroup $studentGroup): ?StudentProfile
+    {
+        if (! $studentGroup?->leader_id) {
+            return null;
+        }
+
+        return $this->studentProfilesForGroup($studentGroup, null, StudentProfile::STUDENT_STATUS_ACTIVE)
+            ->where('user_id', $studentGroup->leader_id)
+            ->first();
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string, full_name: string, phone: string, email: string}>
+     */
+    private function leaderOptions(?StudentGroup $studentGroup = null, ?GroupSocialPassport $passport = null): array
+    {
+        return $this->studentProfilesForGroup($studentGroup, $passport, StudentProfile::STUDENT_STATUS_ACTIVE)
+            ->get()
+            ->map(function (StudentProfile $profile): array {
+                $fullName = $profile->full_name ?: $profile->user?->name ?: 'Без имени';
+                $email = $profile->personal_email ?: $profile->user?->email ?: '';
+
+                return [
+                    'value' => (string) $profile->user_id,
+                    'label' => trim($fullName.($email ? ' — '.$email : '')),
+                    'full_name' => $fullName,
+                    'phone' => $profile->contact_details ?? '',
+                    'email' => $email,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{full_name: string, phone: string, email: string}
+     */
+    private function leaderContact(?StudentProfile $leaderProfile, ?GroupSocialPassport $passport = null): array
+    {
+        if (! $leaderProfile) {
+            return [
+                'full_name' => $passport?->leader_full_name ?? '',
+                'phone' => $passport?->leader_phone ?? '',
+                'email' => $passport?->leader_email ?? '',
+            ];
+        }
+
+        return [
+            'full_name' => $leaderProfile->full_name ?: $leaderProfile->user?->name ?: '',
+            'phone' => $leaderProfile->contact_details ?? '',
+            'email' => $leaderProfile->personal_email ?: $leaderProfile->user?->email ?: '',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array{full_name: string, phone: string, email: string}
+     */
+    private function creatorContact(
+        ?StudentGroup $studentGroup,
+        array $validated = [],
+        ?GroupSocialPassport $passport = null,
+    ): array {
+        $creator = $studentGroup?->curator;
+
+        return [
+            'full_name' => $creator?->name ?: ($passport?->curator_full_name ?? ''),
+            'phone' => (string) ($creator?->phone ?? $passport?->curator_phone ?? $validated['curator_phone'] ?? ''),
+            'email' => $creator?->email ?: ($passport?->curator_email ?? ''),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array{
+     *     deputy_dean_ur_full_name: string,
+     *     deputy_dean_ur_phone: string,
+     *     deputy_dean_ur_email: string,
+     *     deputy_dean_vr_full_name: string,
+     *     deputy_dean_vr_phone: string,
+     *     deputy_dean_vr_email: string
+     * }
+     */
+    private function deputyDeanContacts(
+        ?string $faculty,
+        ?GroupSocialPassport $passport = null,
+        array $validated = [],
+    ): array {
+        $defaults = FacultyDeputyDeanContacts::passportDefaults($faculty);
+
+        return [
+            'deputy_dean_ur_full_name' => $this->firstFilled(
+                $validated['deputy_dean_ur_full_name'] ?? null,
+                $passport?->deputy_dean_ur_full_name,
+                $defaults['deputy_dean_ur_full_name'],
+            ),
+            'deputy_dean_ur_phone' => $this->firstFilled(
+                $validated['deputy_dean_ur_phone'] ?? null,
+                $passport?->deputy_dean_ur_phone,
+                $defaults['deputy_dean_ur_phone'],
+            ),
+            'deputy_dean_ur_email' => $this->firstFilled(
+                $validated['deputy_dean_ur_email'] ?? null,
+                $passport?->deputy_dean_ur_email,
+                $defaults['deputy_dean_ur_email'],
+            ),
+            'deputy_dean_vr_full_name' => $this->firstFilled(
+                $validated['deputy_dean_vr_full_name'] ?? null,
+                $passport?->deputy_dean_vr_full_name,
+                $defaults['deputy_dean_vr_full_name'],
+            ),
+            'deputy_dean_vr_phone' => $this->firstFilled(
+                $validated['deputy_dean_vr_phone'] ?? null,
+                $passport?->deputy_dean_vr_phone,
+                $defaults['deputy_dean_vr_phone'],
+            ),
+            'deputy_dean_vr_email' => $this->firstFilled(
+                $validated['deputy_dean_vr_email'] ?? null,
+                $passport?->deputy_dean_vr_email,
+                $defaults['deputy_dean_vr_email'],
+            ),
+        ];
+    }
+
+    private function firstFilled(mixed ...$values): string
+    {
+        foreach ($values as $value) {
+            if (filled($value)) {
+                return (string) $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function syncGroupLeader(StudentGroup $studentGroup, ?StudentProfile $leaderProfile): void
+    {
+        $oldLeaderId = $studentGroup->leader_id;
+        $newLeaderId = $leaderProfile?->user_id;
+
+        if ($oldLeaderId !== $newLeaderId) {
+            $studentGroup->forceFill(['leader_id' => $newLeaderId])->save();
+        }
+
+        $groupLeaderRoleId = Role::query()->where('slug', Role::GROUP_LEADER)->value('id');
+        $studentRoleId = Role::query()->where('slug', Role::STUDENT)->value('id');
+
+        if ($newLeaderId && $groupLeaderRoleId) {
+            User::query()
+                ->whereKey($newLeaderId)
+                ->update([
+                    'role_id' => $groupLeaderRoleId,
+                    'position' => 'Староста',
+                ]);
+        }
+
+        if (! $oldLeaderId || $oldLeaderId === $newLeaderId || ! $studentRoleId) {
+            return;
+        }
+
+        $stillLeadsGroup = StudentGroup::query()
+            ->where('leader_id', $oldLeaderId)
+            ->exists();
+
+        if (! $stillLeadsGroup) {
+            User::query()
+                ->whereKey($oldLeaderId)
+                ->whereHas('role', fn (Builder $query) => $query->where('slug', Role::GROUP_LEADER))
+                ->update([
+                    'role_id' => $studentRoleId,
+                    'position' => 'Студент',
+                ]);
+        }
     }
 }

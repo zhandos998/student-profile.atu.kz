@@ -73,16 +73,29 @@ function Field({ label, error, children }) {
     );
 }
 
+function InfoItem({ label, value }) {
+    return (
+        <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+            <p className="text-xs font-medium text-gray-500">{label}</p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+                {displayValue(value)}
+            </p>
+        </div>
+    );
+}
+
 export default function Edit({
     passport,
     updateRoute = route("group-social-passport.update"),
     groupsIndexUrl = route("groups.index"),
     groupOptions = [],
 }) {
+    const leaderOptions = passport.leader_options ?? [];
     const [data, setData] = useState({
         faculty: valueOrEmpty(passport.faculty),
         student_group_id: valueOrEmpty(passport.student_group_id),
         group_name: valueOrEmpty(passport.group_name),
+        leader_user_id: valueOrEmpty(passport.leader_user_id),
         leader_full_name: valueOrEmpty(passport.leader_full_name),
         leader_phone: valueOrEmpty(passport.leader_phone),
         leader_email: valueOrEmpty(passport.leader_email),
@@ -122,6 +135,20 @@ export default function Edit({
         setData((current) => ({
             ...current,
             [field]: value,
+        }));
+    };
+
+    const selectLeader = (leaderUserId) => {
+        const leader = leaderOptions.find(
+            (option) => String(option.value) === String(leaderUserId),
+        );
+
+        setData((current) => ({
+            ...current,
+            leader_user_id: leaderUserId,
+            leader_full_name: leader?.full_name ?? "",
+            leader_phone: leader?.phone ?? "",
+            leader_email: leader?.email ?? "",
         }));
     };
 
@@ -242,52 +269,41 @@ export default function Edit({
                                     <h3 className={sectionHeadingClass}>
                                         Староста
                                     </h3>
-                                    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                    <div className="mb-5">
                                         <Field
-                                            label="ФИО"
-                                            error={errors.leader_full_name}
+                                            label="Выберите старосту из студентов группы"
+                                            error={errors.leader_user_id}
                                         >
-                                            <TextInput
-                                                value={data.leader_full_name}
+                                            <select
+                                                value={data.leader_user_id}
                                                 onChange={(event) =>
-                                                    setField(
-                                                        "leader_full_name",
+                                                    selectLeader(
                                                         event.target.value,
                                                     )
                                                 }
-                                                className="w-full"
-                                            />
-                                        </Field>
-                                        <Field
-                                            label="Телефон"
-                                            error={errors.leader_phone}
-                                        >
-                                            <TextInput
-                                                value={data.leader_phone}
-                                                onChange={(event) =>
-                                                    setField(
-                                                        "leader_phone",
-                                                        event.target.value,
-                                                    )
+                                                disabled={
+                                                    leaderOptions.length === 0
                                                 }
-                                                className="w-full"
-                                            />
-                                        </Field>
-                                        <Field
-                                            label="Эл.адрес"
-                                            error={errors.leader_email}
-                                        >
-                                            <TextInput
-                                                type="email"
-                                                value={data.leader_email}
-                                                onChange={(event) =>
-                                                    setField(
-                                                        "leader_email",
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                className="w-full"
-                                            />
+                                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8] disabled:bg-gray-100 disabled:text-gray-500"
+                                            >
+                                                <option value="">
+                                                    {leaderOptions.length === 0
+                                                        ? "В группе пока нет студентов"
+                                                        : "Староста не выбран"}
+                                                </option>
+                                                {leaderOptions.map(
+                                                    (leader) => (
+                                                        <option
+                                                            key={leader.value}
+                                                            value={
+                                                                leader.value
+                                                            }
+                                                        >
+                                                            {leader.label}
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </select>
                                         </Field>
                                     </div>
                                 </div>
@@ -297,52 +313,18 @@ export default function Edit({
                                         Куратор / эдвайзер
                                     </h3>
                                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                        <Field
+                                        <InfoItem
                                             label="ФИО"
-                                            error={errors.curator_full_name}
-                                        >
-                                            <TextInput
-                                                value={data.curator_full_name}
-                                                onChange={(event) =>
-                                                    setField(
-                                                        "curator_full_name",
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                className="w-full"
-                                            />
-                                        </Field>
-                                        <Field
+                                            value={data.curator_full_name}
+                                        />
+                                        <InfoItem
                                             label="Телефон"
-                                            error={errors.curator_phone}
-                                        >
-                                            <TextInput
-                                                value={data.curator_phone}
-                                                onChange={(event) =>
-                                                    setField(
-                                                        "curator_phone",
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                className="w-full"
-                                            />
-                                        </Field>
-                                        <Field
+                                            value={data.curator_phone}
+                                        />
+                                        <InfoItem
                                             label="Эл.адрес"
-                                            error={errors.curator_email}
-                                        >
-                                            <TextInput
-                                                type="email"
-                                                value={data.curator_email}
-                                                onChange={(event) =>
-                                                    setField(
-                                                        "curator_email",
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                className="w-full"
-                                            />
-                                        </Field>
+                                            value={data.curator_email}
+                                        />
                                     </div>
                                 </div>
 

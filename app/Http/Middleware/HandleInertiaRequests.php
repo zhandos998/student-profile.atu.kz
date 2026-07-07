@@ -45,6 +45,14 @@ class HandleInertiaRequests extends Middleware
                 'canUseOwnStudentProfile' => $user?->canUseOwnStudentProfile() ?? false,
             ],
             'csrfToken' => csrf_token(),
+            'locale' => app()->getLocale(),
+            'availableLocales' => collect(config('locales.supported', []))
+                ->map(fn (string $label, string $value): array => [
+                    'value' => $value,
+                    'label' => $label,
+                ])
+                ->values()
+                ->all(),
         ];
     }
 }

@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'role_id', 'position'])]
+#[Fillable(['name', 'email', 'phone', 'phone_normalized', 'password', 'role_id', 'position'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -45,6 +45,11 @@ class User extends Authenticatable
     public const GROUP_DATA_MANAGER_ROLES = [
         Role::CURATOR,
         Role::ADVISOR,
+        Role::GROUP_LEADER,
+    ];
+
+    public const STUDENT_DATA_ROLES = [
+        Role::STUDENT,
         Role::GROUP_LEADER,
     ];
 
@@ -116,10 +121,7 @@ class User extends Authenticatable
 
     public function canUseOwnStudentProfile(): bool
     {
-        return $this->hasAnyRole([
-            Role::STUDENT,
-            Role::GROUP_LEADER,
-        ]);
+        return $this->hasAnyRole(self::STUDENT_DATA_ROLES);
     }
 
     public function canViewCuratorAdvisorDashboard(): bool
@@ -143,6 +145,11 @@ class User extends Authenticatable
         $this->loadMissing('role');
 
         return in_array($this->role?->slug, $roles, true);
+    }
+
+    public function hasStudentDataRole(): bool
+    {
+        return $this->hasAnyRole(self::STUDENT_DATA_ROLES);
     }
 
     /**

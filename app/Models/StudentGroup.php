@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'curator_id',
+    'leader_id',
     'faculty',
     'name',
 ])]
@@ -21,6 +22,14 @@ class StudentGroup extends Model
     public function curator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'curator_id');
+    }
+
+    /**
+     * @return BelongsTo<User, StudentGroup>
+     */
+    public function leader(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'leader_id');
     }
 
     /**

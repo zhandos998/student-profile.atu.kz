@@ -72,7 +72,7 @@ class AnalyticsDashboardController extends Controller
     private function studentCount(): int
     {
         $count = User::query()
-            ->whereHas('role', fn ($query) => $query->where('slug', Role::STUDENT))
+            ->whereHas('role', fn ($query) => $query->whereIn('slug', User::STUDENT_DATA_ROLES))
             ->count();
 
         return $count > 0 ? $count : StudentProfile::query()->count();

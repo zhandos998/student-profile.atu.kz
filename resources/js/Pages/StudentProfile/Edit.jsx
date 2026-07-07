@@ -211,10 +211,323 @@ function FileSize({ size }) {
     return <span>{kilobytes} KB</span>;
 }
 
+function formatPsychotestValue(value) {
+    if (value === null || value === undefined || value === "") {
+        return "Не указано";
+    }
+
+    if (typeof value === "object") {
+        return JSON.stringify(value, null, 2);
+    }
+
+    return String(value);
+}
+
+function formatPsychotestDate(value) {
+    if (!value) {
+        return "";
+    }
+
+    const match = String(value).match(
+        /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/,
+    );
+
+    if (!match) {
+        return value;
+    }
+
+    return `${match[3]}.${match[2]}.${match[1]} ${match[4]}:${match[5]}`;
+}
+
+function formatPsychotestText(value) {
+    return formatPsychotestValue(value).replace(/\\n/g, "\n");
+}
+
+const psychotestStatusMap = {
+    completed: {
+        label: "Завершено",
+        className: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    },
+    in_progress: {
+        label: "В процессе",
+        className: "bg-[#edf3ff] text-[#274f93] ring-[#dbe5f6]",
+    },
+    cancelled: {
+        label: "Отменена",
+        className: "bg-gray-100 text-gray-700 ring-gray-200",
+    },
+    expired: {
+        label: "Истекло время",
+        className: "bg-amber-50 text-amber-800 ring-amber-200",
+    },
+    failed: {
+        label: "Ошибка подсчёта",
+        className: "bg-red-50 text-red-700 ring-red-100",
+    },
+};
+
+const psychotestTypeMap = {
+    psychology: "Психология",
+    social_survey: "Социальный опрос",
+};
+
+function PsychotestStatusBadge({ status }) {
+    const meta = psychotestStatusMap[status] ?? {
+        label: formatPsychotestValue(status),
+        className: "bg-gray-100 text-gray-700 ring-gray-200",
+    };
+
+    return (
+        <span
+            className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${meta.className}`}
+        >
+            {meta.label}
+        </span>
+    );
+}
+
+function psychotestTypeLabel(type) {
+    return psychotestTypeMap[type] ?? formatPsychotestValue(type);
+}
+
+function PsychotestResultCard({ result, index }) {
+    if (!result || typeof result !== "object" || Array.isArray(result)) {
+        return (
+            <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
+                <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
+                    <h4 className="text-sm font-semibold text-[#274f93]">
+                        Результат теста #{index + 1}
+                    </h4>
+                </div>
+                <div className="p-4 text-sm text-gray-900">
+                    {formatPsychotestValue(result)}
+                </div>
+            </article>
+        );
+    }
+
+    const attempts = Array.isArray(result.attempts) ? result.attempts : [];
+
+    return (
+        <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
+            <div className="space-y-2 border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
+                <h4 className="text-sm font-semibold text-[#274f93]">
+                    {result.title || `Результат теста #${index + 1}`}
+                </h4>
+                <div className="flex flex-wrap gap-2 text-xs font-medium text-gray-600">
+                    {result.id && (
+                        <span className="rounded-full bg-white px-2 py-1 ring-1 ring-[#dbe5f6]">
+                            ID: {result.id}
+                        </span>
+                    )}
+                    {result.category && (
+                        <span className="rounded-full bg-white px-2 py-1 ring-1 ring-[#dbe5f6]">
+                            {result.category}
+                        </span>
+                    )}
+                    {result.type && (
+                        <span className="rounded-full bg-white px-2 py-1 ring-1 ring-[#dbe5f6]">
+                            {psychotestTypeLabel(result.type)}
+                        </span>
+                    )}
+                </div>
+            </div>
+            <div className="space-y-4 p-4">
+                {result.description && (
+                    <p className="text-sm leading-6 text-gray-700">
+                        {result.description}
+                    </p>
+                )}
+
+                {attempts.length === 0 && (
+                    <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600 ring-1 ring-gray-200/70">
+                        По этому тесту попыток пока нет.
+                    </p>
+                )}
+
+                {attempts.map((attempt, attemptIndex) => {
+                    const scales = Object.entries(
+                        attempt?.result_json?.scales ?? {},
+                    );
+                    const interpretation = attempt?.result_json?.interpretation;
+
+                    return (
+                        <div
+                            key={attempt.id ?? attemptIndex}
+                            className="rounded-md border border-gray-200"
+                        >
+                            <div className="grid gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-sm md:grid-cols-4">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Статус
+                                    </p>
+                                    <div className="mt-1">
+                                        <PsychotestStatusBadge
+                                            status={attempt.status}
+                                        />
+                                    </div>
+                                </div>
+                                <DisplayField
+                                    label="Общий балл"
+                                    value={attempt.total_score}
+                                />
+                                <DisplayField
+                                    label="Высокий риск"
+                                    value={yesNo(attempt.is_high_risk)}
+                                />
+                                <DisplayField
+                                    label="Завершено"
+                                    value={formatPsychotestDate(
+                                        attempt.finished_at,
+                                    )}
+                                />
+                            </div>
+
+                            {scales.length > 0 && (
+                                <div className="divide-y divide-gray-100">
+                                    {scales.map(([scaleKey, scale]) => (
+                                        <div
+                                            key={scaleKey}
+                                            className="space-y-2 px-4 py-3 text-sm"
+                                        >
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="font-semibold text-gray-900">
+                                                    {scale.label || scaleKey}
+                                                </span>
+                                                {scale.score !== undefined && (
+                                                    <span className="rounded-full bg-[#edf3ff] px-2 py-1 text-xs font-semibold text-[#274f93]">
+                                                        Балл: {scale.score}
+                                                    </span>
+                                                )}
+                                                {scale.interpretation
+                                                    ?.title && (
+                                                    <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-100">
+                                                        {
+                                                            scale.interpretation
+                                                                .title
+                                                        }
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {scale.interpretation
+                                                ?.description && (
+                                                <p className="whitespace-pre-wrap leading-6 text-gray-700">
+                                                    {formatPsychotestText(
+                                                        scale.interpretation
+                                                            .description,
+                                                    )}
+                                                </p>
+                                            )}
+                                            {scale.interpretation
+                                                ?.recommendation && (
+                                                <p className="whitespace-pre-wrap rounded-md bg-amber-50 px-3 py-2 leading-6 text-amber-900 ring-1 ring-amber-100">
+                                                    {formatPsychotestText(
+                                                        scale.interpretation
+                                                            .recommendation,
+                                                    )}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {interpretation && (
+                                <div className="space-y-2 px-4 py-3 text-sm">
+                                    {interpretation.title && (
+                                        <span className="inline-flex rounded-full bg-[#edf3ff] px-2 py-1 text-xs font-semibold text-[#274f93] ring-1 ring-[#dbe5f6]">
+                                            {interpretation.title}
+                                        </span>
+                                    )}
+                                    {interpretation.description && (
+                                        <p className="whitespace-pre-wrap leading-6 text-gray-700">
+                                            {formatPsychotestText(
+                                                interpretation.description,
+                                            )}
+                                        </p>
+                                    )}
+                                    {interpretation.recommendation && (
+                                        <p className="whitespace-pre-wrap rounded-md bg-amber-50 px-3 py-2 leading-6 text-amber-900 ring-1 ring-amber-100">
+                                            {formatPsychotestText(
+                                                interpretation.recommendation,
+                                            )}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </article>
+    );
+}
+
+function PsychotestResultsSection({ psychotestResults }) {
+    const results = Array.isArray(psychotestResults?.results)
+        ? psychotestResults.results
+        : [];
+    const apiUser = psychotestResults?.user ?? null;
+
+    return (
+        <Section title="Результаты психотестов из API">
+            <div className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <DisplayField label="ИИН" value={psychotestResults?.iin} />
+                    {/* <DisplayField
+                        label="ID тестов"
+                        value={psychotestResults?.test_ids}
+                    /> */}
+                    <DisplayField label="ФИО студента" value={apiUser?.name} />
+                    <DisplayField label="Email" value={apiUser?.email} />
+                    <DisplayField label="Группа" value={apiUser?.group_name} />
+                    <DisplayField
+                        label="ID студента в API"
+                        value={apiUser?.student_id}
+                    />
+                </div>
+
+                {!psychotestResults?.configured && (
+                    <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+                        {psychotestResults?.message}
+                    </p>
+                )}
+
+                {psychotestResults?.configured &&
+                    !psychotestResults?.ok &&
+                    psychotestResults?.message && (
+                        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
+                            {psychotestResults.message}
+                        </p>
+                    )}
+
+                {psychotestResults?.ok && results.length === 0 && (
+                    <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600 ring-1 ring-gray-200/70">
+                        API не вернул результаты по ИИН студента.
+                    </p>
+                )}
+
+                {psychotestResults?.ok && results.length > 0 && (
+                    <div className="space-y-4">
+                        {results.map((result, index) => (
+                            <PsychotestResultCard
+                                key={index}
+                                result={result}
+                                index={index}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+        </Section>
+    );
+}
+
 export default function Edit({
     profile,
     academicProfile,
     healthPassport = {},
+    psychotestResults = null,
     achievements,
     portfolioItems,
     options,
@@ -223,6 +536,7 @@ export default function Edit({
     isManagedProfile = false,
     canEditProfile = true,
     canEditHealthPassport = false,
+    canViewPsychotestResults = false,
     healthPassportUpdateUrl = null,
     targetUser = null,
 }) {
@@ -736,90 +1050,95 @@ export default function Edit({
             <div className="py-8">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     {canEditProfile && (
-                    <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                        <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
-                            <h3 className="text-base font-semibold text-[#274f93]">
-                                Статус анкеты
-                            </h3>
-                        </div>
-
-                        <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
-                            <div>
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <span className="rounded-full bg-[#f4f7fc] px-3 py-1 text-sm font-semibold text-[#355da8] ring-1 ring-[#dbe5f6]">
-                                        {currentStatusLabel}
-                                    </span>
-                                    {profile.submitted_at_display && (
-                                        <span className="text-sm text-gray-500">
-                                            Отправлена:{" "}
-                                            {profile.submitted_at_display}
-                                        </span>
-                                    )}
-                                    {profile.verified_at_display && (
-                                        <span className="text-sm text-gray-500">
-                                            Проверена:{" "}
-                                            {profile.verified_at_display}
-                                        </span>
-                                    )}
-                                </div>
-                                {profile.revision_comment && (
-                                    <p className="mt-3 max-w-3xl rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-100">
-                                        {profile.revision_comment}
-                                    </p>
-                                )}
-                                <InputError
-                                    message={profileErrors.profile_status}
-                                    className="mt-2"
-                                />
+                        <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                <h3 className="text-base font-semibold text-[#274f93]">
+                                    Статус анкеты
+                                </h3>
                             </div>
 
-                            {isManagedProfile && (
-                                <div className="w-full max-w-md space-y-3">
-                                    <textarea
-                                        value={statusForm.data.revision_comment}
-                                        onChange={(event) =>
-                                            statusForm.setData(
-                                                "revision_comment",
-                                                event.target.value,
-                                            )
-                                        }
-                                        rows={3}
-                                        placeholder="Комментарий для исправления"
-                                        className="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
-                                    />
+                            <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <span className="rounded-full bg-[#f4f7fc] px-3 py-1 text-sm font-semibold text-[#355da8] ring-1 ring-[#dbe5f6]">
+                                            {currentStatusLabel}
+                                        </span>
+                                        {profile.submitted_at_display && (
+                                            <span className="text-sm text-gray-500">
+                                                Отправлена:{" "}
+                                                {profile.submitted_at_display}
+                                            </span>
+                                        )}
+                                        {profile.verified_at_display && (
+                                            <span className="text-sm text-gray-500">
+                                                Проверена:{" "}
+                                                {profile.verified_at_display}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {profile.revision_comment && (
+                                        <p className="mt-3 max-w-3xl rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-100">
+                                            {profile.revision_comment}
+                                        </p>
+                                    )}
                                     <InputError
-                                        message={
-                                            statusForm.errors.revision_comment
-                                        }
+                                        message={profileErrors.profile_status}
+                                        className="mt-2"
                                     />
-                                    <div className="flex flex-wrap justify-end gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                updateProfileStatus(
-                                                    "needs_revision",
+                                </div>
+
+                                {isManagedProfile && (
+                                    <div className="w-full max-w-md space-y-3">
+                                        <textarea
+                                            value={
+                                                statusForm.data.revision_comment
+                                            }
+                                            onChange={(event) =>
+                                                statusForm.setData(
+                                                    "revision_comment",
+                                                    event.target.value,
                                                 )
                                             }
-                                            disabled={statusForm.processing}
-                                            className={revisionActionClass}
-                                        >
-                                            Вернуть на исправление
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                updateProfileStatus("verified")
+                                            rows={3}
+                                            placeholder="Комментарий для исправления"
+                                            className="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
+                                        />
+                                        <InputError
+                                            message={
+                                                statusForm.errors
+                                                    .revision_comment
                                             }
-                                            disabled={statusForm.processing}
-                                            className={primaryActionClass}
-                                        >
-                                            Проверить
-                                        </button>
+                                        />
+                                        <div className="flex flex-wrap justify-end gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    updateProfileStatus(
+                                                        "needs_revision",
+                                                    )
+                                                }
+                                                disabled={statusForm.processing}
+                                                className={revisionActionClass}
+                                            >
+                                                Вернуть на исправление
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    updateProfileStatus(
+                                                        "verified",
+                                                    )
+                                                }
+                                                disabled={statusForm.processing}
+                                                className={primaryActionClass}
+                                            >
+                                                Проверить
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    </section>
+                                )}
+                            </div>
+                        </section>
                     )}
 
                     {!canEditProfile && (
@@ -833,7 +1152,9 @@ export default function Edit({
                             <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
                                 <DisplayField
                                     label="ФИО"
-                                    value={profile.full_name || targetUser?.name}
+                                    value={
+                                        profile.full_name || targetUser?.name
+                                    }
                                 />
                                 <DisplayField
                                     label="Email"
@@ -882,7 +1203,10 @@ export default function Edit({
                                     label="Специальность"
                                     value={profile.specialty}
                                 />
-                                <DisplayField label="Курс" value={profile.course} />
+                                <DisplayField
+                                    label="Курс"
+                                    value={profile.course}
+                                />
                                 <DisplayField
                                     label="Год поступления"
                                     value={profile.admission_year}
@@ -987,9 +1311,7 @@ export default function Edit({
                                 />
                                 <DisplayField
                                     label="В какой поддержке нуждается"
-                                    value={
-                                        profile.social_support_need_details
-                                    }
+                                    value={profile.social_support_need_details}
                                     className="md:col-span-2"
                                 />
                                 <DisplayField
@@ -1064,387 +1386,98 @@ export default function Edit({
                         </section>
                     )}
 
+                    {canViewPsychotestResults && (
+                        <div className="mb-6">
+                            <PsychotestResultsSection
+                                psychotestResults={psychotestResults}
+                            />
+                        </div>
+                    )}
+
                     {canEditProfile && (
-                    <form
-                        onSubmit={submitProfile}
-                        className="space-y-6"
-                    >
-                        <Section
-                            title="Карточка студента"
-                            actions={renderSectionSave()}
-                        >
-                            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                <Field
-                                    label="ФИО"
-                                    error={profileForm.errors.full_name}
-                                    className="xl:col-span-2"
-                                >
-                                    <TextInput
-                                        value={profileForm.data.full_name}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "full_name",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Дата рождения"
-                                    error={profileForm.errors.birth_date}
-                                >
-                                    <TextInput
-                                        type="date"
-                                        value={profileForm.data.birth_date}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "birth_date",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Форма обучения"
-                                    error={profileForm.errors.study_form}
-                                >
-                                    <TextInput
-                                        value={profileForm.data.study_form}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "study_form",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Национальность"
-                                    error={profileForm.errors.nationality}
-                                >
-                                    <TextInput
-                                        value={profileForm.data.nationality}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "nationality",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Гражданство"
-                                    error={profileForm.errors.citizenship}
-                                >
-                                    <SelectInput
-                                        value={profileForm.data.citizenship}
-                                        options={options.citizenships}
-                                        placeholder="Выберите гражданство"
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "citizenship",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Военная кафедра"
-                                    error={
-                                        profileForm.errors
-                                            .military_department_status
-                                    }
-                                >
-                                    <SelectInput
-                                        value={
-                                            profileForm.data
-                                                .military_department_status
-                                        }
-                                        options={
-                                            options.militaryDepartmentStatuses
-                                        }
-                                        placeholder="Выберите статус"
-                                        onChange={(event) =>
-                                            setMilitaryDepartmentStatus(
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Где обучается на военной кафедре"
-                                    error={
-                                        profileForm.errors
-                                            .military_department_place
-                                    }
-                                >
-                                    <TextInput
-                                        value={
-                                            profileForm.data
-                                                .military_department_place
-                                        }
-                                        disabled={
-                                            profileForm.data
-                                                .military_department_status !==
-                                            "studying"
-                                        }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "military_department_place",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full disabled:cursor-not-allowed disabled:bg-gray-50"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Фото"
-                                    error={profileForm.errors.photo}
-                                >
-                                    <input
-                                        type="file"
-                                        accept="image/jpeg,image/png"
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "photo",
-                                                event.target.files[0],
-                                            )
-                                        }
-                                        className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
-                                    />
-                                    <FileLink
-                                        href={profile.photo_url}
-                                        label="Открыть текущий файл"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="ИИН"
-                                    error={profileForm.errors.iin}
-                                >
-                                    <TextInput
-                                        value={profileForm.data.iin}
-                                        maxLength="12"
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "iin",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="№ удостоверения личности"
-                                    error={
-                                        profileForm.errors
-                                            .identity_document_number
-                                    }
-                                >
-                                    <TextInput
-                                        value={
-                                            profileForm.data
-                                                .identity_document_number
-                                        }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "identity_document_number",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="ID карта"
-                                    error={profileForm.errors.identity_card}
-                                >
-                                    <input
-                                        type="file"
-                                        accept=".pdf,.jpg,.jpeg,.png"
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "identity_card",
-                                                event.target.files[0],
-                                            )
-                                        }
-                                        className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
-                                    />
-                                    <FileLink
-                                        href={profile.identity_card_url}
-                                        label="Открыть текущий файл"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Пол"
-                                    error={profileForm.errors.gender}
-                                >
-                                    <SelectInput
-                                        value={profileForm.data.gender}
-                                        options={options.genders}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "gender",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Факультет"
-                                    error={profileForm.errors.faculty}
-                                >
-                                    <SelectInput
-                                        value={profileForm.data.faculty}
-                                        options={options.faculties}
-                                        placeholder="Выберите факультет"
-                                        onChange={(event) =>
-                                            setFaculty(event.target.value)
-                                        }
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Группа"
-                                    error={
-                                        profileForm.errors.student_group_id ||
-                                        profileForm.errors.group_name
-                                    }
-                                >
-                                    <SelectInput
-                                        value={
-                                            profileForm.data.student_group_id
-                                        }
-                                        options={visibleGroupOptions}
-                                        placeholder={
-                                            availableGroups.length === 0
-                                                ? "Сначала создайте группу"
-                                                : "Выберите группу"
-                                        }
-                                        disabled={availableGroups.length === 0}
-                                        onChange={(event) =>
-                                            setStudentGroupId(
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Специальность"
-                                    error={profileForm.errors.specialty}
-                                >
-                                    <TextInput
-                                        value={profileForm.data.specialty}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "specialty",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Курс"
-                                    error={profileForm.errors.course}
-                                >
-                                    <TextInput
-                                        type="number"
-                                        min="1"
-                                        max="8"
-                                        value={profileForm.data.course}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "course",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Год поступления"
-                                    error={profileForm.errors.admission_year}
-                                >
-                                    <TextInput
-                                        type="number"
-                                        min="2000"
-                                        value={profileForm.data.admission_year}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "admission_year",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Семейное положение"
-                                    error={profileForm.errors.marital_status}
-                                >
-                                    <SelectInput
-                                        value={profileForm.data.marital_status}
-                                        options={options.maritalStatuses}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "marital_status",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                            </div>
-                        </Section>
-
-                        <Section
-                            title="Социальный статус"
-                            actions={renderSectionSave()}
-                        >
-                            {renderBlockReview({
-                                block: "social",
-                                statusLabel: profile.social_review_status_label,
-                                reviewedAtDisplay:
-                                    profile.social_reviewed_at_display,
-                                comment: profile.social_review_comment,
-                            })}
-                            <div className="space-y-6">
+                        <form onSubmit={submitProfile} className="space-y-6">
+                            <Section
+                                title="Карточка студента"
+                                actions={renderSectionSave()}
+                            >
                                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                     <Field
-                                        label="Инвалид"
-                                        error={
-                                            profileForm.errors.disability_group
-                                        }
+                                        label="ФИО"
+                                        error={profileForm.errors.full_name}
+                                        className="xl:col-span-2"
                                     >
-                                        <SelectInput
-                                            value={
-                                                profileForm.data
-                                                    .disability_group
-                                            }
-                                            options={options.disabilityGroups}
-                                            placeholder="Нет"
+                                        <TextInput
+                                            value={profileForm.data.full_name}
                                             onChange={(event) =>
                                                 profileForm.setData(
-                                                    "disability_group",
+                                                    "full_name",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Дата рождения"
+                                        error={profileForm.errors.birth_date}
+                                    >
+                                        <TextInput
+                                            type="date"
+                                            value={profileForm.data.birth_date}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "birth_date",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Форма обучения"
+                                        error={profileForm.errors.study_form}
+                                    >
+                                        <TextInput
+                                            value={profileForm.data.study_form}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "study_form",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Национальность"
+                                        error={profileForm.errors.nationality}
+                                    >
+                                        <TextInput
+                                            value={profileForm.data.nationality}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "nationality",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Гражданство"
+                                        error={profileForm.errors.citizenship}
+                                    >
+                                        <SelectInput
+                                            value={profileForm.data.citizenship}
+                                            options={options.citizenships}
+                                            placeholder="Выберите гражданство"
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "citizenship",
                                                     event.target.value,
                                                 )
                                             }
@@ -1452,22 +1485,23 @@ export default function Edit({
                                     </Field>
 
                                     <Field
-                                        label="Родитель/ли инвалиды"
+                                        label="Военная кафедра"
                                         error={
                                             profileForm.errors
-                                                .disabled_parent_group
+                                                .military_department_status
                                         }
                                     >
                                         <SelectInput
                                             value={
                                                 profileForm.data
-                                                    .disabled_parent_group
+                                                    .military_department_status
                                             }
-                                            options={options.disabilityGroups}
-                                            placeholder="Нет"
+                                            options={
+                                                options.militaryDepartmentStatuses
+                                            }
+                                            placeholder="Выберите статус"
                                             onChange={(event) =>
-                                                profileForm.setData(
-                                                    "disabled_parent_group",
+                                                setMilitaryDepartmentStatus(
                                                     event.target.value,
                                                 )
                                             }
@@ -1475,112 +1509,25 @@ export default function Edit({
                                     </Field>
 
                                     <Field
-                                        label="Сестра/брат инвалид"
+                                        label="Где обучается на военной кафедре"
                                         error={
                                             profileForm.errors
-                                                .disabled_sibling_group
-                                        }
-                                    >
-                                        <SelectInput
-                                            value={
-                                                profileForm.data
-                                                    .disabled_sibling_group
-                                            }
-                                            options={options.disabilityGroups}
-                                            placeholder="Нет"
-                                            onChange={(event) =>
-                                                profileForm.setData(
-                                                    "disabled_sibling_group",
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    </Field>
-                                </div>
-                            </div>
-                        </Section>
-
-                        <Section
-                            title="Социальная поддержка"
-                            actions={renderSectionSave()}
-                        >
-                            <div className="space-y-5">
-                                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                    <BooleanCheckbox
-                                        label="Сирота"
-                                        checked={socialSupport.is_orphan}
-                                        onChange={(event) => {
-                                            setSocialSupportFlag(
-                                                "is_orphan",
-                                                event.target.checked,
-                                            );
-                                        }}
-                                    />
-
-                                    <BooleanCheckbox
-                                        label="Полусирота"
-                                        checked={socialSupport.is_half_orphan}
-                                        onChange={(event) => {
-                                            setSocialSupportFlag(
-                                                "is_half_orphan",
-                                                event.target.checked,
-                                            );
-                                        }}
-                                    />
-
-                                    <BooleanCheckbox
-                                        label="Не полная семья"
-                                        checked={
-                                            socialSupport.is_incomplete_family
-                                        }
-                                        onChange={(event) =>
-                                            setSocialSupportFlag(
-                                                "is_incomplete_family",
-                                                event.target.checked,
-                                            )
-                                        }
-                                    />
-
-                                    <BooleanCheckbox
-                                        label="Многодетная семья (4 детей и более)"
-                                        checked={socialSupport.is_large_family}
-                                        onChange={(event) =>
-                                            setSocialSupportFlag(
-                                                "is_large_family",
-                                                event.target.checked,
-                                            )
-                                        }
-                                    />
-
-                                    <BooleanCheckbox
-                                        label="Малообеспеченные (ниже МРП на каждого члена семьи)"
-                                        checked={socialSupport.is_low_income}
-                                        onChange={(event) =>
-                                            setSocialSupportFlag(
-                                                "is_low_income",
-                                                event.target.checked,
-                                            )
-                                        }
-                                    />
-                                </div>
-
-                                <div className="grid gap-5 md:grid-cols-2">
-                                    <Field
-                                        label="Законный представитель"
-                                        error={
-                                            profileForm.errors
-                                                .legal_representative
+                                                .military_department_place
                                         }
                                     >
                                         <TextInput
                                             value={
-                                                socialSupport.is_orphan
-                                                    ? legalRepresentative
-                                                    : ""
+                                                profileForm.data
+                                                    .military_department_place
                                             }
-                                            disabled={!socialSupport.is_orphan}
+                                            disabled={
+                                                profileForm.data
+                                                    .military_department_status !==
+                                                "studying"
+                                            }
                                             onChange={(event) =>
-                                                setLegalRepresentative(
+                                                profileForm.setData(
+                                                    "military_department_place",
                                                     event.target.value,
                                                 )
                                             }
@@ -1589,23 +1536,96 @@ export default function Edit({
                                     </Field>
 
                                     <Field
-                                        label="Тип полусироты"
+                                        label="Фото"
+                                        error={profileForm.errors.photo}
+                                    >
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png"
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "photo",
+                                                    event.target.files[0],
+                                                )
+                                            }
+                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                                        />
+                                        <FileLink
+                                            href={profile.photo_url}
+                                            label="Открыть текущий файл"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="ИИН"
+                                        error={profileForm.errors.iin}
+                                    >
+                                        <TextInput
+                                            value={profileForm.data.iin}
+                                            maxLength="12"
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "iin",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="№ удостоверения личности"
                                         error={
-                                            profileForm.errors.half_orphan_type
+                                            profileForm.errors
+                                                .identity_document_number
                                         }
                                     >
-                                        <SelectInput
+                                        <TextInput
                                             value={
-                                                socialSupport.is_half_orphan
-                                                    ? halfOrphanType
-                                                    : ""
-                                            }
-                                            options={options.halfOrphanTypes}
-                                            disabled={
-                                                !socialSupport.is_half_orphan
+                                                profileForm.data
+                                                    .identity_document_number
                                             }
                                             onChange={(event) =>
-                                                setHalfOrphanType(
+                                                profileForm.setData(
+                                                    "identity_document_number",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="ID карта"
+                                        error={profileForm.errors.identity_card}
+                                    >
+                                        <input
+                                            type="file"
+                                            accept=".pdf,.jpg,.jpeg,.png"
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "identity_card",
+                                                    event.target.files[0],
+                                                )
+                                            }
+                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                                        />
+                                        <FileLink
+                                            href={profile.identity_card_url}
+                                            label="Открыть текущий файл"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Пол"
+                                        error={profileForm.errors.gender}
+                                    >
+                                        <SelectInput
+                                            value={profileForm.data.gender}
+                                            options={options.genders}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "gender",
                                                     event.target.value,
                                                 )
                                             }
@@ -1613,40 +1633,43 @@ export default function Edit({
                                     </Field>
 
                                     <Field
-                                        label="Льготы"
-                                        error={profileForm.errors.benefits}
-                                        className="md:col-span-2 xl:col-span-3"
+                                        label="Факультет"
+                                        error={profileForm.errors.faculty}
                                     >
-                                        <CheckboxGroup
-                                            value={profileForm.data.benefits}
-                                            options={options.benefits}
-                                            onChange={(value) =>
-                                                profileForm.setData(
-                                                    "benefits",
-                                                    value,
-                                                )
+                                        <SelectInput
+                                            value={profileForm.data.faculty}
+                                            options={options.faculties}
+                                            placeholder="Выберите факультет"
+                                            onChange={(event) =>
+                                                setFaculty(event.target.value)
                                             }
                                         />
                                     </Field>
 
                                     <Field
-                                        label="Нуждающийся в социальной поддержке"
+                                        label="Группа"
                                         error={
                                             profileForm.errors
-                                                .social_support_need_status
+                                                .student_group_id ||
+                                            profileForm.errors.group_name
                                         }
                                     >
                                         <SelectInput
                                             value={
                                                 profileForm.data
-                                                    .social_support_need_status
+                                                    .student_group_id
                                             }
-                                            options={
-                                                options.socialSupportNeedStatuses
+                                            options={visibleGroupOptions}
+                                            placeholder={
+                                                availableGroups.length === 0
+                                                    ? "Сначала создайте группу"
+                                                    : "Выберите группу"
                                             }
-                                            placeholder="Выберите статус"
+                                            disabled={
+                                                availableGroups.length === 0
+                                            }
                                             onChange={(event) =>
-                                                setSocialSupportNeedStatus(
+                                                setStudentGroupId(
                                                     event.target.value,
                                                 )
                                             }
@@ -1654,458 +1677,835 @@ export default function Edit({
                                     </Field>
 
                                     <Field
-                                        label="В какой социальной поддержке нуждается"
-                                        error={
-                                            profileForm.errors
-                                                .social_support_need_details
-                                        }
-                                        className="md:col-span-2"
+                                        label="Специальность"
+                                        error={profileForm.errors.specialty}
                                     >
-                                        <TextAreaInput
-                                            value={
-                                                profileForm.data
-                                                    .social_support_need_details
+                                        <TextInput
+                                            value={profileForm.data.specialty}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "specialty",
+                                                    event.target.value,
+                                                )
                                             }
-                                            rows={2}
-                                            disabled={
-                                                profileForm.data
-                                                    .social_support_need_status !==
-                                                "needs"
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Курс"
+                                        error={profileForm.errors.course}
+                                    >
+                                        <TextInput
+                                            type="number"
+                                            min="1"
+                                            max="8"
+                                            value={profileForm.data.course}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "course",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Год поступления"
+                                        error={
+                                            profileForm.errors.admission_year
+                                        }
+                                    >
+                                        <TextInput
+                                            type="number"
+                                            min="2000"
+                                            value={
+                                                profileForm.data.admission_year
                                             }
                                             onChange={(event) =>
                                                 profileForm.setData(
-                                                    "social_support_need_details",
+                                                    "admission_year",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Семейное положение"
+                                        error={
+                                            profileForm.errors.marital_status
+                                        }
+                                    >
+                                        <SelectInput
+                                            value={
+                                                profileForm.data.marital_status
+                                            }
+                                            options={options.maritalStatuses}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "marital_status",
                                                     event.target.value,
                                                 )
                                             }
                                         />
                                     </Field>
                                 </div>
-                            </div>
-                        </Section>
+                            </Section>
 
-                        <Section
-                            title="Контакты и проживание"
-                            actions={renderSectionSave()}
-                        >
-                            <div className="grid gap-5 md:grid-cols-2">
-                                <Field
-                                    label="Особые образовательные потребности"
-                                    error={
-                                        profileForm.errors
-                                            .special_educational_needs
-                                    }
-                                >
-                                    <TextAreaInput
-                                        value={
-                                            profileForm.data
+                            <Section
+                                title="Социальный статус"
+                                actions={renderSectionSave()}
+                            >
+                                {renderBlockReview({
+                                    block: "social",
+                                    statusLabel:
+                                        profile.social_review_status_label,
+                                    reviewedAtDisplay:
+                                        profile.social_reviewed_at_display,
+                                    comment: profile.social_review_comment,
+                                })}
+                                <div className="space-y-6">
+                                    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                        <Field
+                                            label="Инвалид"
+                                            error={
+                                                profileForm.errors
+                                                    .disability_group
+                                            }
+                                        >
+                                            <SelectInput
+                                                value={
+                                                    profileForm.data
+                                                        .disability_group
+                                                }
+                                                options={
+                                                    options.disabilityGroups
+                                                }
+                                                placeholder="Нет"
+                                                onChange={(event) =>
+                                                    profileForm.setData(
+                                                        "disability_group",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Родитель/ли инвалиды"
+                                            error={
+                                                profileForm.errors
+                                                    .disabled_parent_group
+                                            }
+                                        >
+                                            <SelectInput
+                                                value={
+                                                    profileForm.data
+                                                        .disabled_parent_group
+                                                }
+                                                options={
+                                                    options.disabilityGroups
+                                                }
+                                                placeholder="Нет"
+                                                onChange={(event) =>
+                                                    profileForm.setData(
+                                                        "disabled_parent_group",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Сестра/брат инвалид"
+                                            error={
+                                                profileForm.errors
+                                                    .disabled_sibling_group
+                                            }
+                                        >
+                                            <SelectInput
+                                                value={
+                                                    profileForm.data
+                                                        .disabled_sibling_group
+                                                }
+                                                options={
+                                                    options.disabilityGroups
+                                                }
+                                                placeholder="Нет"
+                                                onChange={(event) =>
+                                                    profileForm.setData(
+                                                        "disabled_sibling_group",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+                                    </div>
+                                </div>
+                            </Section>
+
+                            <Section
+                                title="Социальная поддержка"
+                                actions={renderSectionSave()}
+                            >
+                                <div className="space-y-5">
+                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                        <BooleanCheckbox
+                                            label="Сирота"
+                                            checked={socialSupport.is_orphan}
+                                            onChange={(event) => {
+                                                setSocialSupportFlag(
+                                                    "is_orphan",
+                                                    event.target.checked,
+                                                );
+                                            }}
+                                        />
+
+                                        <BooleanCheckbox
+                                            label="Полусирота"
+                                            checked={
+                                                socialSupport.is_half_orphan
+                                            }
+                                            onChange={(event) => {
+                                                setSocialSupportFlag(
+                                                    "is_half_orphan",
+                                                    event.target.checked,
+                                                );
+                                            }}
+                                        />
+
+                                        <BooleanCheckbox
+                                            label="Не полная семья"
+                                            checked={
+                                                socialSupport.is_incomplete_family
+                                            }
+                                            onChange={(event) =>
+                                                setSocialSupportFlag(
+                                                    "is_incomplete_family",
+                                                    event.target.checked,
+                                                )
+                                            }
+                                        />
+
+                                        <BooleanCheckbox
+                                            label="Многодетная семья (4 детей и более)"
+                                            checked={
+                                                socialSupport.is_large_family
+                                            }
+                                            onChange={(event) =>
+                                                setSocialSupportFlag(
+                                                    "is_large_family",
+                                                    event.target.checked,
+                                                )
+                                            }
+                                        />
+
+                                        <BooleanCheckbox
+                                            label="Малообеспеченные (ниже МРП на каждого члена семьи)"
+                                            checked={
+                                                socialSupport.is_low_income
+                                            }
+                                            onChange={(event) =>
+                                                setSocialSupportFlag(
+                                                    "is_low_income",
+                                                    event.target.checked,
+                                                )
+                                            }
+                                        />
+                                    </div>
+
+                                    <div className="grid gap-5 md:grid-cols-2">
+                                        <Field
+                                            label="Законный представитель"
+                                            error={
+                                                profileForm.errors
+                                                    .legal_representative
+                                            }
+                                        >
+                                            <TextInput
+                                                value={
+                                                    socialSupport.is_orphan
+                                                        ? legalRepresentative
+                                                        : ""
+                                                }
+                                                disabled={
+                                                    !socialSupport.is_orphan
+                                                }
+                                                onChange={(event) =>
+                                                    setLegalRepresentative(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full disabled:cursor-not-allowed disabled:bg-gray-50"
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Тип полусироты"
+                                            error={
+                                                profileForm.errors
+                                                    .half_orphan_type
+                                            }
+                                        >
+                                            <SelectInput
+                                                value={
+                                                    socialSupport.is_half_orphan
+                                                        ? halfOrphanType
+                                                        : ""
+                                                }
+                                                options={
+                                                    options.halfOrphanTypes
+                                                }
+                                                disabled={
+                                                    !socialSupport.is_half_orphan
+                                                }
+                                                onChange={(event) =>
+                                                    setHalfOrphanType(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Льготы"
+                                            error={profileForm.errors.benefits}
+                                            className="md:col-span-2 xl:col-span-3"
+                                        >
+                                            <CheckboxGroup
+                                                value={
+                                                    profileForm.data.benefits
+                                                }
+                                                options={options.benefits}
+                                                onChange={(value) =>
+                                                    profileForm.setData(
+                                                        "benefits",
+                                                        value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Нуждающийся в социальной поддержке"
+                                            error={
+                                                profileForm.errors
+                                                    .social_support_need_status
+                                            }
+                                        >
+                                            <SelectInput
+                                                value={
+                                                    profileForm.data
+                                                        .social_support_need_status
+                                                }
+                                                options={
+                                                    options.socialSupportNeedStatuses
+                                                }
+                                                placeholder="Выберите статус"
+                                                onChange={(event) =>
+                                                    setSocialSupportNeedStatus(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="В какой социальной поддержке нуждается"
+                                            error={
+                                                profileForm.errors
+                                                    .social_support_need_details
+                                            }
+                                            className="md:col-span-2"
+                                        >
+                                            <TextAreaInput
+                                                value={
+                                                    profileForm.data
+                                                        .social_support_need_details
+                                                }
+                                                rows={2}
+                                                disabled={
+                                                    profileForm.data
+                                                        .social_support_need_status !==
+                                                    "needs"
+                                                }
+                                                onChange={(event) =>
+                                                    profileForm.setData(
+                                                        "social_support_need_details",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+                                    </div>
+                                </div>
+                            </Section>
+
+                            <Section
+                                title="Контакты и проживание"
+                                actions={renderSectionSave()}
+                            >
+                                <div className="grid gap-5 md:grid-cols-2">
+                                    <Field
+                                        label="Особые образовательные потребности"
+                                        error={
+                                            profileForm.errors
                                                 .special_educational_needs
                                         }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "special_educational_needs",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data
+                                                    .special_educational_needs
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "special_educational_needs",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Контактные данные(сотовый телефон)"
-                                    error={profileForm.errors.contact_details}
-                                >
-                                    <TextAreaInput
-                                        value={profileForm.data.contact_details}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "contact_details",
-                                                event.target.value,
-                                            )
+                                    <Field
+                                        label="Контактные данные(сотовый телефон)"
+                                        error={
+                                            profileForm.errors.contact_details
                                         }
-                                    />
-                                </Field>
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data.contact_details
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "contact_details",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Электронная почта"
-                                    error={profileForm.errors.personal_email}
-                                >
-                                    <TextInput
-                                        type="email"
-                                        value={profileForm.data.personal_email}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "personal_email",
-                                                event.target.value,
-                                            )
+                                    <Field
+                                        label="Электронная почта"
+                                        error={
+                                            profileForm.errors.personal_email
                                         }
-                                        className="w-full"
-                                    />
-                                </Field>
+                                    >
+                                        <TextInput
+                                            type="email"
+                                            value={
+                                                profileForm.data.personal_email
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "personal_email",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Контактные данные родителей/опекунов"
-                                    error={
-                                        profileForm.errors
-                                            .parent_guardian_contacts
-                                    }
-                                >
-                                    <TextAreaInput
-                                        value={
-                                            profileForm.data
+                                    <Field
+                                        label="Контактные данные родителей/опекунов"
+                                        error={
+                                            profileForm.errors
                                                 .parent_guardian_contacts
                                         }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "parent_guardian_contacts",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data
+                                                    .parent_guardian_contacts
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "parent_guardian_contacts",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Адрес пребывания"
-                                    error={profileForm.errors.stay_address}
-                                >
-                                    <TextAreaInput
-                                        value={profileForm.data.stay_address}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "stay_address",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
+                                    <Field
+                                        label="Адрес пребывания"
+                                        error={profileForm.errors.stay_address}
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data.stay_address
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "stay_address",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Адрес проживания"
-                                    error={profileForm.errors.residence_address}
-                                >
-                                    <TextAreaInput
-                                        value={
-                                            profileForm.data.residence_address
+                                    <Field
+                                        label="Адрес проживания"
+                                        error={
+                                            profileForm.errors.residence_address
                                         }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "residence_address",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data
+                                                    .residence_address
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "residence_address",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Иностранный студент (указать страну)"
-                                    error={
-                                        profileForm.errors
-                                            .foreign_student_country
-                                    }
-                                >
-                                    <TextInput
-                                        value={
-                                            profileForm.data
+                                    <Field
+                                        label="Иностранный студент (указать страну)"
+                                        error={
+                                            profileForm.errors
                                                 .foreign_student_country
                                         }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "foreign_student_country",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
+                                    >
+                                        <TextInput
+                                            value={
+                                                profileForm.data
+                                                    .foreign_student_country
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "foreign_student_country",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Кандас (указать страну)"
-                                    error={profileForm.errors.kandas_country}
-                                >
-                                    <TextInput
-                                        value={profileForm.data.kandas_country}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "kandas_country",
-                                                event.target.value,
-                                            )
+                                    <Field
+                                        label="Кандас (указать страну)"
+                                        error={
+                                            profileForm.errors.kandas_country
                                         }
-                                        className="w-full"
-                                    />
-                                </Field>
+                                    >
+                                        <TextInput
+                                            value={
+                                                profileForm.data.kandas_country
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "kandas_country",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Проживает в общежитии"
-                                    error={profileForm.errors.dormitory_details}
-                                >
-                                    <TextInput
-                                        value={
-                                            profileForm.data.dormitory_details
+                                    <Field
+                                        label="Проживает в общежитии"
+                                        error={
+                                            profileForm.errors.dormitory_details
                                         }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "dormitory_details",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
+                                    >
+                                        <TextInput
+                                            value={
+                                                profileForm.data
+                                                    .dormitory_details
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "dormitory_details",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Проживает у родственников"
-                                    error={
-                                        profileForm.errors
-                                            .relatives_living_details
-                                    }
-                                >
-                                    <TextInput
-                                        value={
-                                            profileForm.data
+                                    <Field
+                                        label="Проживает у родственников"
+                                        error={
+                                            profileForm.errors
                                                 .relatives_living_details
                                         }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "relatives_living_details",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
+                                    >
+                                        <TextInput
+                                            value={
+                                                profileForm.data
+                                                    .relatives_living_details
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "relatives_living_details",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Арендует жилье"
-                                    error={
-                                        profileForm.errors
-                                            .rental_housing_details
-                                    }
-                                >
-                                    <TextInput
-                                        value={
-                                            profileForm.data
+                                    <Field
+                                        label="Арендует жилье"
+                                        error={
+                                            profileForm.errors
                                                 .rental_housing_details
                                         }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "rental_housing_details",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-                            </div>
-                        </Section>
+                                    >
+                                        <TextInput
+                                            value={
+                                                profileForm.data
+                                                    .rental_housing_details
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "rental_housing_details",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+                                </div>
+                            </Section>
 
-                        <Section
-                            title="Академический профиль"
-                            actions={renderSectionSave()}
-                        >
-                            {renderBlockReview({
-                                block: "academic",
-                                statusLabel:
-                                    academicProfile.academic_review_status_label,
-                                reviewedAtDisplay:
-                                    academicProfile.academic_reviewed_at_display,
-                                comment:
-                                    academicProfile.academic_review_comment,
-                            })}
-                            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                <Field
-                                    label="Язык обучения"
-                                    error={
-                                        profileForm.errors.education_language
-                                    }
-                                >
-                                    <SelectInput
-                                        value={
-                                            profileForm.data.education_language
+                            <Section
+                                title="Академический профиль"
+                                actions={renderSectionSave()}
+                            >
+                                {renderBlockReview({
+                                    block: "academic",
+                                    statusLabel:
+                                        academicProfile.academic_review_status_label,
+                                    reviewedAtDisplay:
+                                        academicProfile.academic_reviewed_at_display,
+                                    comment:
+                                        academicProfile.academic_review_comment,
+                                })}
+                                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                    <Field
+                                        label="Язык обучения"
+                                        error={
+                                            profileForm.errors
+                                                .education_language
                                         }
-                                        options={options.educationLanguages}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "education_language",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
+                                    >
+                                        <SelectInput
+                                            value={
+                                                profileForm.data
+                                                    .education_language
+                                            }
+                                            options={options.educationLanguages}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "education_language",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Средний балл (GPA)"
-                                    error={profileForm.errors.gpa}
-                                >
-                                    <TextInput
-                                        type="number"
-                                        min="0"
-                                        max="4"
-                                        step="0.01"
-                                        value={profileForm.data.gpa}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "gpa",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full"
-                                    />
-                                </Field>
-                            </div>
+                                    <Field
+                                        label="Средний балл (GPA)"
+                                        error={profileForm.errors.gpa}
+                                    >
+                                        <TextInput
+                                            type="number"
+                                            min="0"
+                                            max="4"
+                                            step="0.01"
+                                            value={profileForm.data.gpa}
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "gpa",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full"
+                                        />
+                                    </Field>
+                                </div>
 
-                            <div className="mt-5 grid gap-5 md:grid-cols-2">
-                                <Field
-                                    label="Итоговые оценки"
-                                    error={profileForm.errors.final_grades}
-                                >
-                                    <TextAreaInput
-                                        value={profileForm.data.final_grades}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "final_grades",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
+                                <div className="mt-5 grid gap-5 md:grid-cols-2">
+                                    <Field
+                                        label="Итоговые оценки"
+                                        error={profileForm.errors.final_grades}
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data.final_grades
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "final_grades",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Текущая успеваемость"
-                                    error={
-                                        profileForm.errors.current_performance
-                                    }
-                                >
-                                    <TextAreaInput
-                                        value={
-                                            profileForm.data.current_performance
+                                    <Field
+                                        label="Текущая успеваемость"
+                                        error={
+                                            profileForm.errors
+                                                .current_performance
                                         }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "current_performance",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data
+                                                    .current_performance
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "current_performance",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Академическая задолженность"
-                                    error={profileForm.errors.academic_debt}
-                                >
-                                    <TextAreaInput
-                                        value={profileForm.data.academic_debt}
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "academic_debt",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                            </div>
-                        </Section>
+                                    <Field
+                                        label="Академическая задолженность"
+                                        error={profileForm.errors.academic_debt}
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data.academic_debt
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "academic_debt",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                </div>
+                            </Section>
 
-                        <Section
-                            title="Учебный статус"
-                            actions={renderSectionSave()}
-                            hidden={!isManagedProfile}
-                            tone="danger"
-                        >
-                            <p className="mb-5 rounded-md bg-red-100 px-4 py-3 text-sm font-medium text-red-800 ring-1 ring-red-200">
-                                Служебный блок. Изменение статуса на
-                                &quot;Выбыл&quot; перенесет студента в список
-                                выбывших в социальном паспорте группы.
-                            </p>
-                            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                <Field
-                                    label="Статус студента"
-                                    error={profileForm.errors.student_status}
-                                >
-                                    <SelectInput
-                                        value={profileForm.data.student_status}
-                                        options={options.studentStatuses}
-                                        placeholder="Обучается"
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "student_status",
-                                                event.target.value,
-                                            )
+                            <Section
+                                title="Учебный статус"
+                                actions={renderSectionSave()}
+                                hidden={!isManagedProfile}
+                                tone="danger"
+                            >
+                                <p className="mb-5 rounded-md bg-red-100 px-4 py-3 text-sm font-medium text-red-800 ring-1 ring-red-200">
+                                    Служебный блок. Изменение статуса на
+                                    &quot;Выбыл&quot; перенесет студента в
+                                    список выбывших в социальном паспорте
+                                    группы.
+                                </p>
+                                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                    <Field
+                                        label="Статус студента"
+                                        error={
+                                            profileForm.errors.student_status
                                         }
-                                    />
-                                </Field>
+                                    >
+                                        <SelectInput
+                                            value={
+                                                profileForm.data.student_status
+                                            }
+                                            options={options.studentStatuses}
+                                            placeholder="Обучается"
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "student_status",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Причина выбытия"
-                                    error={profileForm.errors.departure_reason}
-                                >
-                                    <SelectInput
-                                        value={
-                                            profileForm.data.departure_reason
+                                    <Field
+                                        label="Причина выбытия"
+                                        error={
+                                            profileForm.errors.departure_reason
                                         }
-                                        options={options.departureReasons}
-                                        disabled={
-                                            profileForm.data.student_status !==
-                                            "departed"
-                                        }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "departure_reason",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
+                                    >
+                                        <SelectInput
+                                            value={
+                                                profileForm.data
+                                                    .departure_reason
+                                            }
+                                            options={options.departureReasons}
+                                            disabled={
+                                                profileForm.data
+                                                    .student_status !==
+                                                "departed"
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "departure_reason",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Дата выбытия"
-                                    error={profileForm.errors.departed_at}
-                                >
-                                    <TextInput
-                                        type="date"
-                                        value={profileForm.data.departed_at}
-                                        disabled={
-                                            profileForm.data.student_status !==
-                                            "departed"
-                                        }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "departed_at",
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="w-full disabled:cursor-not-allowed disabled:bg-gray-50"
-                                    />
-                                </Field>
+                                    <Field
+                                        label="Дата выбытия"
+                                        error={profileForm.errors.departed_at}
+                                    >
+                                        <TextInput
+                                            type="date"
+                                            value={profileForm.data.departed_at}
+                                            disabled={
+                                                profileForm.data
+                                                    .student_status !==
+                                                "departed"
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "departed_at",
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="w-full disabled:cursor-not-allowed disabled:bg-gray-50"
+                                        />
+                                    </Field>
 
-                                <Field
-                                    label="Другое"
-                                    error={
-                                        profileForm.errors
-                                            .departure_reason_other
-                                    }
-                                    className="md:col-span-2 xl:col-span-3"
-                                >
-                                    <TextAreaInput
-                                        value={
-                                            profileForm.data
+                                    <Field
+                                        label="Другое"
+                                        error={
+                                            profileForm.errors
                                                 .departure_reason_other
                                         }
-                                        disabled={
-                                            profileForm.data.student_status !==
-                                                "departed" ||
-                                            profileForm.data
-                                                .departure_reason !== "other"
-                                        }
-                                        onChange={(event) =>
-                                            profileForm.setData(
-                                                "departure_reason_other",
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                            </div>
-                        </Section>
-                    </form>
+                                        className="md:col-span-2 xl:col-span-3"
+                                    >
+                                        <TextAreaInput
+                                            value={
+                                                profileForm.data
+                                                    .departure_reason_other
+                                            }
+                                            disabled={
+                                                profileForm.data
+                                                    .student_status !==
+                                                    "departed" ||
+                                                profileForm.data
+                                                    .departure_reason !==
+                                                    "other"
+                                            }
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "departure_reason_other",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                </div>
+                            </Section>
+                        </form>
                     )}
 
                     {canEditHealthPassport && (
@@ -2218,12 +2618,15 @@ export default function Edit({
 
                                     <Field
                                         label="Диагноз"
-                                        error={healthPassportForm.errors.diagnosis}
+                                        error={
+                                            healthPassportForm.errors.diagnosis
+                                        }
                                         className="md:col-span-2"
                                     >
                                         <TextAreaInput
                                             value={
-                                                healthPassportForm.data.diagnosis
+                                                healthPassportForm.data
+                                                    .diagnosis
                                             }
                                             onChange={(event) =>
                                                 healthPassportForm.setData(
@@ -2258,12 +2661,15 @@ export default function Edit({
 
                                     <Field
                                         label="Беременность"
-                                        error={healthPassportForm.errors.pregnancy}
+                                        error={
+                                            healthPassportForm.errors.pregnancy
+                                        }
                                         className="md:col-span-2"
                                     >
                                         <TextAreaInput
                                             value={
-                                                healthPassportForm.data.pregnancy
+                                                healthPassportForm.data
+                                                    .pregnancy
                                             }
                                             rows={3}
                                             onChange={(event) =>
@@ -2293,330 +2699,363 @@ export default function Edit({
                     )}
 
                     {canEditProfile && (
-                    <div className="mt-8 grid gap-8 xl:grid-cols-2">
-                        <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
-                                <h3 className="text-base font-semibold text-[#274f93]">
-                                    Внеучебная деятельность
-                                </h3>
-                            </div>
+                        <div className="mt-8 grid gap-8 xl:grid-cols-2">
+                            <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                                <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                    <h3 className="text-base font-semibold text-[#274f93]">
+                                        Внеучебная деятельность
+                                    </h3>
+                                </div>
 
-                            <form
-                                onSubmit={submitAchievement}
-                                className="border-b border-gray-200 p-6"
-                            >
-                                <div className="grid gap-5 md:grid-cols-2">
-                                    <Field
-                                        label="Тип"
-                                        error={
-                                            achievementForm.errors.activity_type
-                                        }
-                                    >
-                                        <SelectInput
-                                            value={
-                                                achievementForm.data
+                                <form
+                                    onSubmit={submitAchievement}
+                                    className="border-b border-gray-200 p-6"
+                                >
+                                    <div className="grid gap-5 md:grid-cols-2">
+                                        <Field
+                                            label="Тип"
+                                            error={
+                                                achievementForm.errors
                                                     .activity_type
                                             }
-                                            options={options.activityTypes}
-                                            placeholder="Выберите тип"
-                                            onChange={(event) =>
-                                                achievementForm.setData(
-                                                    "activity_type",
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Название"
-                                        error={achievementForm.errors.title}
-                                    >
-                                        <TextInput
-                                            value={achievementForm.data.title}
-                                            onChange={(event) =>
-                                                achievementForm.setData(
-                                                    "title",
-                                                    event.target.value,
-                                                )
-                                            }
-                                            className="w-full"
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Уровень участия"
-                                        error={achievementForm.errors.level}
-                                    >
-                                        <SelectInput
-                                            value={achievementForm.data.level}
-                                            options={options.achievementLevels}
-                                            onChange={(event) =>
-                                                achievementForm.setData(
-                                                    "level",
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Результат"
-                                        error={achievementForm.errors.result}
-                                    >
-                                        <SelectInput
-                                            value={achievementForm.data.result}
-                                            options={options.achievementResults}
-                                            onChange={(event) =>
-                                                achievementForm.setData(
-                                                    "result",
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Описание"
-                                        error={
-                                            achievementForm.errors.description
-                                        }
-                                        className="md:col-span-2"
-                                    >
-                                        <TextAreaInput
-                                            value={
-                                                achievementForm.data.description
-                                            }
-                                            onChange={(event) =>
-                                                achievementForm.setData(
-                                                    "description",
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Подтверждающий документ"
-                                        error={achievementForm.errors.document}
-                                        className="md:col-span-2"
-                                    >
-                                        <input
-                                            key={achievementFileKey}
-                                            type="file"
-                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4"
-                                            onChange={(event) =>
-                                                achievementForm.setData(
-                                                    "document",
-                                                    event.target.files[0],
-                                                )
-                                            }
-                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
-                                        />
-                                        <p className="mt-2 text-xs text-gray-500">
-                                            PDF, DOCX, JPG, PNG, MP4
-                                        </p>
-                                    </Field>
-                                </div>
-
-                                <div className="mt-5 flex justify-end">
-                                    <SecondaryButton
-                                        type="submit"
-                                        disabled={achievementForm.processing}
-                                    >
-                                        Добавить
-                                    </SecondaryButton>
-                                </div>
-                            </form>
-
-                            <div className="divide-y divide-gray-200">
-                                {achievements.length === 0 && (
-                                    <p className="p-6 text-sm text-gray-500">
-                                        Записей нет
-                                    </p>
-                                )}
-                                {achievements.map((achievement) => (
-                                    <div
-                                        key={achievement.id}
-                                        className="flex flex-col gap-4 p-6 md:flex-row md:items-start md:justify-between"
-                                    >
-                                        <div>
-                                            <p className="font-medium text-gray-900">
-                                                {achievement.title}
-                                            </p>
-                                            <p className="mt-1 text-sm text-gray-600">
-                                                {optionLabel(
-                                                    options.activityTypes,
-                                                    achievement.activity_type,
-                                                )}{" "}
-                                                ·{" "}
-                                                {optionLabel(
-                                                    options.achievementLevels,
-                                                    achievement.level,
-                                                )}{" "}
-                                                ·{" "}
-                                                {optionLabel(
-                                                    options.achievementResults,
-                                                    achievement.result,
-                                                )}
-                                            </p>
-                                            {achievement.description && (
-                                                <p className="mt-2 text-sm text-gray-600">
-                                                    {achievement.description}
-                                                </p>
-                                            )}
-                                            <FileLink
-                                                href={achievement.document_url}
-                                                label={
-                                                    achievement.document_original_name ??
-                                                    "Открыть документ"
+                                        >
+                                            <SelectInput
+                                                value={
+                                                    achievementForm.data
+                                                        .activity_type
+                                                }
+                                                options={options.activityTypes}
+                                                placeholder="Выберите тип"
+                                                onChange={(event) =>
+                                                    achievementForm.setData(
+                                                        "activity_type",
+                                                        event.target.value,
+                                                    )
                                                 }
                                             />
-                                        </div>
+                                        </Field>
 
-                                        <DangerButton
-                                            type="button"
-                                            onClick={() =>
-                                                router.delete(
-                                                    achievementDestroyUrl(
-                                                        achievement.id,
-                                                    ),
-                                                    { preserveScroll: true },
-                                                )
-                                            }
+                                        <Field
+                                            label="Название"
+                                            error={achievementForm.errors.title}
                                         >
-                                            Удалить
-                                        </DangerButton>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-
-                        <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
-                                <h3 className="text-base font-semibold text-[#274f93]">
-                                    Цифровое портфолио
-                                </h3>
-                            </div>
-
-                            <form
-                                onSubmit={submitPortfolio}
-                                className="border-b border-gray-200 p-6"
-                            >
-                                <div className="grid gap-5 md:grid-cols-2">
-                                    <Field
-                                        label="Тип"
-                                        error={portfolioForm.errors.item_type}
-                                    >
-                                        <SelectInput
-                                            value={portfolioForm.data.item_type}
-                                            options={options.portfolioTypes}
-                                            placeholder="Выберите тип"
-                                            onChange={(event) =>
-                                                portfolioForm.setData(
-                                                    "item_type",
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Название"
-                                        error={portfolioForm.errors.title}
-                                    >
-                                        <TextInput
-                                            value={portfolioForm.data.title}
-                                            onChange={(event) =>
-                                                portfolioForm.setData(
-                                                    "title",
-                                                    event.target.value,
-                                                )
-                                            }
-                                            className="w-full"
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Файл"
-                                        error={portfolioForm.errors.file}
-                                        className="md:col-span-2"
-                                    >
-                                        <input
-                                            key={portfolioFileKey}
-                                            type="file"
-                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4"
-                                            onChange={(event) =>
-                                                portfolioForm.setData(
-                                                    "file",
-                                                    event.target.files[0],
-                                                )
-                                            }
-                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
-                                        />
-                                        <p className="mt-2 text-xs text-gray-500">
-                                            PDF, DOCX, JPG, PNG, MP4
-                                        </p>
-                                    </Field>
-                                </div>
-
-                                <div className="mt-5 flex justify-end">
-                                    <SecondaryButton
-                                        type="submit"
-                                        disabled={portfolioForm.processing}
-                                    >
-                                        Загрузить
-                                    </SecondaryButton>
-                                </div>
-                            </form>
-
-                            <div className="divide-y divide-gray-200">
-                                {portfolioItems.length === 0 && (
-                                    <p className="p-6 text-sm text-gray-500">
-                                        Файлов нет
-                                    </p>
-                                )}
-                                {portfolioItems.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        className="flex flex-col gap-4 p-6 md:flex-row md:items-start md:justify-between"
-                                    >
-                                        <div>
-                                            <p className="font-medium text-gray-900">
-                                                {item.title}
-                                            </p>
-                                            <p className="mt-1 text-sm text-gray-600">
-                                                {optionLabel(
-                                                    options.portfolioTypes,
-                                                    item.item_type,
-                                                )}{" "}
-                                                · {item.original_name}{" "}
-                                                <FileSize size={item.size} />
-                                            </p>
-                                            <FileLink
-                                                href={item.file_url}
-                                                label="Открыть файл"
+                                            <TextInput
+                                                value={
+                                                    achievementForm.data.title
+                                                }
+                                                onChange={(event) =>
+                                                    achievementForm.setData(
+                                                        "title",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
                                             />
-                                        </div>
+                                        </Field>
 
-                                        <DangerButton
-                                            type="button"
-                                            onClick={() =>
-                                                router.delete(
-                                                    portfolioDestroyUrl(
-                                                        item.id,
-                                                    ),
-                                                    { preserveScroll: true },
-                                                )
+                                        <Field
+                                            label="Уровень участия"
+                                            error={achievementForm.errors.level}
+                                        >
+                                            <SelectInput
+                                                value={
+                                                    achievementForm.data.level
+                                                }
+                                                options={
+                                                    options.achievementLevels
+                                                }
+                                                onChange={(event) =>
+                                                    achievementForm.setData(
+                                                        "level",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Результат"
+                                            error={
+                                                achievementForm.errors.result
                                             }
                                         >
-                                            Удалить
-                                        </DangerButton>
+                                            <SelectInput
+                                                value={
+                                                    achievementForm.data.result
+                                                }
+                                                options={
+                                                    options.achievementResults
+                                                }
+                                                onChange={(event) =>
+                                                    achievementForm.setData(
+                                                        "result",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Описание"
+                                            error={
+                                                achievementForm.errors
+                                                    .description
+                                            }
+                                            className="md:col-span-2"
+                                        >
+                                            <TextAreaInput
+                                                value={
+                                                    achievementForm.data
+                                                        .description
+                                                }
+                                                onChange={(event) =>
+                                                    achievementForm.setData(
+                                                        "description",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Подтверждающий документ"
+                                            error={
+                                                achievementForm.errors.document
+                                            }
+                                            className="md:col-span-2"
+                                        >
+                                            <input
+                                                key={achievementFileKey}
+                                                type="file"
+                                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4"
+                                                onChange={(event) =>
+                                                    achievementForm.setData(
+                                                        "document",
+                                                        event.target.files[0],
+                                                    )
+                                                }
+                                                className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                                            />
+                                            <p className="mt-2 text-xs text-gray-500">
+                                                PDF, DOCX, JPG, PNG, MP4
+                                            </p>
+                                        </Field>
                                     </div>
-                                ))}
-                            </div>
-                        </section>
-                    </div>
+
+                                    <div className="mt-5 flex justify-end">
+                                        <SecondaryButton
+                                            type="submit"
+                                            disabled={
+                                                achievementForm.processing
+                                            }
+                                        >
+                                            Добавить
+                                        </SecondaryButton>
+                                    </div>
+                                </form>
+
+                                <div className="divide-y divide-gray-200">
+                                    {achievements.length === 0 && (
+                                        <p className="p-6 text-sm text-gray-500">
+                                            Записей нет
+                                        </p>
+                                    )}
+                                    {achievements.map((achievement) => (
+                                        <div
+                                            key={achievement.id}
+                                            className="flex flex-col gap-4 p-6 md:flex-row md:items-start md:justify-between"
+                                        >
+                                            <div>
+                                                <p className="font-medium text-gray-900">
+                                                    {achievement.title}
+                                                </p>
+                                                <p className="mt-1 text-sm text-gray-600">
+                                                    {optionLabel(
+                                                        options.activityTypes,
+                                                        achievement.activity_type,
+                                                    )}{" "}
+                                                    ·{" "}
+                                                    {optionLabel(
+                                                        options.achievementLevels,
+                                                        achievement.level,
+                                                    )}{" "}
+                                                    ·{" "}
+                                                    {optionLabel(
+                                                        options.achievementResults,
+                                                        achievement.result,
+                                                    )}
+                                                </p>
+                                                {achievement.description && (
+                                                    <p className="mt-2 text-sm text-gray-600">
+                                                        {
+                                                            achievement.description
+                                                        }
+                                                    </p>
+                                                )}
+                                                <FileLink
+                                                    href={
+                                                        achievement.document_url
+                                                    }
+                                                    label={
+                                                        achievement.document_original_name ??
+                                                        "Открыть документ"
+                                                    }
+                                                />
+                                            </div>
+
+                                            <DangerButton
+                                                type="button"
+                                                onClick={() =>
+                                                    router.delete(
+                                                        achievementDestroyUrl(
+                                                            achievement.id,
+                                                        ),
+                                                        {
+                                                            preserveScroll: true,
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                Удалить
+                                            </DangerButton>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                                <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                                    <h3 className="text-base font-semibold text-[#274f93]">
+                                        Цифровое портфолио
+                                    </h3>
+                                </div>
+
+                                <form
+                                    onSubmit={submitPortfolio}
+                                    className="border-b border-gray-200 p-6"
+                                >
+                                    <div className="grid gap-5 md:grid-cols-2">
+                                        <Field
+                                            label="Тип"
+                                            error={
+                                                portfolioForm.errors.item_type
+                                            }
+                                        >
+                                            <SelectInput
+                                                value={
+                                                    portfolioForm.data.item_type
+                                                }
+                                                options={options.portfolioTypes}
+                                                placeholder="Выберите тип"
+                                                onChange={(event) =>
+                                                    portfolioForm.setData(
+                                                        "item_type",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Название"
+                                            error={portfolioForm.errors.title}
+                                        >
+                                            <TextInput
+                                                value={portfolioForm.data.title}
+                                                onChange={(event) =>
+                                                    portfolioForm.setData(
+                                                        "title",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="w-full"
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="Файл"
+                                            error={portfolioForm.errors.file}
+                                            className="md:col-span-2"
+                                        >
+                                            <input
+                                                key={portfolioFileKey}
+                                                type="file"
+                                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4"
+                                                onChange={(event) =>
+                                                    portfolioForm.setData(
+                                                        "file",
+                                                        event.target.files[0],
+                                                    )
+                                                }
+                                                className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                                            />
+                                            <p className="mt-2 text-xs text-gray-500">
+                                                PDF, DOCX, JPG, PNG, MP4
+                                            </p>
+                                        </Field>
+                                    </div>
+
+                                    <div className="mt-5 flex justify-end">
+                                        <SecondaryButton
+                                            type="submit"
+                                            disabled={portfolioForm.processing}
+                                        >
+                                            Загрузить
+                                        </SecondaryButton>
+                                    </div>
+                                </form>
+
+                                <div className="divide-y divide-gray-200">
+                                    {portfolioItems.length === 0 && (
+                                        <p className="p-6 text-sm text-gray-500">
+                                            Файлов нет
+                                        </p>
+                                    )}
+                                    {portfolioItems.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className="flex flex-col gap-4 p-6 md:flex-row md:items-start md:justify-between"
+                                        >
+                                            <div>
+                                                <p className="font-medium text-gray-900">
+                                                    {item.title}
+                                                </p>
+                                                <p className="mt-1 text-sm text-gray-600">
+                                                    {optionLabel(
+                                                        options.portfolioTypes,
+                                                        item.item_type,
+                                                    )}{" "}
+                                                    · {item.original_name}{" "}
+                                                    <FileSize
+                                                        size={item.size}
+                                                    />
+                                                </p>
+                                                <FileLink
+                                                    href={item.file_url}
+                                                    label="Открыть файл"
+                                                />
+                                            </div>
+
+                                            <DangerButton
+                                                type="button"
+                                                onClick={() =>
+                                                    router.delete(
+                                                        portfolioDestroyUrl(
+                                                            item.id,
+                                                        ),
+                                                        {
+                                                            preserveScroll: true,
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                Удалить
+                                            </DangerButton>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        </div>
                     )}
                 </div>
             </div>

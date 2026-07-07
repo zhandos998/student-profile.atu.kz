@@ -8,7 +8,9 @@ use App\Models\Role;
 use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\PsychotestApiClient;
 use App\Services\StudentRiskService;
+use App\Support\StudentProfileAccess;
 use App\Support\StudentProfileOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,7 +23,10 @@ use Inertia\Response;
 
 class StudentProfileController extends Controller
 {
-    public function __construct(private readonly StudentRiskService $riskService)
+    public function __construct(
+        private readonly StudentRiskService $riskService,
+        private readonly PsychotestApiClient $psychotestApi,
+    )
     {
     }
 
@@ -46,9 +51,9 @@ class StudentProfileController extends Controller
             ])],
         ]);
 
-        $students = User::query()
+        $students = StudentProfileAccess::scopeStudentUsers(User::query(), $request->user())
             ->with(['role', 'studentProfile', 'academicProfile'])
-            ->whereHas('role', fn ($query) => $query->where('slug', Role::STUDENT))
+            ->whereHas('role', fn ($query) => $query->whereIn('slug', User::STUDENT_DATA_ROLES))
             ->when($filters['search'] ?? null, function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
                     $query
@@ -102,7 +107,7 @@ class StudentProfileController extends Controller
                 'profile_status' => $filters['profile_status'] ?? '',
             ],
             'options' => StudentProfileOptions::forInertia(),
-            'availableGroups' => $this->availableGroupOptions(),
+            'availableGroups' => $this->availableGroupOptions($request->user()),
             'profileStatusOptions' => $this->profileStatusOptions(),
             'canCreateStudentProfiles' => $request->user()?->canEditStudentProfileData() ?? false,
         ]);
@@ -114,7 +119,7 @@ class StudentProfileController extends Controller
 
         return Inertia::render('StudentProfile/Create', [
             'options' => StudentProfileOptions::forInertia(),
-            'availableGroups' => $this->availableGroupOptions(),
+            'availableGroups' => $this->availableGroupOptions($request->user()),
         ]);
     }
 
@@ -135,6 +140,7 @@ class StudentProfileController extends Controller
         ]);
         $studentGroup = $this->selectedStudentGroup($validated);
         $this->ensureGroupNameIsKnown($validated, $studentGroup);
+        $this->ensureCanUseStudentGroup($request->user(), $studentGroup);
 
         $studentRoleId = Role::query()->where('slug', Role::STUDENT)->value('id');
 
@@ -165,7 +171,8 @@ class StudentProfileController extends Controller
     public function editManaged(Request $request, User $student): Response
     {
         abort_unless($request->user()?->canManageStudentProfiles(), 403);
-        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
 
         return $this->renderProfileForm($student, true);
     }
@@ -173,9 +180,10 @@ class StudentProfileController extends Controller
     public function updateManaged(Request $request, User $student): RedirectResponse
     {
         abort_unless($request->user()?->canEditStudentProfileData(), 403);
-        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
 
-        $this->persistProfile($request, $student, false, true, true);
+        $this->persistProfile($request, $student, false, true, true, true);
 
         return back()->with('status', 'student-profile-saved');
     }
@@ -183,7 +191,8 @@ class StudentProfileController extends Controller
     public function updateStatus(Request $request, User $student): RedirectResponse
     {
         abort_unless($request->user()?->canEditStudentProfileData(), 403);
-        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
 
         $validated = $request->validate([
             'profile_status' => ['required', Rule::in([
@@ -259,11 +268,16 @@ class StudentProfileController extends Controller
         bool $submitAfterSave = false,
         bool $includeServiceFields = true,
         bool $includeLifecycleFields = false,
+        bool $enforceManagedGroupAccess = false,
     ): void
     {
         $validated = $request->validate($this->profileValidationRules($includeServiceFields, $includeLifecycleFields));
         $studentGroup = $this->selectedStudentGroup($validated);
         $this->ensureGroupNameIsKnown($validated, $studentGroup);
+
+        if ($enforceManagedGroupAccess) {
+            $this->ensureCanUseStudentGroup($request->user(), $studentGroup);
+        }
 
         $profile = StudentProfile::query()->firstOrNew(['user_id' => $user->id]);
         $profileData = Arr::only($validated, $this->profileFields($includeServiceFields, $includeLifecycleFields));
@@ -365,7 +379,8 @@ class StudentProfileController extends Controller
     public function updateReviewBlock(Request $request, User $student): RedirectResponse
     {
         abort_unless($request->user()?->canEditStudentProfileData(), 403);
-        abort_unless($student->loadMissing('role')->role?->slug === Role::STUDENT, 404);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
 
         $validated = $request->validate([
             'block' => ['required', Rule::in(['social', 'academic'])],
@@ -588,11 +603,15 @@ class StudentProfileController extends Controller
         $viewer = request()->user();
         $canEditProfile = ! $managed || ($viewer?->canEditStudentProfileData() ?? false);
         $canEditHealthPassport = $managed && ($viewer?->canEditStudentHealthPassport() ?? false);
+        $canViewPsychotestResults = $managed && ($viewer?->canViewPsychologicalProfile() ?? false);
 
         return Inertia::render('StudentProfile/Edit', [
             'profile' => $this->profilePayload($user->studentProfile),
             'academicProfile' => $this->academicPayload($user->academicProfile),
             'healthPassport' => $this->healthPassportPayload($user->healthPassport),
+            'psychotestResults' => $canViewPsychotestResults
+                ? $this->psychotestResultsPayload($user->studentProfile)
+                : null,
             'achievements' => $user->extracurricularAchievements->map(fn ($achievement): array => [
                 ...$achievement->toArray(),
                 'document_url' => $achievement->document_path
@@ -604,11 +623,12 @@ class StudentProfileController extends Controller
                 'file_url' => Storage::disk('public')->url($item->file_path),
             ]),
             'options' => StudentProfileOptions::forInertia(),
-            'availableGroups' => $this->availableGroupOptions(),
+            'availableGroups' => $this->availableGroupOptions($managed ? $viewer : null),
             'profileStatusOptions' => $this->profileStatusOptions(),
             'isManagedProfile' => $managed,
             'canEditProfile' => $canEditProfile,
             'canEditHealthPassport' => $canEditHealthPassport,
+            'canViewPsychotestResults' => $canViewPsychotestResults,
             'healthPassportUpdateUrl' => $canEditHealthPassport
                 ? route('student-profiles.health-passport.update', $user)
                 : null,
@@ -618,6 +638,36 @@ class StudentProfileController extends Controller
                 'email' => $user->email,
             ] : null,
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function psychotestResultsPayload(?StudentProfile $profile): array
+    {
+        $iin = trim((string) $profile?->iin);
+        $testIds = config('services.psychotest.test_ids', []);
+        $testIds = is_array($testIds) ? $testIds : [];
+        $testIdsLabel = $testIds === [] ? 'Все доступные' : implode(',', $testIds);
+
+        if ($iin === '') {
+            return [
+                'iin' => '',
+                'test_ids' => $testIdsLabel,
+                'configured' => true,
+                'ok' => false,
+                'status' => null,
+                'message' => 'У студента не указан ИИН. Результаты психотестов нельзя получить.',
+                'results' => [],
+                'raw' => null,
+            ];
+        }
+
+        return [
+            'iin' => $iin,
+            'test_ids' => $testIdsLabel,
+            ...$this->psychotestApi->testResults($iin, $testIds),
+        ];
     }
 
     /**
@@ -803,9 +853,13 @@ class StudentProfileController extends Controller
     /**
      * @return array<int, array{value: string, label: string, faculty: string|null}>
      */
-    private function availableGroupOptions(): array
+    private function availableGroupOptions(?User $viewer = null): array
     {
-        return StudentGroup::query()
+        $query = $viewer
+            ? StudentProfileAccess::accessibleGroupsQuery($viewer)
+            : StudentGroup::query();
+
+        return $query
             ->orderBy('faculty')
             ->orderBy('name')
             ->get(['id', 'faculty', 'name'])
@@ -854,5 +908,20 @@ class StudentProfileController extends Controller
         throw ValidationException::withMessages([
             'group_name' => 'Выберите группу из списка.',
         ]);
+    }
+
+    private function ensureCanUseStudentGroup(User $viewer, ?StudentGroup $studentGroup): void
+    {
+        if ($viewer->canViewAllStudentData()) {
+            return;
+        }
+
+        if (! $studentGroup) {
+            throw ValidationException::withMessages([
+                'student_group_id' => 'Выберите свою группу из списка.',
+            ]);
+        }
+
+        abort_unless(StudentProfileAccess::canAccessGroup($viewer, $studentGroup), 403);
     }
 }

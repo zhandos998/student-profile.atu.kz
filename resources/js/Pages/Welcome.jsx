@@ -1,4 +1,6 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import LanguageSwitcher from '@/Components/LanguageSwitcher';
+import LanguageDomTranslator from '@/i18n/LanguageDomTranslator';
 import { Head, Link } from '@inertiajs/react';
 
 const primaryButton =
@@ -77,6 +79,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
 
     return (
         <>
+            <LanguageDomTranslator />
             <Head title="ATU Student Profile" />
 
             <main className="min-h-screen bg-white text-gray-900">
@@ -99,6 +102,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                         </Link>
 
                         <nav className="flex shrink-0 items-center gap-2">
+                            <LanguageSwitcher compact />
                             {isAuthenticated ? (
                                 <Link
                                     href={route('dashboard')}
