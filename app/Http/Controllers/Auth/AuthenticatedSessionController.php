@@ -21,6 +21,19 @@ class AuthenticatedSessionController extends Controller
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
+            'oldInput' => [
+                'email' => old('email', ''),
+            ],
+        ]);
+    }
+
+    public function createPlatonus(): Response
+    {
+        return Inertia::render('Auth/PlatonusLogin', [
+            'status' => session('status'),
+            'oldInput' => [
+                'login' => old('login', ''),
+            ],
         ]);
     }
 

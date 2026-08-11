@@ -44,4 +44,11 @@ return [
         ))),
     ],
 
+    'platonus' => [
+        'verify_url' => env('PLATONUS_VERIFY_URL', 'https://hub.atu.kz/api/v1/students/verify'),
+        'student_full_url' => env('PLATONUS_STUDENT_FULL_URL', 'https://hub.atu.kz/api/v1/hub/student_full'),
+        'api_key' => env('PLATONUS_API_KEY'),
+        'timeout' => env('PLATONUS_TIMEOUT', 15),
+    ],
+
 ];
