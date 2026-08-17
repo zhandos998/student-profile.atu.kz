@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\Role;
 use App\Models\StudentGroup;
+use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\StudentProfileOptions;
 use Database\Seeders\RoleSeeder;
@@ -159,6 +160,69 @@ class AuthenticationTest extends TestCase
         Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://hub.atu.kz/api/v1/hub/student_full')
             && str_contains($request->url(), 'iin=980915300671')
             && $request->hasHeader('X-API-Key', 'test-key'));
+    }
+
+    public function test_platonus_login_updates_existing_student_profile_iin(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        config([
+            'services.platonus.verify_url' => 'https://hub.atu.kz/api/v1/students/verify',
+            'services.platonus.api_key' => 'test-key',
+        ]);
+
+        $role = Role::query()->where('slug', Role::STUDENT)->firstOrFail();
+        $faculty = StudentProfileOptions::facultyNames()[3];
+        $group = StudentGroup::query()->create([
+            'faculty' => $faculty,
+            'name' => 'IS-101',
+        ]);
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'position' => 'Student',
+            'platonus_login' => '1daulet_rauan',
+        ]);
+
+        StudentProfile::query()->create([
+            'user_id' => $user->id,
+            'full_name' => 'Old Name',
+            'iin' => '000000000000',
+            'group_name' => 'OLD',
+            'course' => 1,
+        ]);
+
+        Http::fake([
+            'https://hub.atu.kz/api/v1/students/verify' => Http::response([
+                'authenticated' => true,
+                'student' => [
+                    'iin' => '980915300671',
+                ],
+            ]),
+            'https://hub.atu.kz/api/v1/hub/student_full*' => Http::response([
+                'lastname' => 'New',
+                'firstname' => 'Student',
+                'iin' => '980915300671',
+                'education' => [
+                    'faculty_name_ru' => $faculty,
+                    'group_name' => 'IS-101',
+                    'course' => 4,
+                ],
+            ]),
+        ]);
+
+        $this->post('/login', [
+            'auth_type' => 'platonus',
+            'login' => '1Daulet_Rauan',
+            'password' => 'plain_password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $profile = $user->studentProfile()->firstOrFail();
+
+        $this->assertSame('980915300671', $profile->iin);
+        $this->assertSame('New Student', $profile->full_name);
+        $this->assertSame($group->id, $profile->student_group_id);
+        $this->assertSame('IS-101', $profile->group_name);
+        $this->assertSame(4, $profile->course);
     }
 
     public function test_platonus_login_rejects_invalid_credentials(): void

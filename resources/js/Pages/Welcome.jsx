@@ -102,6 +102,12 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                         </Link>
 
                         <nav className="flex shrink-0 items-center gap-2">
+                            <Link
+                                href={route('instructions.index')}
+                                className="hidden rounded-md px-4 py-3 text-sm font-semibold text-[#355da8] transition hover:bg-[#f5f8fd] sm:inline-flex"
+                            >
+                                Инструкция
+                            </Link>
                             <LanguageSwitcher compact />
                             {isAuthenticated ? (
                                 <Link

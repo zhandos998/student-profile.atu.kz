@@ -137,6 +137,16 @@ class User extends Authenticatable
         ]);
     }
 
+    public function canManageUsers(): bool
+    {
+        return $this->hasAnyRole([Role::ADMINISTRATOR_DIT]);
+    }
+
+    public function canImpersonateUsers(): bool
+    {
+        return $this->canManageUsers();
+    }
+
     /**
      * @param  array<int, string>  $roles
      */

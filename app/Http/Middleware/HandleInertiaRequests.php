@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -30,8 +31,15 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        $impersonator = null;
 
         $user?->loadMissing('role');
+
+        if ($request->session()->has('impersonator_id')) {
+            $impersonator = User::query()
+                ->with('role')
+                ->find($request->session()->get('impersonator_id'));
+        }
 
         return [
             ...parent::share($request),
@@ -43,6 +51,19 @@ class HandleInertiaRequests extends Middleware
                 'canViewAnalyticsDashboard' => $user?->canViewAnalyticsDashboard() ?? false,
                 'canManageStudentProfiles' => $user?->canManageStudentProfiles() ?? false,
                 'canUseOwnStudentProfile' => $user?->canUseOwnStudentProfile() ?? false,
+                'canManageUsers' => $user?->canManageUsers() ?? false,
+            ],
+            'impersonation' => [
+                'active' => $request->session()->has('impersonator_id'),
+                'impersonator' => $impersonator ? [
+                    'id' => $impersonator->id,
+                    'name' => $impersonator->name,
+                    'email' => $impersonator->email,
+                    'role' => [
+                        'slug' => $impersonator->role?->slug,
+                        'name' => $impersonator->role?->name,
+                    ],
+                ] : null,
             ],
             'csrfToken' => csrf_token(),
             'locale' => app()->getLocale(),

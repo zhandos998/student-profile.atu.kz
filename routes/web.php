@@ -10,6 +10,7 @@ use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StudentGroupController;
 use App\Http\Controllers\StudentProfileController;
+use App\Http\Controllers\UserManagementController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -22,6 +23,10 @@ Route::get('/', function () {
         'phpVersion' => PHP_VERSION,
     ]);
 });
+
+Route::get('/instructions', function () {
+    return Inertia::render('Instructions');
+})->name('instructions.index');
 
 Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
@@ -71,6 +76,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/analytics-dashboard/reports/{type}/export', [AnalyticsDashboardController::class, 'export'])
         ->whereIn('type', ['student', 'group', 'course', 'faculty', 'academic-risks', 'social-risks', 'psychological-risks', 'medical-risks'])
         ->name('analytics-dashboard.reports.export');
+
+    Route::get('/users', [UserManagementController::class, 'index'])->name('users.index');
+    Route::post('/users/{user}/impersonate', [UserManagementController::class, 'impersonate'])->name('users.impersonate');
+    Route::post('/impersonation/stop', [UserManagementController::class, 'stopImpersonating'])->name('impersonation.stop');
 });
 
 require __DIR__.'/auth.php';

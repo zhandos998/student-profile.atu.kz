@@ -212,12 +212,12 @@ class LoginRequest extends FormRequest
             'parent_guardian_contacts' => $this->studentParentContacts($student),
         ];
 
-        if ($studentGroup && blank($profile->student_group_id)) {
+        if ($studentGroup) {
             $profile->student_group_id = $studentGroup->id;
         }
 
         foreach ($data as $field => $value) {
-            if (filled($value) && blank($profile->{$field})) {
+            if (filled($value)) {
                 $profile->{$field} = $value;
             }
         }

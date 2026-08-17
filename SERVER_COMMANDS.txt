@@ -68,6 +68,13 @@ Set real values:
   DB_PASSWORD=<strong_mysql_password>
   MYSQL_ROOT_PASSWORD=<strong_mysql_root_password>
   SESSION_SECURE_COOKIE=true
+  PLATONUS_VERIFY_URL=https://hub.atu.kz/api/v1/students/verify
+  PLATONUS_STUDENT_FULL_URL=https://hub.atu.kz/api/v1/hub/student_full
+  PLATONUS_API_KEY=<hub_api_key>
+  PLATONUS_TIMEOUT=15
+  PSYCHOTEST_API_URL=https://psychologist.atu.kz
+  PSYCHOTEST_API_TOKEN=<psychotest_api_token>
+  PSYCHOTEST_TEST_IDS=
 
 Generate APP_KEY:
   docker compose --env-file .env.docker -f docker-compose.prod.yml run --rm --no-deps --build app php artisan key:generate --show
@@ -171,13 +178,13 @@ Update project after code changes
 ---------------------------------
 On server:
 
-  cd /opt/apps/student_profile
-  git pull origin main
-  docker compose --env-file .env.docker -f docker-compose.prod.yml up -d --build
-  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan migrate --force
-  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan optimize:clear
-  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan config:cache
-  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan view:cache
+cd /opt/apps/student_profile
+git pull origin main
+docker compose --env-file .env.docker -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan migrate --force
+docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan optimize:clear
+docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan config:cache
+docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan view:cache
 
 
 Laravel commands

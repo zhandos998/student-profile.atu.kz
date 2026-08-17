@@ -730,6 +730,7 @@ export default function Dashboard({
         canViewAnalyticsDashboard,
         canManageStudentProfiles,
         canUseOwnStudentProfile,
+        canManageUsers,
     } = usePage().props.auth;
     const hero = dashboardHeroData({
         studentHome,
@@ -791,6 +792,13 @@ export default function Dashboard({
                                     title="Аналитика"
                                     description="Количество студентов, GPA, риски, вовлеченность и отчеты."
                                     href={route('analytics-dashboard.index')}
+                                />
+                            )}
+                            {canManageUsers && (
+                                <ModuleCard
+                                    title="Пользователи"
+                                    description="Все аккаунты системы и вход от имени пользователя для проверки доступа."
+                                    href={route('users.index')}
                                 />
                             )}
                         </div>
