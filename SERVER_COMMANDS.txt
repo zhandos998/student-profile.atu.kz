@@ -126,6 +126,23 @@ Paste:
 
       client_max_body_size 128M;
 
+      location = /phpmyadmin {
+          return 301 /phpmyadmin/;
+      }
+
+      location ^~ /phpmyadmin/ {
+          proxy_pass http://127.0.0.1:8112/;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-Host $host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header X-Forwarded-Prefix /phpmyadmin;
+          proxy_cookie_path / /phpmyadmin/;
+      }
+
       location / {
           proxy_pass http://127.0.0.1:8111;
           proxy_http_version 1.1;
@@ -210,15 +227,11 @@ Backup database:
 
 phpMyAdmin
 ----------
-phpMyAdmin is bound only to server localhost:
+phpMyAdmin is bound only to server localhost and exposed through Nginx path /phpmyadmin/:
   http://127.0.0.1:8112
 
-Open phpMyAdmin from your computer with SSH tunnel:
-
-  ssh -L 8112:127.0.0.1:8112 zhagparovr@172.20.252.171
-
-Then open in browser on your computer:
-  http://127.0.0.1:8112
+Open phpMyAdmin in browser:
+  https://student-profile.atu.kz/phpmyadmin/
 
 phpMyAdmin login:
   Server: mysql

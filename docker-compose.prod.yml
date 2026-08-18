@@ -43,6 +43,7 @@ services:
     environment:
       PMA_HOST: mysql
       PMA_PORT: 3306
+      PMA_ABSOLUTE_URI: ${APP_URL}/phpmyadmin/
       UPLOAD_LIMIT: 128M
     ports:
       - "127.0.0.1:${PHPMYADMIN_PORT:-8082}:80"
