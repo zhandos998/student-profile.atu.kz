@@ -7,7 +7,7 @@ import SecondaryButton from "@/Components/SecondaryButton";
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, router, useForm } from "@inertiajs/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const valueOrEmpty = (value) => value ?? "";
 
@@ -32,6 +32,43 @@ const dispensaryAccountingOptions = [
     { value: "1", label: "Да" },
     { value: "0", label: "Нет" },
 ];
+
+const platonusProfileFields = [
+    "full_name",
+    "birth_date",
+    "study_form",
+    "nationality",
+    "citizenship",
+    "iin",
+    "identity_document_number",
+    "gender",
+    "faculty",
+    "student_group_id",
+    "group_name",
+    "specialty",
+    "course",
+    "admission_year",
+    "stay_address",
+    "residence_address",
+    "contact_details",
+    "personal_email",
+    "parent_guardian_contacts",
+];
+
+const normalizeIin = (value) =>
+    String(value ?? "")
+        .replace(/\D/g, "")
+        .slice(0, 12);
+
+function isProfileArchived(profile) {
+    return Boolean(
+        profile.is_archived ||
+        profile.isArchived ||
+        profile.archived_at ||
+        profile.archived_at_display ||
+        profile.archivedAtDisplay,
+    );
+}
 
 function Section({
     title,
@@ -113,10 +150,14 @@ function DisplayField({ label, value, className = "" }) {
 function SelectInput({
     value,
     onChange,
-    options,
+    options = [],
     placeholder = "Не указано",
     disabled = false,
 }) {
+    const hasSelectedValue =
+        !value ||
+        options.some((option) => String(option.value) === String(value));
+
     return (
         <select
             value={value}
@@ -125,6 +166,7 @@ function SelectInput({
             className="w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8] disabled:cursor-not-allowed disabled:bg-gray-50"
         >
             <option value="">{placeholder}</option>
+            {!hasSelectedValue && <option value={value}>{value}</option>}
             {options.map((option) => (
                 <option key={option.value} value={option.value}>
                     {option.label}
@@ -537,6 +579,7 @@ export default function Edit({
     canEditProfile = true,
     canEditHealthPassport = false,
     canViewPsychotestResults = false,
+    canArchiveStudentProfile = false,
     healthPassportUpdateUrl = null,
     targetUser = null,
 }) {
@@ -624,6 +667,12 @@ export default function Edit({
     const [profileProcessing, setProfileProcessing] = useState(false);
     const [profileRecentlySuccessful, setProfileRecentlySuccessful] =
         useState(false);
+    const [platonusLookup, setPlatonusLookup] = useState({
+        processing: false,
+        message: "",
+        error: "",
+    });
+    const lastAutoLoadedIin = useRef("");
     const [blockReviewComments, setBlockReviewComments] = useState({
         social: "",
         academic: "",
@@ -748,6 +797,7 @@ export default function Edit({
         profile_status: "verified",
         revision_comment: "",
     });
+    const archiveForm = useForm({});
     const healthPassportForm = useForm({
         fluorography_date: healthPassport.fluorography_date ?? "",
         fluorography_image: null,
@@ -761,6 +811,7 @@ export default function Edit({
     const profileUpdateUrl = isManagedProfile
         ? route("student-profiles.update", targetUserId)
         : route("student-profile.update");
+    const profileArchived = isProfileArchived(profile);
     const profileStatusUpdateUrl = isManagedProfile
         ? route("student-profiles.status.update", targetUserId)
         : null;
@@ -787,6 +838,102 @@ export default function Edit({
                   portfolioItemId,
               ])
             : route("student-profile.portfolio.destroy", portfolioItemId);
+
+    const applyPlatonusProfile = (platonusProfile = {}) => {
+        setProfileData((current) => {
+            const next = { ...current };
+
+            platonusProfileFields.forEach((field) => {
+                const value = platonusProfile[field];
+
+                if (value !== null && value !== undefined && value !== "") {
+                    next[field] = String(value);
+                }
+            });
+
+            return next;
+        });
+    };
+
+    const fetchPlatonusProfile = async (iinValue = profileData.iin) => {
+        const iin = normalizeIin(iinValue);
+
+        if (iin.length !== 12) {
+            setPlatonusLookup({
+                processing: false,
+                message: "",
+                error: "Введите 12 цифр ИИН.",
+            });
+
+            return;
+        }
+
+        lastAutoLoadedIin.current = iin;
+        setPlatonusLookup({
+            processing: true,
+            message: "",
+            error: "",
+        });
+
+        try {
+            const url = `${route("student-profile.platonus.fetch")}?iin=${encodeURIComponent(iin)}`;
+            const response = await fetch(url, {
+                headers: {
+                    Accept: "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                setPlatonusLookup({
+                    processing: false,
+                    message: "",
+                    error:
+                        payload?.errors?.iin?.[0] ||
+                        payload?.message ||
+                        "Не удалось загрузить данные из Платонуса.",
+                });
+
+                return;
+            }
+
+            applyPlatonusProfile(payload.profile);
+            setProfileErrors((current) => ({
+                ...current,
+                iin: undefined,
+            }));
+            setPlatonusLookup({
+                processing: false,
+                message:
+                    payload?.message ||
+                    "Данные из Платонуса загружены. Проверьте поля и нажмите “Сохранить”.",
+                error: "",
+            });
+        } catch (error) {
+            setPlatonusLookup({
+                processing: false,
+                message: "",
+                error: "Не удалось подключиться к API Платонуса.",
+            });
+        }
+    };
+
+    useEffect(() => {
+        const iin = normalizeIin(profileData.iin);
+
+        if (iin.length !== 12 || iin === lastAutoLoadedIin.current) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            if (iin !== lastAutoLoadedIin.current) {
+                fetchPlatonusProfile(iin);
+            }
+        }, 700);
+
+        return () => window.clearTimeout(timer);
+    }, [profileData.iin]);
 
     const submitProfile = (event) => {
         event.preventDefault();
@@ -859,6 +1006,30 @@ export default function Edit({
                     statusForm.reset("revision_comment");
                 },
             });
+    };
+
+    const toggleArchive = () => {
+        if (!profileArchived) {
+            const confirmed = window.confirm(
+                "Архивировать этот портрет студента?",
+            );
+
+            if (!confirmed) {
+                return;
+            }
+        }
+
+        archiveForm.post(
+            route(
+                profileArchived
+                    ? "student-profiles.restore"
+                    : "student-profiles.archive",
+                targetUserId,
+            ),
+            {
+                preserveScroll: true,
+            },
+        );
     };
 
     const updateBlockReview = (block, reviewStatus) => {
@@ -1048,7 +1219,7 @@ export default function Edit({
             <Head title="Портрет студента" />
 
             <div className="py-8">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
                     {canEditProfile && (
                         <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                             <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
@@ -1075,7 +1246,19 @@ export default function Edit({
                                                 {profile.verified_at_display}
                                             </span>
                                         )}
+                                        {profileArchived && (
+                                            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                                                В архиве
+                                            </span>
+                                        )}
                                     </div>
+                                    {profileArchived &&
+                                        profile.archived_at_display && (
+                                            <p className="mt-3 text-sm text-gray-500">
+                                                Архивирован:{" "}
+                                                {profile.archived_at_display}
+                                            </p>
+                                        )}
                                     {profile.revision_comment && (
                                         <p className="mt-3 max-w-3xl rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-100">
                                             {profile.revision_comment}
@@ -1134,6 +1317,32 @@ export default function Edit({
                                             >
                                                 Проверить
                                             </button>
+                                            {canArchiveStudentProfile &&
+                                                !profileArchived && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={toggleArchive}
+                                                        disabled={
+                                                            archiveForm.processing
+                                                        }
+                                                        className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                                                    >
+                                                        Архивировать
+                                                    </button>
+                                                )}
+                                            {canArchiveStudentProfile &&
+                                                profileArchived && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={toggleArchive}
+                                                        disabled={
+                                                            archiveForm.processing
+                                                        }
+                                                        className="inline-flex items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                                                    >
+                                                        Разархивировать
+                                                    </button>
+                                                )}
                                         </div>
                                     </div>
                                 )}
@@ -1402,6 +1611,73 @@ export default function Edit({
                             >
                                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                                     <Field
+                                        label="ИИН"
+                                        error={profileForm.errors.iin}
+                                        className="md:col-span-2 xl:col-span-3"
+                                    >
+                                        <div className="flex flex-col gap-2 sm:flex-row">
+                                            <TextInput
+                                                value={profileForm.data.iin}
+                                                maxLength="12"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                onChange={(event) => {
+                                                    const iin = normalizeIin(
+                                                        event.target.value,
+                                                    );
+
+                                                    profileForm.setData(
+                                                        "iin",
+                                                        iin,
+                                                    );
+
+                                                    if (iin.length < 12) {
+                                                        lastAutoLoadedIin.current =
+                                                            "";
+                                                        setPlatonusLookup({
+                                                            processing: false,
+                                                            message: "",
+                                                            error: "",
+                                                        });
+                                                    }
+                                                }}
+                                                className="w-full"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    fetchPlatonusProfile()
+                                                }
+                                                disabled={
+                                                    platonusLookup.processing ||
+                                                    normalizeIin(
+                                                        profileForm.data.iin,
+                                                    ).length !== 12
+                                                }
+                                                className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f5192] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+                                            >
+                                                {platonusLookup.processing
+                                                    ? "Загрузка..."
+                                                    : "Загрузить"}
+                                            </button>
+                                        </div>
+                                        <p className="mt-2 text-xs text-gray-500">
+                                            После ввода 12 цифр данные
+                                            загрузятся автоматически.
+                                        </p>
+                                        {platonusLookup.message && (
+                                            <p className="mt-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 ring-1 ring-emerald-100">
+                                                {platonusLookup.message}
+                                            </p>
+                                        )}
+                                        {platonusLookup.error && (
+                                            <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
+                                                {platonusLookup.error}
+                                            </p>
+                                        )}
+                                    </Field>
+
+                                    <Field
                                         label="ФИО"
                                         error={profileForm.errors.full_name}
                                         className="xl:col-span-2"
@@ -1455,15 +1731,18 @@ export default function Edit({
                                         label="Национальность"
                                         error={profileForm.errors.nationality}
                                     >
-                                        <TextInput
+                                        <SelectInput
                                             value={profileForm.data.nationality}
+                                            options={
+                                                options.nationalities ?? []
+                                            }
+                                            placeholder="Выберите национальность"
                                             onChange={(event) =>
                                                 profileForm.setData(
                                                     "nationality",
                                                     event.target.value,
                                                 )
                                             }
-                                            className="w-full"
                                         />
                                     </Field>
 
@@ -1553,23 +1832,6 @@ export default function Edit({
                                         <FileLink
                                             href={profile.photo_url}
                                             label="Открыть текущий файл"
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="ИИН"
-                                        error={profileForm.errors.iin}
-                                    >
-                                        <TextInput
-                                            value={profileForm.data.iin}
-                                            maxLength="12"
-                                            onChange={(event) =>
-                                                profileForm.setData(
-                                                    "iin",
-                                                    event.target.value,
-                                                )
-                                            }
-                                            className="w-full"
                                         />
                                     </Field>
 

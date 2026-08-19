@@ -12,7 +12,9 @@ use App\Models\User;
 use App\Support\StudentProfileOptions;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -29,7 +31,13 @@ class StudentProfileTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('student-profile.edit'))
-            ->assertOk();
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('StudentProfile/Edit')
+                ->where('options.nationalities.0.value', 'Казах')
+                ->where('options.nationalities.1.value', 'Русский')
+                ->where('options.nationalities.2.value', 'Украинец')
+            );
     }
 
     public function test_group_leader_can_use_own_student_profile_page(): void
@@ -41,6 +49,99 @@ class StudentProfileTest extends TestCase
         $this->actingAs($user)
             ->get(route('student-profile.edit'))
             ->assertOk();
+    }
+
+    public function test_profile_manager_is_redirected_from_own_student_profile_url_to_student_list(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = $this->userWithRole(Role::CURATOR, 'Curator');
+
+        $this->actingAs($user)
+            ->get(route('student-profile.edit'))
+            ->assertRedirect(route('student-profiles.index'));
+    }
+
+    public function test_student_can_fetch_platonus_profile_by_iin(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        config([
+            'services.platonus.student_full_url' => 'https://hub.atu.kz/api/v1/hub/student_full',
+            'services.platonus.api_key' => 'test-key',
+        ]);
+
+        $faculty = StudentProfileOptions::facultyNames()[3];
+        $group = StudentGroup::query()->create([
+            'faculty' => $faculty,
+            'name' => 'ИС-101',
+        ]);
+        $user = $this->userWithRole(Role::STUDENT, 'Student');
+
+        Http::fake([
+            'https://hub.atu.kz/api/v1/hub/student_full*' => Http::response([
+                'lastname' => 'Дәулетов',
+                'firstname' => 'Рауан',
+                'patronymic' => 'Ерланұлы',
+                'iin' => '980915300671',
+                'birth_date' => '15.09.1998',
+                'sex' => [
+                    'ru' => 'мужской',
+                    'kz' => 'ер',
+                ],
+                'nationality' => [
+                    'ru' => 'казах',
+                    'kz' => 'қазақ',
+                ],
+                'citizenship' => [
+                    'ru' => 'Гражданин Республики Казахстан',
+                ],
+                'contacts' => [
+                    'phone' => '+7 701 111 22 33',
+                    'email' => 'daulet.rauan@atu.kz',
+                ],
+                'address' => [
+                    'living_address' => 'Общежитие АТУ',
+                    'registration_address' => 'г. Алматы',
+                ],
+                'education' => [
+                    'faculty_name_ru' => $faculty,
+                    'speciality_code' => 'B057',
+                    'speciality_name_ru' => 'Информационные технологии',
+                    'group_name' => 'ИС-101',
+                    'course' => 2,
+                    'study_form_ru' => 'очная',
+                    'admission_year' => 2023,
+                ],
+            ]),
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('student-profile.platonus.fetch', [
+                'iin' => '980915300671',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('profile.full_name', 'Дәулетов Рауан Ерланұлы')
+            ->assertJsonPath('profile.birth_date', '1998-09-15')
+            ->assertJsonPath('profile.study_form', 'очная')
+            ->assertJsonPath('profile.nationality', 'Казах')
+            ->assertJsonPath('profile.citizenship', 'kazakhstan_citizen')
+            ->assertJsonPath('profile.iin', '980915300671')
+            ->assertJsonPath('profile.gender', 'male')
+            ->assertJsonPath('profile.faculty', $faculty)
+            ->assertJsonPath('profile.student_group_id', (string) $group->id)
+            ->assertJsonPath('profile.group_name', 'ИС-101')
+            ->assertJsonPath('profile.specialty', 'B057 - Информационные технологии')
+            ->assertJsonPath('profile.course', 2)
+            ->assertJsonPath('profile.admission_year', 2023)
+            ->assertJsonPath('profile.stay_address', 'Общежитие АТУ')
+            ->assertJsonPath('profile.residence_address', 'г. Алматы')
+            ->assertJsonPath('profile.contact_details', '+7 701 111 22 33')
+            ->assertJsonPath('profile.personal_email', 'daulet.rauan@atu.kz');
+
+        Http::assertSent(fn (HttpRequest $request): bool => str_starts_with($request->url(), 'https://hub.atu.kz/api/v1/hub/student_full')
+            && str_contains($request->url(), 'iin=980915300671')
+            && $request->hasHeader('X-API-Key', 'test-key'));
     }
 
     public function test_student_can_save_own_profile_with_social_and_academic_fields_pending_review(): void

@@ -138,6 +138,7 @@ class DashboardController extends Controller
     private function studentProfilesForSupervision(?User $user = null): Collection
     {
         $query = StudentProfile::query()
+            ->active()
             ->with(['user.academicProfile', 'user.extracurricularAchievements', 'user.portfolioItems'])
             ->orderBy('group_name')
             ->orderBy('full_name');

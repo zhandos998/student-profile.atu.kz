@@ -1,13 +1,13 @@
-import ApplicationLogo from '@/Components/ApplicationLogo';
-import LanguageSwitcher from '@/Components/LanguageSwitcher';
-import LanguageDomTranslator from '@/i18n/LanguageDomTranslator';
-import { Head, Link } from '@inertiajs/react';
+import ApplicationLogo from "@/Components/ApplicationLogo";
+import LanguageSwitcher from "@/Components/LanguageSwitcher";
+import LanguageDomTranslator from "@/i18n/LanguageDomTranslator";
+import { Head, Link } from "@inertiajs/react";
 
 const primaryButton =
-    'inline-flex items-center justify-center rounded-md bg-[#355da8] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2';
+    "inline-flex items-center justify-center rounded-md bg-[#355da8] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2";
 
 const secondaryButton =
-    'inline-flex items-center justify-center rounded-md border border-[#d7e1f3] bg-white px-5 py-3 text-sm font-semibold text-[#355da8] transition hover:bg-[#f5f8fd] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2';
+    "inline-flex items-center justify-center rounded-md border border-[#d7e1f3] bg-white px-5 py-3 text-sm font-semibold text-[#355da8] transition hover:bg-[#f5f8fd] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2";
 
 function StudentCard({ title, text }) {
     return (
@@ -80,7 +80,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
     return (
         <>
             <LanguageDomTranslator />
-            <Head title="ATU Student Profile" />
+            <Head title="Паспорт студента" />
 
             <main className="min-h-screen bg-white text-gray-900">
                 <header className="border-b border-[#e7eef8] bg-white">
@@ -103,7 +103,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
 
                         <nav className="flex shrink-0 items-center gap-2">
                             <Link
-                                href={route('instructions.index')}
+                                href={route("instructions.index")}
                                 className="hidden rounded-md px-4 py-3 text-sm font-semibold text-[#355da8] transition hover:bg-[#f5f8fd] sm:inline-flex"
                             >
                                 Инструкция
@@ -111,7 +111,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                             <LanguageSwitcher compact />
                             {isAuthenticated ? (
                                 <Link
-                                    href={route('dashboard')}
+                                    href={route("dashboard")}
                                     className={primaryButton}
                                 >
                                     Открыть кабинет
@@ -120,7 +120,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                                 <>
                                     {canLogin && (
                                         <Link
-                                            href={route('login')}
+                                            href={route("login")}
                                             className={primaryButton}
                                         >
                                             Войти
@@ -128,7 +128,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                                     )}
                                     {canRegister && (
                                         <Link
-                                            href={route('register')}
+                                            href={route("register")}
                                             className="hidden rounded-md px-4 py-3 text-sm font-semibold text-[#355da8] transition hover:bg-[#f5f8fd] sm:inline-flex"
                                         >
                                             Регистрация
@@ -147,8 +147,8 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                                 Кабинет студента АТУ
                             </p>
                             <h1 className="mt-4 max-w-2xl text-4xl font-semibold tracking-normal text-gray-950 sm:text-5xl">
-                                Заполняйте анкету, собирайте портфолио и
-                                следите за личным профилем
+                                Заполняйте анкету, собирайте портфолио и следите
+                                за личным профилем
                             </h1>
                             <p className="mt-5 max-w-xl text-base leading-7 text-gray-600">
                                 На этой платформе студент может обновлять свои
@@ -160,18 +160,18 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                                 <Link
                                     href={
                                         isAuthenticated
-                                            ? route('dashboard')
-                                            : route('login')
+                                            ? route("dashboard")
+                                            : route("login")
                                     }
                                     className={primaryButton}
                                 >
                                     {isAuthenticated
-                                        ? 'Перейти в кабинет'
-                                        : 'Войти в личный кабинет'}
+                                        ? "Перейти в кабинет"
+                                        : "Войти в личный кабинет"}
                                 </Link>
                                 {!isAuthenticated && canRegister && (
                                     <Link
-                                        href={route('register')}
+                                        href={route("register")}
                                         className={secondaryButton}
                                     >
                                         Создать аккаунт
@@ -216,14 +216,14 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                         <Link
                             href={
                                 isAuthenticated
-                                    ? route('dashboard')
-                                    : route('login')
+                                    ? route("dashboard")
+                                    : route("login")
                             }
                             className={primaryButton}
                         >
                             {isAuthenticated
-                                ? 'Открыть кабинет'
-                                : 'Перейти ко входу'}
+                                ? "Открыть кабинет"
+                                : "Перейти ко входу"}
                         </Link>
                     </div>
                 </section>

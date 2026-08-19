@@ -69,6 +69,7 @@ Set real values:
   MYSQL_ROOT_PASSWORD=<strong_mysql_root_password>
   SESSION_SECURE_COOKIE=true
   PLATONUS_VERIFY_URL=https://hub.atu.kz/api/v1/students/verify
+  PLATONUS_TUTOR_VERIFY_URL=https://hub.atu.kz/api/v1/tutors/verify
   PLATONUS_STUDENT_FULL_URL=https://hub.atu.kz/api/v1/hub/student_full
   PLATONUS_API_KEY=<hub_api_key>
   PLATONUS_TIMEOUT=15

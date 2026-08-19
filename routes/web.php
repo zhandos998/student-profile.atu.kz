@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/student-profile', [StudentProfileController::class, 'edit'])->name('student-profile.edit');
+    Route::get('/student-profile/platonus/by-iin', [StudentProfileController::class, 'fetchPlatonusStudent'])->name('student-profile.platonus.fetch');
     Route::post('/student-profile', [StudentProfileController::class, 'update'])->name('student-profile.update');
     Route::post('/student-profile/submit', [StudentProfileController::class, 'submit'])->name('student-profile.submit');
     Route::post('/student-profile/achievements', [ExtracurricularAchievementController::class, 'store'])->name('student-profile.achievements.store');
@@ -54,6 +55,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/student-profiles/{student}/edit', [StudentProfileController::class, 'editManaged'])->name('student-profiles.edit');
     Route::post('/student-profiles/{student}', [StudentProfileController::class, 'updateManaged'])->name('student-profiles.update');
     Route::post('/student-profiles/{student}/status', [StudentProfileController::class, 'updateStatus'])->name('student-profiles.status.update');
+    Route::post('/student-profiles/{student}/archive', [StudentProfileController::class, 'archive'])->name('student-profiles.archive');
+    Route::post('/student-profiles/{student}/restore', [StudentProfileController::class, 'restore'])->name('student-profiles.restore');
     Route::post('/student-profiles/{student}/review-block', [StudentProfileController::class, 'updateReviewBlock'])->name('student-profiles.review-block.update');
     Route::post('/student-profiles/{student}/health-passport', [HealthPassportController::class, 'updateForStudent'])->name('student-profiles.health-passport.update');
     Route::post('/student-profiles/{student}/achievements', [ExtracurricularAchievementController::class, 'storeForStudent'])->name('student-profiles.achievements.store');

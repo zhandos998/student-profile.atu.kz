@@ -8,14 +8,17 @@ use App\Models\Role;
 use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\PlatonusAuthClient;
 use App\Services\PsychotestApiClient;
 use App\Services\StudentRiskService;
 use App\Support\StudentProfileAccess;
 use App\Support\StudentProfileOptions;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -26,6 +29,7 @@ class StudentProfileController extends Controller
     public function __construct(
         private readonly StudentRiskService $riskService,
         private readonly PsychotestApiClient $psychotestApi,
+        private readonly PlatonusAuthClient $platonusApi,
     )
     {
     }
@@ -40,6 +44,7 @@ class StudentProfileController extends Controller
             'student_group_id' => ['nullable', 'integer', Rule::exists('student_groups', 'id')],
             'group_name' => ['nullable', 'string', 'max:100'],
             'course' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'archive_status' => ['nullable', Rule::in(['active', 'archived', 'all'])],
             'profile_status' => ['nullable', Rule::in([
                 'with_profile',
                 'without_profile',
@@ -50,10 +55,19 @@ class StudentProfileController extends Controller
                 StudentProfile::STATUS_NEEDS_REVISION,
             ])],
         ]);
+        $archiveStatus = $filters['archive_status'] ?? 'active';
 
         $students = StudentProfileAccess::scopeStudentUsers(User::query(), $request->user())
             ->with(['role', 'studentProfile', 'academicProfile'])
             ->whereHas('role', fn ($query) => $query->whereIn('slug', User::STUDENT_DATA_ROLES))
+            ->when($archiveStatus === 'active', fn ($query) => $query
+                ->where(function ($query): void {
+                    $query
+                        ->doesntHave('studentProfile')
+                        ->orWhereHas('studentProfile', fn ($query) => $query->active());
+                }))
+            ->when($archiveStatus === 'archived', fn ($query) => $query
+                ->whereHas('studentProfile', fn ($query) => $query->archived()))
             ->when($filters['search'] ?? null, function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
                     $query
@@ -76,12 +90,14 @@ class StudentProfileController extends Controller
             ->when($filters['course'] ?? null, fn ($query, int $course) => $query
                 ->whereHas('studentProfile', fn ($query) => $query->where('course', $course)))
             ->when(($filters['profile_status'] ?? null) === 'with_profile', fn ($query) => $query->has('studentProfile'))
+            ->when(($filters['profile_status'] ?? null) === 'without_profile', fn ($query) => $query->doesntHave('studentProfile'))
             ->when(
-                in_array($filters['profile_status'] ?? null, [
-                    'without_profile',
-                    StudentProfile::STATUS_NOT_STARTED,
-                ], true),
-                fn ($query) => $query->doesntHave('studentProfile')
+                ($filters['profile_status'] ?? null) === StudentProfile::STATUS_NOT_STARTED,
+                fn ($query) => $query->where(function ($query): void {
+                    $query
+                        ->doesntHave('studentProfile')
+                        ->orWhereHas('studentProfile', fn ($query) => $query->where('profile_status', StudentProfile::STATUS_NOT_STARTED));
+                })
             )
             ->when(
                 in_array($filters['profile_status'] ?? null, [
@@ -104,12 +120,14 @@ class StudentProfileController extends Controller
                 'student_group_id' => isset($filters['student_group_id']) ? (string) $filters['student_group_id'] : '',
                 'group_name' => $filters['group_name'] ?? '',
                 'course' => $filters['course'] ?? '',
+                'archive_status' => $archiveStatus,
                 'profile_status' => $filters['profile_status'] ?? '',
             ],
             'options' => StudentProfileOptions::forInertia(),
             'availableGroups' => $this->availableGroupOptions($request->user()),
             'profileStatusOptions' => $this->profileStatusOptions(),
             'canCreateStudentProfiles' => $request->user()?->canEditStudentProfileData() ?? false,
+            'canArchiveStudentProfiles' => $request->user()?->canEditStudentProfileData() ?? false,
         ]);
     }
 
@@ -218,14 +236,57 @@ class StudentProfileController extends Controller
         return back()->with('status', 'student-profile-status-updated');
     }
 
+    public function archive(Request $request, User $student): RedirectResponse
+    {
+        abort_unless($request->user()?->canEditStudentProfileData(), 403);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
+
+        $profile = StudentProfile::query()->firstOrNew(['user_id' => $student->id]);
+
+        $profile->forceFill([
+            'full_name' => $profile->full_name ?: $student->name,
+            'profile_status' => $profile->profile_status ?: StudentProfile::STATUS_NOT_STARTED,
+            'archived_at' => now(),
+            'archived_by_id' => $request->user()->id,
+        ])->save();
+
+        return back()->with('status', 'student-profile-archived');
+    }
+
+    public function restore(Request $request, User $student): RedirectResponse
+    {
+        abort_unless($request->user()?->canEditStudentProfileData(), 403);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
+
+        $profile = $student->studentProfile;
+        abort_unless($profile, 404);
+
+        $profile->forceFill([
+            'archived_at' => null,
+            'archived_by_id' => null,
+        ])->save();
+
+        return back()->with('status', 'student-profile-restored');
+    }
+
     /**
      * Display the student profile form.
      */
-    public function edit(Request $request): Response
+    public function edit(Request $request): Response|RedirectResponse
     {
-        abort_unless($request->user()?->canUseOwnStudentProfile(), 403);
+        $user = $request->user();
 
-        return $this->renderProfileForm($request->user(), false);
+        if (! $user?->canUseOwnStudentProfile()) {
+            if ($user?->canManageStudentProfiles()) {
+                return redirect()->route('student-profiles.index');
+            }
+
+            abort(403);
+        }
+
+        return $this->renderProfileForm($user, false);
     }
 
     /**
@@ -422,6 +483,53 @@ class StudentProfileController extends Controller
         $academic->save();
 
         return back()->with('status', 'student-profile-academic-review-updated');
+    }
+
+    public function fetchPlatonusStudent(Request $request): JsonResponse
+    {
+        $viewer = $request->user();
+
+        abort_unless(
+            $viewer?->canUseOwnStudentProfile() || $viewer?->canEditStudentProfileData(),
+            403,
+        );
+
+        $validated = $request->validate([
+            'iin' => ['required', 'digits:12'],
+        ]);
+
+        $result = $this->platonusApi->studentFull($validated['iin']);
+
+        if (! $result['configured']) {
+            return response()->json([
+                'message' => $result['message'] ?: 'API Платонуса не настроен.',
+            ], 503);
+        }
+
+        if (! $result['ok']) {
+            return response()->json([
+                'message' => $result['message'] ?: 'Не удалось загрузить данные из API Платонуса.',
+            ], 422);
+        }
+
+        if ($this->platonusPayloadSaysFailure($result['raw'])) {
+            return response()->json([
+                'message' => $this->platonusPayloadMessage($result['raw']) ?: 'Студент с указанным ИИН не найден.',
+            ], 404);
+        }
+
+        $profile = $this->platonusProfilePayload($result['student'], $validated['iin']);
+
+        if (! collect($profile)->except(['iin'])->filter(fn ($value): bool => filled($value))->isNotEmpty()) {
+            return response()->json([
+                'message' => 'API Платонуса не вернул данные студента по этому ИИН.',
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => $profile['group_warning'] ?? 'Данные из Платонуса загружены. Проверьте поля и нажмите “Сохранить”.',
+            'profile' => Arr::except($profile, ['group_warning']),
+        ]);
     }
 
     /**
@@ -629,6 +737,7 @@ class StudentProfileController extends Controller
             'canEditProfile' => $canEditProfile,
             'canEditHealthPassport' => $canEditHealthPassport,
             'canViewPsychotestResults' => $canViewPsychotestResults,
+            'canArchiveStudentProfile' => $managed && $canEditProfile,
             'healthPassportUpdateUrl' => $canEditHealthPassport
                 ? route('student-profiles.health-passport.update', $user)
                 : null,
@@ -712,6 +821,8 @@ class StudentProfileController extends Controller
             'gpa' => $academic?->gpa !== null ? (float) $academic->gpa : null,
             'profileStatus' => $profile?->profile_status ?? StudentProfile::STATUS_NOT_STARTED,
             'profileStatusLabel' => $this->profileStatusLabel($profile),
+            'isArchived' => $profile?->archived_at !== null,
+            'archivedAtDisplay' => $profile?->archived_at?->format('d.m.Y H:i'),
             'completion' => $this->profileCompletion($profile),
             'editUrl' => route('student-profiles.edit', $student),
         ];
@@ -734,6 +845,8 @@ class StudentProfileController extends Controller
             'departure_reason',
             'departure_reason_other',
             'departed_at',
+            'archived_at',
+            'archived_by_id',
             'profile_status',
             'submitted_at',
             'verified_at',
@@ -748,6 +861,9 @@ class StudentProfileController extends Controller
         ], null);
 
         $payload['benefits'] = [];
+        $payload['has_profile'] = false;
+        $payload['is_archived'] = false;
+        $payload['archived_at_display'] = null;
         $payload['student_status'] = StudentProfile::STUDENT_STATUS_ACTIVE;
         $payload['student_status_label'] = StudentProfile::STUDENT_STATUS_LABELS[StudentProfile::STUDENT_STATUS_ACTIVE];
         $payload['departure_reason_label'] = null;
@@ -764,6 +880,7 @@ class StudentProfileController extends Controller
                 ...$payload,
                 ...$profile->toArray(),
             ];
+            $payload['has_profile'] = true;
         }
 
         foreach ($this->booleanProfileFields() as $field) {
@@ -786,6 +903,8 @@ class StudentProfileController extends Controller
         $payload['social_reviewed_at_display'] = $profile?->social_reviewed_at?->format('d.m.Y H:i');
         $payload['submitted_at_display'] = $profile?->submitted_at?->format('d.m.Y H:i');
         $payload['verified_at_display'] = $profile?->verified_at?->format('d.m.Y H:i');
+        $payload['is_archived'] = $profile?->archived_at !== null;
+        $payload['archived_at_display'] = $profile?->archived_at?->format('d.m.Y H:i');
         $payload['photo_url'] = $profile?->photo_path ? Storage::disk('public')->url($profile->photo_path) : null;
         $payload['identity_card_url'] = $profile?->identity_card_path ? Storage::disk('public')->url($profile->identity_card_path) : null;
 
@@ -821,6 +940,453 @@ class StudentProfileController extends Controller
         $payload['academic_reviewed_at_display'] = $academicProfile?->academic_reviewed_at?->format('d.m.Y H:i');
 
         return $payload;
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     * @return array<string, mixed>
+     */
+    private function platonusProfilePayload(array $student, string $iin): array
+    {
+        $groupName = $this->platonusValue($student, [
+            'group',
+            'group_name',
+            'student_group',
+            'groupName',
+            'group_title',
+            'education.group_name',
+        ]);
+        $faculty = $this->normalizePlatonusFaculty($this->platonusValue($student, [
+            'faculty',
+            'faculty_name',
+            'facultyName',
+            'education.faculty_name_ru',
+            'education.faculty_name_kz',
+        ]));
+        $studentGroup = $this->platonusStudentGroup($groupName, $faculty);
+        $profile = [
+            'full_name' => $this->platonusFullName($student),
+            'birth_date' => $this->normalizePlatonusDate($this->platonusValue($student, [
+                'birth_date',
+                'birthday',
+                'date_of_birth',
+            ])),
+            'study_form' => $this->platonusValue($student, [
+                'study_form',
+                'education_form',
+                'form_of_study',
+                'education.study_form_ru',
+            ]),
+            'nationality' => $this->normalizePlatonusNationality($this->platonusValue($student, [
+                'nationality',
+                'nationality.ru',
+                'nationality.kz',
+            ])),
+            'citizenship' => $this->platonusCitizenship($student),
+            'iin' => $this->platonusValue($student, [
+                'iin',
+                'IIN',
+                'iin_number',
+                'individual_identification_number',
+            ]) ?: $iin,
+            'identity_document_number' => $this->platonusValue($student, [
+                'identity_document_number',
+                'identity_number',
+                'document_number',
+            ]),
+            'gender' => $this->platonusGender($student),
+            'faculty' => $studentGroup?->faculty ?: $faculty,
+            'student_group_id' => $studentGroup ? (string) $studentGroup->id : '',
+            'group_name' => $studentGroup?->name ?? '',
+            'specialty' => $this->platonusSpecialty($student),
+            'course' => $this->platonusCourse($student),
+            'admission_year' => $this->platonusAdmissionYear($student),
+            'stay_address' => $this->platonusValue($student, [
+                'stay_address',
+                'living_address',
+                'address.living_address',
+            ]),
+            'residence_address' => $this->platonusValue($student, [
+                'residence_address',
+                'registration_address',
+                'address.registration_address',
+            ]),
+            'contact_details' => $this->platonusValue($student, [
+                'phone',
+                'phone_number',
+                'mobile',
+                'mobile_phone',
+                'contact_phone',
+                'contacts.mobile',
+                'contacts.phone',
+            ]),
+            'personal_email' => $this->platonusEmail($student),
+            'parent_guardian_contacts' => $this->platonusParentContacts($student),
+        ];
+
+        if ($groupName && ! $studentGroup) {
+            $profile['group_warning'] = "Данные из Платонуса загружены, но группа “{$groupName}” не найдена в системе. Выберите группу вручную или сначала создайте ее.";
+        }
+
+        return $profile;
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function platonusFullName(array $student): ?string
+    {
+        $fullName = $this->platonusValue($student, [
+            'full_name',
+            'fullname',
+            'fullName',
+            'fio',
+            'student_name',
+            'studentName',
+            'name',
+        ]);
+
+        if ($fullName) {
+            return $fullName;
+        }
+
+        $parts = array_filter([
+            $this->platonusValue($student, ['last_name', 'lastname', 'surname']),
+            $this->platonusValue($student, ['first_name', 'firstname', 'given_name']),
+            $this->platonusValue($student, ['middle_name', 'middlename', 'patronymic']),
+        ]);
+
+        return $parts === [] ? null : implode(' ', $parts);
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     * @param  array<int, string>  $keys
+     */
+    private function platonusValue(array $student, array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            $value = data_get($student, $key);
+
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_array($value) && ! array_is_list($value)) {
+                $value = data_get($value, 'ru')
+                    ?? data_get($value, 'kz')
+                    ?? data_get($value, 'name')
+                    ?? data_get($value, 'title')
+                    ?? data_get($value, 'value');
+            }
+
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                return trim((string) $value);
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizePlatonusDate(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $value, $match)) {
+            return "{$match[1]}-{$match[2]}-{$match[3]}";
+        }
+
+        if (preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $value, $match)) {
+            return "{$match[3]}-{$match[2]}-{$match[1]}";
+        }
+
+        $timestamp = strtotime($value);
+
+        return $timestamp ? date('Y-m-d', $timestamp) : null;
+    }
+
+    private function normalizePlatonusNationality(?string $nationality): ?string
+    {
+        if (! $nationality) {
+            return null;
+        }
+
+        $nationality = trim($nationality);
+        $nationalityLower = Str::lower($nationality);
+
+        if (Str::contains($nationalityLower, ['қазақ', 'казах'])) {
+            return 'Казах';
+        }
+
+        foreach (StudentProfileOptions::NATIONALITIES as $option) {
+            if (Str::lower($option) === $nationalityLower) {
+                return $option;
+            }
+        }
+
+        return 'Другая национальность';
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function platonusGender(array $student): ?string
+    {
+        $gender = Str::lower((string) $this->platonusValue($student, ['gender', 'sex', 'sex.ru', 'sex.kz']));
+
+        if ($gender === '') {
+            return null;
+        }
+
+        if (Str::contains($gender, ['female', 'жен', 'әйел'])) {
+            return 'female';
+        }
+
+        if (Str::contains($gender, ['male', 'муж', 'ер'])) {
+            return 'male';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function platonusCitizenship(array $student): ?string
+    {
+        $citizenship = Str::lower((string) $this->platonusValue($student, [
+            'citizenship',
+            'citizenship.ru',
+            'citizenship.kz',
+        ]));
+
+        if ($citizenship === '') {
+            return null;
+        }
+
+        if (Str::contains($citizenship, ['канд', 'қандас'])) {
+            return 'kandas';
+        }
+
+        if (Str::contains($citizenship, ['казахстан', 'қазақстан', 'рк', 'kazakhstan'])) {
+            return 'kazakhstan_citizen';
+        }
+
+        return 'foreign_citizen';
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function platonusSpecialty(array $student): ?string
+    {
+        $specialty = $this->platonusValue($student, [
+            'specialty',
+            'speciality',
+            'educational_program',
+            'education_program',
+            'program',
+            'education.speciality_name_ru',
+        ]);
+
+        $code = $this->platonusValue($student, ['speciality_code', 'education.speciality_code']);
+
+        if ($specialty && $code) {
+            return $code.' - '.$specialty;
+        }
+
+        return $specialty ?: $code;
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function platonusCourse(array $student): ?int
+    {
+        $course = $this->platonusValue($student, ['course', 'year', 'study_year', 'education.course']);
+
+        if (! is_numeric($course)) {
+            return null;
+        }
+
+        $course = (int) $course;
+
+        return $course > 0 && $course <= 10 ? $course : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function platonusAdmissionYear(array $student): ?int
+    {
+        $year = $this->platonusValue($student, [
+            'admission_year',
+            'start_year',
+            'education.admission_year',
+            'education.start_year',
+        ]);
+
+        if (! is_numeric($year)) {
+            return null;
+        }
+
+        $year = (int) $year;
+
+        return $year >= 1900 && $year <= now()->year + 1 ? $year : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function platonusEmail(array $student): ?string
+    {
+        $email = $this->platonusValue($student, [
+            'email',
+            'mail',
+            'e_mail',
+            'personal_email',
+            'contacts.email',
+        ]);
+
+        if (! $email || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return null;
+        }
+
+        return Str::lower($email);
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function platonusParentContacts(array $student): ?string
+    {
+        $parents = data_get($student, 'parents');
+
+        if (! is_array($parents) || $parents === []) {
+            return null;
+        }
+
+        $contacts = collect($parents)
+            ->map(function (mixed $parent): ?string {
+                if (is_scalar($parent)) {
+                    return trim((string) $parent) ?: null;
+                }
+
+                if (! is_array($parent)) {
+                    return null;
+                }
+
+                $parts = array_filter([
+                    $this->platonusFullName($parent),
+                    $this->platonusValue($parent, ['phone', 'mobile', 'phone_number']),
+                    $this->platonusValue($parent, ['address', 'registration_address', 'living_address']),
+                ]);
+
+                return $parts === [] ? null : implode(', ', $parts);
+            })
+            ->filter()
+            ->values();
+
+        return $contacts->isEmpty() ? null : $contacts->implode("\n");
+    }
+
+    private function normalizePlatonusFaculty(?string $faculty): ?string
+    {
+        if (! $faculty) {
+            return null;
+        }
+
+        $facultyLower = Str::lower($faculty);
+        $faculties = StudentProfileOptions::facultyNames();
+
+        if (Str::contains($facultyLower, ['биотехнолог', 'химичес'])) {
+            return $faculties[0] ?? $faculty;
+        }
+
+        if (Str::contains($facultyLower, ['дизайн', 'текстил', 'одежд', 'киім'])) {
+            return $faculties[1] ?? $faculty;
+        }
+
+        if (Str::contains($facultyLower, ['интеллект', 'инженер'])) {
+            return $faculties[2] ?? $faculty;
+        }
+
+        if (Str::contains($facultyLower, ['информацион', 'ақпарат'])) {
+            return $faculties[3] ?? $faculty;
+        }
+
+        if (Str::contains($facultyLower, ['пищев', 'тағам'])) {
+            return $faculties[4] ?? $faculty;
+        }
+
+        if (Str::contains($facultyLower, ['эконом', 'бизнес'])) {
+            return $faculties[5] ?? $faculty;
+        }
+
+        return $faculty;
+    }
+
+    private function platonusStudentGroup(?string $groupName, ?string $faculty): ?StudentGroup
+    {
+        if (! $groupName) {
+            return null;
+        }
+
+        return StudentGroup::query()
+            ->where('name', $groupName)
+            ->when($faculty, fn ($query) => $query->where(function ($query) use ($faculty): void {
+                $query->whereNull('faculty')->orWhere('faculty', $faculty);
+            }))
+            ->first();
+    }
+
+    private function platonusPayloadSaysFailure(mixed $raw): bool
+    {
+        if (! is_array($raw)) {
+            return false;
+        }
+
+        foreach (['authenticated', 'success', 'ok', 'found'] as $field) {
+            if (array_key_exists($field, $raw) && ! filter_var($raw[$field], FILTER_VALIDATE_BOOLEAN)) {
+                return true;
+            }
+        }
+
+        $status = Str::lower((string) data_get($raw, 'status', ''));
+
+        if (in_array($status, ['error', 'failed', 'not_found'], true)) {
+            return true;
+        }
+
+        $message = Str::lower((string) $this->platonusPayloadMessage($raw));
+
+        return $message !== '' && Str::contains($message, [
+            'not found',
+            'не найден',
+            'табылма',
+            'нет данных',
+        ]);
+    }
+
+    private function platonusPayloadMessage(mixed $raw): ?string
+    {
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        foreach (['message', 'error', 'detail', 'data.message', 'student.message'] as $field) {
+            $value = data_get($raw, $field);
+
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                return trim((string) $value);
+            }
+        }
+
+        return null;
     }
 
     /**

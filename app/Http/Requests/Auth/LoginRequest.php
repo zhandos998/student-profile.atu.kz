@@ -40,7 +40,7 @@ class LoginRequest extends FormRequest
         $isPlatonus = $this->authType() === 'platonus';
 
         return [
-            'auth_type' => ['nullable', Rule::in(['local', 'platonus'])],
+            'auth_type' => ['nullable', Rule::in(['local', 'platonus', 'auto'])],
             'email' => [$isPlatonus ? 'nullable' : 'required', 'string'],
             'login' => [$isPlatonus ? 'required' : 'nullable', 'string'],
             'password' => ['required', 'string'],
@@ -63,23 +63,29 @@ class LoginRequest extends FormRequest
         }
 
         $login = (string) $this->input('email');
-        $isEmail = filter_var($login, FILTER_VALIDATE_EMAIL) !== false;
-        $credentials = [
-            $isEmail ? 'email' : 'phone_normalized' => $isEmail
-                ? Str::lower($login)
-                : Phone::normalize($login),
-            'password' => $this->input('password'),
-        ];
+        if ($this->attemptLocalLogin($login)) {
+            RateLimiter::clear($this->throttleKey());
 
-        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
+            return;
         }
 
-        RateLimiter::clear($this->throttleKey());
+        $platonusError = null;
+
+        if ($this->authType() === 'auto') {
+            $platonusError = $this->attemptPlatonusLogin($login);
+
+            if ($platonusError === null) {
+                RateLimiter::clear($this->throttleKey());
+
+                return;
+            }
+        }
+
+        RateLimiter::hit($this->throttleKey());
+
+        throw ValidationException::withMessages([
+            'email' => $platonusError ?: trans('auth.failed'),
+        ]);
     }
 
     /**
@@ -88,23 +94,66 @@ class LoginRequest extends FormRequest
     private function authenticateWithPlatonus(): void
     {
         $login = trim((string) $this->input('login'));
-        $client = app(PlatonusAuthClient::class);
-        $result = $client->verify($login, (string) $this->input('password'));
+        $error = $this->attemptPlatonusLogin($login);
 
-        if (! $result['ok']) {
-            RateLimiter::hit($this->throttleKey());
+        if ($error === null) {
+            RateLimiter::clear($this->throttleKey());
 
-            throw ValidationException::withMessages([
-                'login' => $result['message'] ?: trans('auth.failed'),
-            ]);
+            return;
         }
 
-        Auth::login(
-            $this->syncPlatonusUser($login, $this->studentWithFullData($client, $result['student'])),
-            $this->boolean('remember'),
-        );
+        RateLimiter::hit($this->throttleKey());
 
-        RateLimiter::clear($this->throttleKey());
+        throw ValidationException::withMessages([
+            'login' => $error,
+        ]);
+    }
+
+    private function attemptLocalLogin(string $login): bool
+    {
+        $isEmail = filter_var($login, FILTER_VALIDATE_EMAIL) !== false;
+        $credentials = [
+            $isEmail ? 'email' : 'phone_normalized' => $isEmail
+                ? Str::lower($login)
+                : Phone::normalize($login),
+            'password' => $this->input('password'),
+        ];
+
+        return Auth::attempt($credentials, $this->boolean('remember'));
+    }
+
+    private function attemptPlatonusLogin(string $login): ?string
+    {
+        $login = trim($login);
+
+        if ($login === '') {
+            return trans('auth.failed');
+        }
+
+        $client = app(PlatonusAuthClient::class);
+        $studentResult = $client->verify($login, (string) $this->input('password'));
+
+        if ($studentResult['ok']) {
+            Auth::login(
+                $this->syncPlatonusUser($login, $this->studentWithFullData($client, $studentResult['student'])),
+                $this->boolean('remember'),
+            );
+
+            return null;
+        }
+
+        $tutorResult = $client->verifyTutor($login, (string) $this->input('password'));
+
+        if ($tutorResult['ok']) {
+            Auth::login(
+                $this->syncPlatonusTutorUser($login, $tutorResult['student']),
+                $this->boolean('remember'),
+            );
+
+            return null;
+        }
+
+        return $this->platonusLoginErrorMessage($studentResult, $tutorResult);
     }
 
     /**
@@ -172,6 +221,67 @@ class LoginRequest extends FormRequest
     }
 
     /**
+     * @param  array<string, mixed>  $tutor
+     */
+    private function syncPlatonusTutorUser(string $login, array $tutor): User
+    {
+        return DB::transaction(function () use ($login, $tutor): User {
+            $platonusLogin = $this->normalizePlatonusLogin($login);
+            $email = $this->studentEmail($tutor);
+            $user = User::query()->where('platonus_login', $platonusLogin)->first();
+
+            if (! $user && $email) {
+                $user = User::query()->where('email', $email)->first();
+            }
+
+            if (! $user) {
+                $user = new User();
+                $user->password = Hash::make(Str::random(48));
+                $user->email = $this->availableEmail($email, null, $platonusLogin);
+            }
+
+            $user->forceFill([
+                'name' => $this->studentFullName($tutor) ?: $user->name ?: $login,
+                'platonus_login' => $platonusLogin,
+                'role_id' => $user->role_id ?: Role::query()->where('slug', Role::CURATOR)->value('id'),
+                'position' => $user->position ?: ($this->tutorPosition($tutor) ?: 'Куратор / эдвайзер'),
+            ]);
+
+            if ($email && $this->emailIsAvailableFor($email, $user)) {
+                $user->email = $email;
+            }
+
+            $phone = $this->studentValue($tutor, [
+                'phone',
+                'phone_number',
+                'mobile',
+                'mobile_phone',
+                'contact_phone',
+                'contacts.mobile',
+                'contacts.phone',
+            ]);
+            if ($phone && blank($user->phone)) {
+                $user->phone = $phone;
+                $phoneNormalized = Phone::normalize($phone);
+
+                $phoneQuery = User::query()->where('phone_normalized', $phoneNormalized);
+
+                if ($user->exists) {
+                    $phoneQuery->whereKeyNot($user->getKey());
+                }
+
+                if (strlen($phoneNormalized) >= 10 && ! $phoneQuery->exists()) {
+                    $user->phone_normalized = $phoneNormalized;
+                }
+            }
+
+            $user->save();
+
+            return $user;
+        });
+    }
+
+    /**
      * @param  array<string, mixed>  $student
      */
     private function syncStudentProfile(User $user, array $student): void
@@ -196,7 +306,7 @@ class LoginRequest extends FormRequest
             'full_name' => $this->studentFullName($student) ?: $user->name,
             'birth_date' => $this->studentValue($student, ['birth_date', 'birthday', 'date_of_birth']),
             'study_form' => $this->studentValue($student, ['study_form', 'education_form', 'form_of_study', 'education.study_form_ru']),
-            'nationality' => $this->studentValue($student, ['nationality', 'nationality.ru', 'nationality.kz']),
+            'nationality' => $this->studentNationality($student),
             'citizenship' => $this->studentCitizenship($student),
             'iin' => $this->studentValue($student, ['iin', 'IIN', 'iin_number', 'individual_identification_number']),
             'identity_document_number' => $this->studentValue($student, ['identity_document_number', 'identity_number', 'document_number']),
@@ -281,12 +391,28 @@ class LoginRequest extends FormRequest
         }
 
         $parts = array_filter([
-            $this->studentValue($student, ['last_name', 'lastname', 'surname']),
-            $this->studentValue($student, ['first_name', 'firstname', 'given_name']),
-            $this->studentValue($student, ['middle_name', 'middlename', 'patronymic']),
+            $this->studentValue($student, ['last_name', 'lastname', 'lastName', 'surname']),
+            $this->studentValue($student, ['first_name', 'firstname', 'firstName', 'given_name']),
+            $this->studentValue($student, ['middle_name', 'middlename', 'middleName', 'patronymic', 'patronymic_name']),
         ]);
 
         return $parts === [] ? null : implode(' ', $parts);
+    }
+
+    /**
+     * @param  array<string, mixed>  $tutor
+     */
+    private function tutorPosition(array $tutor): ?string
+    {
+        return $this->studentValue($tutor, [
+            'position',
+            'post',
+            'job_title',
+            'jobTitle',
+            'role',
+            'role_name',
+            'department_position',
+        ]);
     }
 
     /**
@@ -376,6 +502,33 @@ class LoginRequest extends FormRequest
         }
 
         return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $student
+     */
+    private function studentNationality(array $student): ?string
+    {
+        $nationality = $this->studentValue($student, ['nationality', 'nationality.ru', 'nationality.kz']);
+
+        if (! $nationality) {
+            return null;
+        }
+
+        $nationality = trim($nationality);
+        $nationalityLower = Str::lower($nationality);
+
+        if (Str::contains($nationalityLower, ['қазақ', 'казах'])) {
+            return 'Казах';
+        }
+
+        foreach (StudentProfileOptions::NATIONALITIES as $option) {
+            if (Str::lower($option) === $nationalityLower) {
+                return $option;
+            }
+        }
+
+        return 'Другая национальность';
     }
 
     /**
@@ -526,6 +679,33 @@ class LoginRequest extends FormRequest
         }
 
         return ! $query->exists();
+    }
+
+    /**
+     * @param  array<string, mixed>  $studentResult
+     * @param  array<string, mixed>  $tutorResult
+     */
+    private function platonusLoginErrorMessage(array $studentResult, array $tutorResult): string
+    {
+        $messages = array_values(array_filter([
+            $studentResult['message'] ?? null,
+            $tutorResult['message'] ?? null,
+        ], fn ($message): bool => is_string($message) && trim($message) !== ''));
+        $genericMessages = [
+            trans('auth.platonus_failed'),
+            trans('auth.platonus_tutor_failed'),
+        ];
+
+        foreach ($messages as $message) {
+            if (
+                ! in_array($message, $genericMessages, true)
+                && ! Str::contains(Str::lower($message), ['not found', 'не найден', 'табылма'])
+            ) {
+                return $message;
+            }
+        }
+
+        return $messages[0] ?? trans('auth.failed');
     }
 
     /**

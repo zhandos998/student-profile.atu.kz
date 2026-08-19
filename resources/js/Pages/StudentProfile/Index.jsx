@@ -23,6 +23,16 @@ function completionClass(value) {
     return "bg-rose-50 text-rose-700";
 }
 
+function isArchivedStudent(student) {
+    return Boolean(
+        student.isArchived ||
+        student.is_archived ||
+        student.archivedAtDisplay ||
+        student.archived_at_display ||
+        student.archived_at,
+    );
+}
+
 export default function Index({
     students,
     filters,
@@ -30,8 +40,19 @@ export default function Index({
     availableGroups = [],
     profileStatusOptions = [],
     canCreateStudentProfiles = true,
+    canArchiveStudentProfiles = false,
 }) {
-    const [filterData, setFilterData] = useState(filters);
+    const normalizedFilters = {
+        search: "",
+        faculty: "",
+        student_group_id: "",
+        group_name: "",
+        course: "",
+        archive_status: "active",
+        profile_status: "",
+        ...filters,
+    };
+    const [filterData, setFilterData] = useState(normalizedFilters);
     const visibleGroupOptions = availableGroups.filter(
         (group) =>
             !filterData.faculty ||
@@ -50,8 +71,7 @@ export default function Index({
         setFilterData((current) => {
             const selectedGroup = availableGroups.find(
                 (group) =>
-                    String(group.value) ===
-                    String(current.student_group_id),
+                    String(group.value) === String(current.student_group_id),
             );
 
             return {
@@ -82,13 +102,16 @@ export default function Index({
         }));
     };
 
-    const submitFilters = (event) => {
-        event.preventDefault();
-
-        router.get(route("student-profiles.index"), filterData, {
-            preserveState: true,
+    const applyFilters = (nextFilters) => {
+        router.get(route("student-profiles.index"), nextFilters, {
+            preserveState: false,
             preserveScroll: true,
         });
+    };
+
+    const submitFilters = (event) => {
+        event.preventDefault();
+        applyFilters(filterData);
     };
 
     const resetFilters = () => {
@@ -98,14 +121,46 @@ export default function Index({
             student_group_id: "",
             group_name: "",
             course: "",
+            archive_status: "active",
             profile_status: "",
         };
 
         setFilterData(emptyFilters);
-        router.get(route("student-profiles.index"), emptyFilters, {
-            preserveState: true,
-            preserveScroll: true,
-        });
+        applyFilters(emptyFilters);
+    };
+
+    const setArchiveOnly = (checked) => {
+        setFilterData((currentFilters) => ({
+            ...currentFilters,
+            archive_status: checked ? "archived" : "active",
+        }));
+    };
+
+    const toggleArchive = (student) => {
+        const isArchived = isArchivedStudent(student);
+
+        if (!isArchived) {
+            const confirmed = window.confirm(
+                "Архивировать этот портрет студента?",
+            );
+
+            if (!confirmed) {
+                return;
+            }
+        }
+
+        router.post(
+            route(
+                isArchived
+                    ? "student-profiles.restore"
+                    : "student-profiles.archive",
+                student.id,
+            ),
+            {},
+            {
+                preserveScroll: true,
+            },
+        );
     };
 
     return (
@@ -144,7 +199,7 @@ export default function Index({
                         </div>
                         <form
                             onSubmit={submitFilters}
-                            className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-5"
+                            className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-6"
                         >
                             <div className="xl:col-span-2">
                                 <label className="text-sm font-medium text-gray-700">
@@ -153,10 +208,7 @@ export default function Index({
                                 <input
                                     value={filterData.search}
                                     onChange={(event) =>
-                                        setFilter(
-                                            "search",
-                                            event.target.value,
-                                        )
+                                        setFilter("search", event.target.value)
                                     }
                                     placeholder="ФИО, email, ИИН, группа"
                                     className={`${inputClass} mt-1`}
@@ -264,7 +316,24 @@ export default function Index({
                                 </select>
                             </div>
 
-                            <div className="flex items-end gap-3 xl:col-span-4">
+                            <div className="flex items-end">
+                                <label className="flex min-h-[42px] w-full items-center gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            filterData.archive_status ===
+                                            "archived"
+                                        }
+                                        onChange={(event) =>
+                                            setArchiveOnly(event.target.checked)
+                                        }
+                                        className="rounded border-gray-300 text-[#355da8] shadow-sm focus:ring-[#355da8]"
+                                    />
+                                    <span>Только архивные</span>
+                                </label>
+                            </div>
+
+                            <div className="flex items-end gap-3 xl:col-span-6">
                                 <button
                                     type="submit"
                                     className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192]"
@@ -295,70 +364,116 @@ export default function Index({
                             </p>
                         ) : (
                             <div className="divide-y divide-gray-100">
-                                {students.data.map((student) => (
-                                    <div
-                                        key={student.id}
-                                        className="grid gap-4 px-5 py-4 lg:grid-cols-[1.4fr_1fr_0.6fr_0.6fr_auto] lg:items-center"
-                                    >
-                                        <div>
-                                            <p className="text-sm font-semibold text-gray-900">
-                                                {student.fullName}
-                                            </p>
-                                            <p className="mt-1 text-sm text-gray-500">
-                                                {student.email}
-                                            </p>
-                                        </div>
+                                {students.data.map((student) => {
+                                    const isArchived =
+                                        isArchivedStudent(student);
 
-                                        <div className="text-sm text-gray-700">
-                                            <p>{formatValue(student.faculty)}</p>
-                                            <p className="mt-1 text-gray-500">
-                                                {formatValue(
-                                                    student.specialty,
-                                                )}
-                                            </p>
-                                        </div>
-
-                                        <div className="text-sm text-gray-700">
-                                            <p>
-                                                Группа:{" "}
-                                                {formatValue(
-                                                    student.groupName,
-                                                )}
-                                            </p>
-                                            <p className="mt-1 text-gray-500">
-                                                Курс:{" "}
-                                                {formatValue(student.course)}
-                                            </p>
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            <span
-                                                className={`rounded-full px-3 py-1 text-xs font-medium ${completionClass(
-                                                    student.completion,
-                                                )}`}
-                                            >
-                                                {student.completion}%
-                                            </span>
-                                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                                                GPA{" "}
-                                                {formatValue(
-                                                    student.gpa,
-                                                    "нет",
-                                                )}
-                                            </span>
-                                            <span className="rounded-full bg-[#f4f7fc] px-3 py-1 text-xs font-medium text-[#355da8]">
-                                                {student.profileStatusLabel}
-                                            </span>
-                                        </div>
-
-                                        <Link
-                                            href={student.editUrl}
-                                            className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f5192]"
+                                    return (
+                                        <div
+                                            key={student.id}
+                                            className="grid gap-4 px-5 py-4 lg:grid-cols-[1.4fr_1fr_0.6fr_0.6fr_auto] lg:items-center"
                                         >
-                                            Открыть
-                                        </Link>
-                                    </div>
-                                ))}
+                                            <div>
+                                                <p className="text-sm font-semibold text-gray-900">
+                                                    {student.fullName}
+                                                </p>
+                                                <p className="mt-1 text-sm text-gray-500">
+                                                    {student.email}
+                                                </p>
+                                            </div>
+
+                                            <div className="text-sm text-gray-700">
+                                                <p>
+                                                    {formatValue(
+                                                        student.faculty,
+                                                    )}
+                                                </p>
+                                                <p className="mt-1 text-gray-500">
+                                                    {formatValue(
+                                                        student.specialty,
+                                                    )}
+                                                </p>
+                                            </div>
+
+                                            <div className="text-sm text-gray-700">
+                                                <p>
+                                                    Группа:{" "}
+                                                    {formatValue(
+                                                        student.groupName,
+                                                    )}
+                                                </p>
+                                                <p className="mt-1 text-gray-500">
+                                                    Курс:{" "}
+                                                    {formatValue(
+                                                        student.course,
+                                                    )}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2">
+                                                <span
+                                                    className={`rounded-full px-3 py-1 text-xs font-medium ${completionClass(
+                                                        student.completion,
+                                                    )}`}
+                                                >
+                                                    {student.completion}%
+                                                </span>
+                                                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                                                    GPA{" "}
+                                                    {formatValue(
+                                                        student.gpa,
+                                                        "нет",
+                                                    )}
+                                                </span>
+                                                <span className="rounded-full bg-[#f4f7fc] px-3 py-1 text-xs font-medium text-[#355da8]">
+                                                    {student.profileStatusLabel}
+                                                </span>
+                                                {isArchived && (
+                                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                                                        Архив
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+                                                <Link
+                                                    href={student.editUrl}
+                                                    className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f5192]"
+                                                >
+                                                    Открыть
+                                                </Link>
+                                                {canArchiveStudentProfiles &&
+                                                    !isArchived && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                toggleArchive(
+                                                                    student,
+                                                                )
+                                                            }
+                                                            className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                                                        >
+                                                            Архивировать
+                                                        </button>
+                                                    )}
+                                                {canArchiveStudentProfiles &&
+                                                    isArchived && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                toggleArchive(
+                                                                    student,
+                                                                )
+                                                            }
+                                                            className="inline-flex items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                                                        >
+                                                            Разархивировать
+                                                        </button>
+                                                    )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 

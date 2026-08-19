@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Services\StudentRiskService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -28,7 +29,10 @@ class AnalyticsDashboardController extends Controller
         abort_unless($request->user()?->canViewAnalyticsDashboard(), 403);
 
         $studentCount = $this->studentCount();
-        $averageGpa = AcademicProfile::query()->whereNotNull('gpa')->avg('gpa');
+        $averageGpa = AcademicProfile::query()
+            ->whereIn('user_id', $this->activeStudentUserIds())
+            ->whereNotNull('gpa')
+            ->avg('gpa');
         $engagedStudentCount = $this->engagedStudentCount();
 
         return Inertia::render('AnalyticsDashboard/Index', [
@@ -73,17 +77,30 @@ class AnalyticsDashboardController extends Controller
     {
         $count = User::query()
             ->whereHas('role', fn ($query) => $query->whereIn('slug', User::STUDENT_DATA_ROLES))
+            ->where(function ($query): void {
+                $query
+                    ->doesntHave('studentProfile')
+                    ->orWhereHas('studentProfile', fn ($query) => $query->active());
+            })
             ->count();
 
-        return $count > 0 ? $count : StudentProfile::query()->count();
+        return $count > 0 ? $count : $this->activeStudentProfiles()->count();
     }
 
     private function engagedStudentCount(): int
     {
+        $activeStudentUserIds = $this->activeStudentUserIds();
+
         return ExtracurricularAchievement::query()
+            ->whereIn('user_id', $activeStudentUserIds)
             ->distinct()
             ->pluck('user_id')
-            ->merge(PortfolioItem::query()->distinct()->pluck('user_id'))
+            ->merge(
+                PortfolioItem::query()
+                    ->whereIn('user_id', $activeStudentUserIds)
+                    ->distinct()
+                    ->pluck('user_id')
+            )
             ->unique()
             ->count();
     }
@@ -129,6 +146,7 @@ class AnalyticsDashboardController extends Controller
     private function academicRiskUserIds(): Collection
     {
         return AcademicProfile::query()
+            ->whereIn('user_id', $this->activeStudentUserIds())
             ->get(['user_id', 'gpa', 'academic_debt'])
             ->filter(fn (AcademicProfile $profile): bool => $this->riskService->academicRiskReasons($profile) !== [])
             ->pluck('user_id')
@@ -141,7 +159,7 @@ class AnalyticsDashboardController extends Controller
      */
     private function socialRiskUserIds(): Collection
     {
-        return StudentProfile::query()
+        return $this->activeStudentProfiles()
             ->get([
                 'user_id',
                 'disability_group',
@@ -166,13 +184,17 @@ class AnalyticsDashboardController extends Controller
      */
     private function psychologicalRiskUserIds(): Collection
     {
+        $activeStudentUserIds = $this->activeStudentUserIds();
+
         return PsychologicalProfile::query()
+            ->whereIn('user_id', $activeStudentUserIds)
             ->get(['user_id', 'testing_results', 'individual_features'])
             ->filter(fn (PsychologicalProfile $profile): bool => $this->riskService->hasMeaningfulText($profile->testing_results)
                 || $this->riskService->hasMeaningfulText($profile->individual_features))
             ->pluck('user_id')
             ->merge(
                 HealthPassport::query()
+                    ->whereIn('user_id', $activeStudentUserIds)
                     ->get(['user_id', 'psychological_diagnosis'])
                     ->filter(fn (HealthPassport $passport): bool => $this->riskService->hasMeaningfulText($passport->psychological_diagnosis))
                     ->pluck('user_id'),
@@ -187,6 +209,7 @@ class AnalyticsDashboardController extends Controller
     private function medicalRiskUserIds(): Collection
     {
         return HealthPassport::query()
+            ->whereIn('user_id', $this->activeStudentUserIds())
             ->get([
                 'user_id',
                 'dispensary_accounting',
@@ -207,6 +230,7 @@ class AnalyticsDashboardController extends Controller
     {
         return AcademicProfile::query()
             ->with(['user.studentProfile', 'user.extracurricularAchievements'])
+            ->whereIn('user_id', $this->activeStudentUserIds())
             ->whereNotNull('gpa')
             ->orderByDesc('gpa')
             ->limit(5)
@@ -230,19 +254,25 @@ class AnalyticsDashboardController extends Controller
         return [
             [
                 'label' => 'Анкеты студентов',
-                'value' => StudentProfile::query()->count(),
+                'value' => $this->activeStudentProfiles()->count(),
             ],
             [
                 'label' => 'Академические профили',
-                'value' => AcademicProfile::query()->count(),
+                'value' => AcademicProfile::query()
+                    ->whereIn('user_id', $this->activeStudentUserIds())
+                    ->count(),
             ],
             [
                 'label' => 'Внеучебные достижения',
-                'value' => ExtracurricularAchievement::query()->count(),
+                'value' => ExtracurricularAchievement::query()
+                    ->whereIn('user_id', $this->activeStudentUserIds())
+                    ->count(),
             ],
             [
                 'label' => 'Файлы портфолио',
-                'value' => PortfolioItem::query()->count(),
+                'value' => PortfolioItem::query()
+                    ->whereIn('user_id', $this->activeStudentUserIds())
+                    ->count(),
             ],
         ];
     }
@@ -252,12 +282,16 @@ class AnalyticsDashboardController extends Controller
      */
     private function recommendations(): array
     {
+        $activeStudentUserIds = $this->activeStudentUserIds();
+
         $lowGpaCount = AcademicProfile::query()
+            ->whereIn('user_id', $activeStudentUserIds)
             ->whereNotNull('gpa')
             ->where('gpa', '<', 2.5)
             ->count();
 
         $academicDebtCount = AcademicProfile::query()
+            ->whereIn('user_id', $activeStudentUserIds)
             ->whereNotNull('academic_debt')
             ->whereNotIn('academic_debt', ['', 'Нет', 'нет', 'НЕТ'])
             ->count();
@@ -268,11 +302,12 @@ class AnalyticsDashboardController extends Controller
         );
 
         $highGpaCount = AcademicProfile::query()
+            ->whereIn('user_id', $activeStudentUserIds)
             ->whereNotNull('gpa')
             ->where('gpa', '>=', 3.5)
             ->count();
 
-        $socialRiskCount = StudentProfile::query()
+        $socialRiskCount = $this->activeStudentProfiles()
             ->where(function ($query) {
                 $query
                     ->where('is_orphan', true)
@@ -525,7 +560,7 @@ class AnalyticsDashboardController extends Controller
      */
     private function studentReportRows(): array
     {
-        return StudentProfile::query()
+        return $this->activeStudentProfiles()
             ->with(['user.academicProfile', 'user.extracurricularAchievements', 'user.portfolioItems'])
             ->orderBy('full_name')
             ->get()
@@ -548,7 +583,7 @@ class AnalyticsDashboardController extends Controller
      */
     private function groupedReportRows(string $field): array
     {
-        return StudentProfile::query()
+        return $this->activeStudentProfiles()
             ->with('user.academicProfile')
             ->get()
             ->groupBy(fn (StudentProfile $profile): string => (string) ($profile->{$field} ?: 'Не указано'))
@@ -595,6 +630,7 @@ class AnalyticsDashboardController extends Controller
     {
         return AcademicProfile::query()
             ->with('user.studentProfile')
+            ->whereIn('user_id', $this->activeStudentUserIds())
             ->get()
             ->filter(fn (AcademicProfile $profile): bool => $this->riskService->academicRiskReasons($profile) !== [])
             ->map(function (AcademicProfile $profile): array {
@@ -620,7 +656,7 @@ class AnalyticsDashboardController extends Controller
      */
     private function socialRiskReportRows(): array
     {
-        return StudentProfile::query()
+        return $this->activeStudentProfiles()
             ->with('user')
             ->get()
             ->filter(fn (StudentProfile $profile): bool => $this->riskService->hasSocialRisk($profile))
@@ -643,6 +679,7 @@ class AnalyticsDashboardController extends Controller
     {
         return User::query()
             ->with(['studentProfile', 'psychologicalProfile', 'healthPassport'])
+            ->whereIn('id', $this->activeStudentUserIds())
             ->where(function ($query) {
                 $query
                     ->whereHas('psychologicalProfile')
@@ -678,6 +715,7 @@ class AnalyticsDashboardController extends Controller
     {
         return HealthPassport::query()
             ->with('user.studentProfile')
+            ->whereIn('user_id', $this->activeStudentUserIds())
             ->get()
             ->map(fn (HealthPassport $passport): array => [
                 'passport' => $passport,
@@ -706,6 +744,31 @@ class AnalyticsDashboardController extends Controller
         return $user?->studentProfile?->full_name
             ?: $user?->name
             ?: 'Без имени';
+    }
+
+    /**
+     * @return Builder<StudentProfile>
+     */
+    private function activeStudentProfiles(): Builder
+    {
+        return StudentProfile::query()->active();
+    }
+
+    /**
+     * @return Collection<int, int>
+     */
+    private function activeStudentUserIds(): Collection
+    {
+        return User::query()
+            ->whereHas('role', fn ($query) => $query->whereIn('slug', User::STUDENT_DATA_ROLES))
+            ->where(function ($query): void {
+                $query
+                    ->doesntHave('studentProfile')
+                    ->orWhereHas('studentProfile', fn ($query) => $query->active());
+            })
+            ->pluck('id')
+            ->unique()
+            ->values();
     }
 
     /**

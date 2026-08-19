@@ -88,7 +88,7 @@ export default function Index({ passport, options }) {
             <Head title="Паспорт здоровья обучающегося" />
 
             <div className="py-8">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
                     <form
                         onSubmit={submit}
                         className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"

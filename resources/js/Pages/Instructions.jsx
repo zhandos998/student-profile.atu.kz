@@ -7,6 +7,8 @@ import { useState } from "react";
 const primaryButton =
     "inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2";
 
+const instructionCoverImage = "instruction-cover.png";
+
 const psychotestLinks = [
     {
         id: 1,
@@ -57,9 +59,9 @@ const guestSteps = [
     {
         title: "Вход в систему",
         route: "/login",
-        text: "Откройте страницу входа и введите email или номер телефона, затем пароль. Если вы входите через Платонус, используйте отдельную страницу входа через Платонус.",
+        text: "Откройте страницу входа и введите email, номер телефона или логин Платонуса, затем пароль. Система сама проверит локальный аккаунт и Платонус.",
         screenshot:
-            "страница /login с формой Email / телефон и страница /login/platonus.",
+            "страница /login с единым полем Email / телефон / логин Платонуса.",
         // image: "login.png",
         images: ["login.png", "login2.png"],
     },
@@ -69,9 +71,8 @@ const studentSteps = [
     {
         title: "Вход в систему",
         route: "/login",
-        text: "Откройте страницу входа и введите email или номер телефона, затем пароль. Если студент входит через Платонус, используйте отдельную страницу входа через Платонус.",
-        screenshot:
-            "страница /login с активной формой Email / телефон и отдельная страница /login/platonus.",
+        text: "Откройте страницу входа и введите email, номер телефона или логин Платонуса, затем пароль. Для студентов и преподавателей вход через Платонус работает в этой же форме.",
+        screenshot: "страница /login с активной единой формой входа.",
         images: ["login.png", "login2.png"],
     },
     {
@@ -426,6 +427,43 @@ function buildInstructionSections(auth) {
     };
 }
 
+function InstructionCover() {
+    const [imageFailed, setImageFailed] = useState(false);
+    const imagePath = `/images/instructions/${instructionCoverImage}`;
+    const description =
+        "Общая схема работы с системой: порядок работы, роли студента, куратора / эдвайзера, старосты, администрации, психолога, здравпункта и администратора ДИТ.";
+
+    return (
+        <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-[#dfe7f5] mt-10">
+            <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
+                <h2 className="text-base font-semibold text-[#274f93]">
+                    Общая инструкция
+                </h2>
+            </div>
+
+            {imageFailed ? (
+                <div className="flex min-h-[360px] items-center justify-center bg-[#f6f9fe] px-5 py-10 text-center">
+                    <div>
+                        <p className="text-base font-semibold text-[#274f93]">
+                            Какой скриншот нужен
+                        </p>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-700">
+                            {description}
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                <img
+                    src={imagePath}
+                    alt={description}
+                    onError={() => setImageFailed(true)}
+                    className="w-full bg-white object-contain"
+                />
+            )}
+        </section>
+    );
+}
+
 function ScreenshotImage({ image, text }) {
     const [imageFailed, setImageFailed] = useState(false);
     const imagePath = `/images/instructions/${image}`;
@@ -543,7 +581,7 @@ function StepLinks({ links = [] }) {
 
 function StepCard({ index, step }) {
     return (
-        <article className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-[#dfe7f5]">
+        <article className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-[#dfe7f5] mt-10">
             <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <h3 className="text-base font-semibold text-[#274f93]">
@@ -634,8 +672,8 @@ export default function Instructions() {
                     </div>
                 </header>
 
-                <section className="border-b border-[#e7eef8] bg-[#f5f8fd]">
-                    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+                <section className="border-b border-[#e7eef8] bg-[#f5f8fd] py-10">
+                    <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
                         <div className="max-w-4xl">
                             <p className="text-sm font-semibold uppercase tracking-wide text-[#355da8]">
                                 Student Profile ATU
@@ -650,21 +688,24 @@ export default function Instructions() {
                     </div>
                 </section>
 
-                <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
-                    {instruction.sections.map((section) => {
-                        const startIndex = stepStart;
-                        stepStart += section.steps.length;
+                <div className="pb-12">
+                    <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+                        <InstructionCover />
+                        {instruction.sections.map((section) => {
+                            const startIndex = stepStart;
+                            stepStart += section.steps.length;
 
-                        return (
-                            <Section
-                                key={section.title}
-                                title={section.title}
-                                description={section.description}
-                                steps={section.steps}
-                                startIndex={startIndex}
-                            />
-                        );
-                    })}
+                            return (
+                                <Section
+                                    key={section.title}
+                                    title={section.title}
+                                    description={section.description}
+                                    steps={section.steps}
+                                    startIndex={startIndex}
+                                />
+                            );
+                        })}
+                    </div>
                 </div>
             </main>
         </>

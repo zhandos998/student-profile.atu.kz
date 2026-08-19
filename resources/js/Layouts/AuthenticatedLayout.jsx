@@ -1,11 +1,11 @@
-import ApplicationLogo from '@/Components/ApplicationLogo';
-import Dropdown from '@/Components/Dropdown';
-import LanguageSwitcher from '@/Components/LanguageSwitcher';
-import NavLink from '@/Components/NavLink';
-import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import LanguageDomTranslator from '@/i18n/LanguageDomTranslator';
-import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import ApplicationLogo from "@/Components/ApplicationLogo";
+import Dropdown from "@/Components/Dropdown";
+import LanguageSwitcher from "@/Components/LanguageSwitcher";
+import NavLink from "@/Components/NavLink";
+import ResponsiveNavLink from "@/Components/ResponsiveNavLink";
+import LanguageDomTranslator from "@/i18n/LanguageDomTranslator";
+import { Link, usePage } from "@inertiajs/react";
+import { useState } from "react";
 
 export default function AuthenticatedLayout({ header, children }) {
     const page = usePage();
@@ -19,8 +19,8 @@ export default function AuthenticatedLayout({ header, children }) {
     } = page.props.auth;
     const impersonation = page.props.impersonation || { active: false };
     const roleSlug = user?.role?.slug;
-    const roleName = user?.role?.name || user?.position || 'Пользователь';
-    const useSidebar = Boolean(user && roleSlug !== 'student');
+    const roleName = user?.role?.name || user?.position || "Пользователь";
+    const useSidebar = Boolean(user && roleSlug !== "student");
     const navItems = buildNavItems({
         canManageStudentProfiles,
         canManageUsers,
@@ -35,7 +35,9 @@ export default function AuthenticatedLayout({ header, children }) {
     return (
         <div
             className={
-                useSidebar ? 'min-h-screen bg-[#f4f7fc]' : 'min-h-screen bg-white'
+                useSidebar
+                    ? "min-h-screen bg-[#f4f7fc]"
+                    : "min-h-screen bg-white"
             }
         >
             <LanguageDomTranslator />
@@ -48,9 +50,9 @@ export default function AuthenticatedLayout({ header, children }) {
                 />
             )}
 
-            <div className={useSidebar ? 'lg:pl-72' : ''}>
+            <div className={useSidebar ? "lg:pl-72" : ""}>
                 <TopNavigation
-                    className={useSidebar ? 'lg:hidden' : ''}
+                    className={useSidebar ? "lg:hidden" : ""}
                     navItems={navItems}
                     roleName={roleName}
                     showingNavigationDropdown={showingNavigationDropdown}
@@ -88,65 +90,66 @@ function buildNavItems({
 }) {
     const items = [
         {
-            key: 'dashboard',
-            href: route('dashboard'),
-            active: route().current('dashboard'),
-            label: 'Панель',
-        },
-        {
-            key: 'instructions',
-            href: route('instructions.index'),
-            active: route().current('instructions.*'),
-            label: 'Инструкция',
+            key: "dashboard",
+            href: route("dashboard"),
+            active: route().current("dashboard"),
+            label: "Панель",
         },
     ];
 
     if (canUseOwnStudentProfile) {
         items.push({
-            key: 'student-profile',
-            href: route('student-profile.edit'),
-            active: route().current('student-profile.*'),
-            label: 'Портрет студента',
+            key: "student-profile",
+            href: route("student-profile.edit"),
+            active: route().current("student-profile.*"),
+            label: "Портрет студента",
         });
     }
 
     if (canManageStudentProfiles) {
         items.push({
-            key: 'student-profiles',
-            href: route('student-profiles.index'),
-            active: route().current('student-profiles.*'),
-            label: 'Портреты студентов',
+            key: "student-profiles",
+            href: route("student-profiles.index"),
+            active: route().current("student-profiles.*"),
+            label: "Портреты студентов",
         });
     }
 
     if (canViewGroupSocialPassport) {
         items.push({
-            key: 'groups',
-            href: route('groups.index'),
+            key: "groups",
+            href: route("groups.index"),
             active:
-                route().current('groups.*') ||
-                route().current('group-social-passport.*'),
-            label: 'Социальный паспорт группы',
+                route().current("groups.*") ||
+                route().current("group-social-passport.*"),
+            label: "Социальный паспорт группы",
         });
     }
 
     if (canViewAnalyticsDashboard) {
         items.push({
-            key: 'analytics',
-            href: route('analytics-dashboard.index'),
-            active: route().current('analytics-dashboard.*'),
-            label: 'Аналитика',
+            key: "analytics",
+            href: route("analytics-dashboard.index"),
+            active: route().current("analytics-dashboard.*"),
+            label: "Аналитика",
         });
     }
 
     if (canManageUsers) {
         items.push({
-            key: 'users',
-            href: route('users.index'),
-            active: route().current('users.*'),
-            label: 'Пользователи',
+            key: "users",
+            href: route("users.index"),
+            active: route().current("users.*"),
+            label: "Пользователи",
         });
     }
+
+    items.push({
+        key: "instructions",
+        href: route("instructions.index"),
+        active: route().current("instructions.*"),
+        label: "Инструкция",
+    });
 
     return items;
 }
@@ -158,18 +161,18 @@ function ImpersonationBanner({ impersonator, user }) {
                 <div>
                     <span className="font-semibold">
                         Режим входа как пользователь.
-                    </span>{' '}
-                    Сейчас открыт аккаунт:{' '}
+                    </span>{" "}
+                    Сейчас открыт аккаунт:{" "}
                     <span className="font-semibold">{user.name}</span>
                     {impersonator?.name && (
                         <span className="text-amber-800">
-                            {' '}
+                            {" "}
                             Исходный администратор: {impersonator.name}
                         </span>
                     )}
                 </div>
                 <Link
-                    href={route('impersonation.stop')}
+                    href={route("impersonation.stop")}
                     method="post"
                     as="button"
                     className="inline-flex w-full justify-center rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 sm:w-auto"
@@ -186,7 +189,7 @@ function DesktopSidebar({ navItems, roleName, user }) {
         <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-[#dbe5f6] bg-white shadow-sm lg:flex lg:flex-col">
             <div className="flex min-h-0 flex-1 flex-col">
                 <div className="border-b border-[#dbe5f6] px-5 py-5">
-                    <Link href={route('dashboard')} className="block">
+                    <Link href={route("dashboard")} className="block">
                         <ApplicationLogo
                             variant="wordmark"
                             className="h-11 w-auto max-w-[210px]"
@@ -215,13 +218,13 @@ function DesktopSidebar({ navItems, roleName, user }) {
                     <div className="mt-4 space-y-1">
                         <SidebarLink
                             item={{
-                                href: route('profile.edit'),
-                                active: route().current('profile.edit'),
-                                label: 'Профиль',
+                                href: route("profile.edit"),
+                                active: route().current("profile.edit"),
+                                label: "Профиль",
                             }}
                         />
                         <Link
-                            href={route('logout')}
+                            href={route("logout")}
                             method="post"
                             as="button"
                             className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-gray-600 transition hover:bg-[#f4f7fc] hover:text-[#355da8]"
@@ -240,10 +243,10 @@ function SidebarLink({ item }) {
         <Link
             href={item.href}
             className={
-                'block rounded-md px-3 py-2 text-sm font-medium transition ' +
+                "block rounded-md px-3 py-2 text-sm font-medium transition " +
                 (item.active
-                    ? 'bg-[#edf3ff] text-[#274f93] shadow-sm'
-                    : 'text-gray-600 hover:bg-[#f4f7fc] hover:text-[#355da8]')
+                    ? "bg-[#edf3ff] text-[#274f93] shadow-sm"
+                    : "text-gray-600 hover:bg-[#f4f7fc] hover:text-[#355da8]")
             }
         >
             {item.label}
@@ -252,7 +255,7 @@ function SidebarLink({ item }) {
 }
 
 function TopNavigation({
-    className = '',
+    className = "",
     navItems,
     roleName,
     showingNavigationDropdown,
@@ -317,11 +320,11 @@ function TopNavigation({
                                 </Dropdown.Trigger>
 
                                 <Dropdown.Content>
-                                    <Dropdown.Link href={route('profile.edit')}>
+                                    <Dropdown.Link href={route("profile.edit")}>
                                         Профиль
                                     </Dropdown.Link>
                                     <Dropdown.Link
-                                        href={route('logout')}
+                                        href={route("logout")}
                                         method="post"
                                         as="button"
                                     >
@@ -350,8 +353,8 @@ function TopNavigation({
                                 <path
                                     className={
                                         !showingNavigationDropdown
-                                            ? 'inline-flex'
-                                            : 'hidden'
+                                            ? "inline-flex"
+                                            : "hidden"
                                     }
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
@@ -361,8 +364,8 @@ function TopNavigation({
                                 <path
                                     className={
                                         showingNavigationDropdown
-                                            ? 'inline-flex'
-                                            : 'hidden'
+                                            ? "inline-flex"
+                                            : "hidden"
                                     }
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
@@ -394,8 +397,7 @@ function MobileNavigation({
     return (
         <div
             className={
-                (showingNavigationDropdown ? 'block' : 'hidden') +
-                ' sm:hidden'
+                (showingNavigationDropdown ? "block" : "hidden") + " sm:hidden"
             }
         >
             <div className="space-y-1 pb-3 pt-2">
@@ -424,12 +426,12 @@ function MobileNavigation({
                 </div>
 
                 <div className="mt-3 space-y-1">
-                    <ResponsiveNavLink href={route('profile.edit')}>
+                    <ResponsiveNavLink href={route("profile.edit")}>
                         Профиль
                     </ResponsiveNavLink>
                     <ResponsiveNavLink
                         method="post"
-                        href={route('logout')}
+                        href={route("logout")}
                         as="button"
                     >
                         Выйти

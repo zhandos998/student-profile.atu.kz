@@ -391,6 +391,114 @@ class StudentProfileManagementTest extends TestCase
             );
     }
 
+    public function test_advisor_can_archive_and_restore_student_profile(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
+        $student = $this->userWithRole(Role::STUDENT, 'Student', [
+            'name' => 'Archive Student',
+        ]);
+        $group = StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-ARCHIVE',
+        ]);
+        $profile = StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'profile_status' => StudentProfile::STATUS_DRAFT,
+            'full_name' => 'Archive Student',
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+        ]);
+
+        $this->actingAs($advisor)
+            ->post(route('student-profiles.archive', $student))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $profile->refresh();
+
+        $this->assertNotNull($profile->archived_at);
+        $this->assertSame($advisor->id, $profile->archived_by_id);
+
+        $this->actingAs($advisor)
+            ->get(route('student-profiles.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.archive_status', 'active')
+                ->has('students.data', 0)
+            );
+
+        $this->actingAs($advisor)
+            ->get(route('student-profiles.index', ['archive_status' => 'archived']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.archive_status', 'archived')
+                ->has('students.data', 1)
+                ->where('students.data.0.fullName', 'Archive Student')
+                ->where('students.data.0.isArchived', true)
+            );
+
+        $this->actingAs($advisor)
+            ->post(route('student-profiles.restore', $student))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $profile->refresh();
+
+        $this->assertNull($profile->archived_at);
+        $this->assertNull($profile->archived_by_id);
+    }
+
+    public function test_student_cannot_archive_student_profile(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'full_name' => 'Own Student',
+        ]);
+
+        $this->actingAs($student)
+            ->post(route('student-profiles.archive', $student))
+            ->assertForbidden();
+    }
+
+    public function test_dit_can_archive_student_without_saved_profile(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = $this->userWithRole(Role::ADMINISTRATOR_DIT, 'Administrator DIT');
+        $student = $this->userWithRole(Role::STUDENT, 'Student', [
+            'name' => 'Not Started Student',
+        ]);
+
+        $this->actingAs($administrator)
+            ->post(route('student-profiles.archive', $student))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('student_profiles', [
+            'user_id' => $student->id,
+            'full_name' => 'Not Started Student',
+            'profile_status' => StudentProfile::STATUS_NOT_STARTED,
+            'archived_by_id' => $administrator->id,
+        ]);
+
+        $this->actingAs($administrator)
+            ->get(route('student-profiles.index', ['archive_status' => 'archived']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('students.data', 1)
+                ->where('students.data.0.fullName', 'Not Started Student')
+                ->where('students.data.0.isArchived', true)
+            );
+    }
+
     public function test_advisor_can_review_student_profile_status(): void
     {
         $this->seed(RoleSeeder::class);
@@ -534,7 +642,7 @@ class StudentProfileManagementTest extends TestCase
         Storage::disk('public')->assertExists($achievement->document_path);
     }
 
-    public function test_advisor_cannot_open_own_student_profile_route(): void
+    public function test_advisor_is_redirected_from_own_student_profile_route(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -542,10 +650,10 @@ class StudentProfileManagementTest extends TestCase
 
         $this->actingAs($advisor)
             ->get(route('student-profile.edit'))
-            ->assertForbidden();
+            ->assertRedirect(route('student-profiles.index'));
     }
 
-    public function test_curator_cannot_open_own_student_profile_route(): void
+    public function test_curator_is_redirected_from_own_student_profile_route(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -553,7 +661,7 @@ class StudentProfileManagementTest extends TestCase
 
         $this->actingAs($curator)
             ->get(route('student-profile.edit'))
-            ->assertForbidden();
+            ->assertRedirect(route('student-profiles.index'));
     }
 
     public function test_student_cannot_manage_student_profiles(): void

@@ -531,6 +531,15 @@ class GroupSocialPassportTest extends TestCase
             'departure_reason' => 'expelled',
             'departed_at' => '2026-06-01',
         ]);
+        StudentProfile::query()->create([
+            'user_id' => $this->userWithRole(Role::STUDENT, 'Archived student')->id,
+            'full_name' => 'Archived From Profile',
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'student_status' => StudentProfile::STUDENT_STATUS_ACTIVE,
+            'archived_at' => now(),
+        ]);
 
         $this->actingAs($curator)
             ->get(route('groups.social-passport.edit', $group))

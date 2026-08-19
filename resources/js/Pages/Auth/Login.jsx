@@ -25,14 +25,20 @@ export default function Login({
 
             <form method="post" action={route('login')}>
                 <input type="hidden" name="_token" value={csrfToken} />
-                <input type="hidden" name="auth_type" value="local" />
+                <input type="hidden" name="auth_type" value="auto" />
 
                 <div className="mb-4 rounded-md border border-[#355da8]/20 bg-[#355da8]/5 px-3 py-2 text-sm font-semibold text-[#355da8]">
-                    Вход через Email или телефон
+                    Вход в систему
                 </div>
+                <p className="mb-4 text-sm text-gray-600">
+                    Используйте email, номер телефона или логин Платонуса.
+                </p>
 
                 <div>
-                    <InputLabel htmlFor="email" value="Email или телефон" />
+                    <InputLabel
+                        htmlFor="email"
+                        value="Email / телефон / логин Платонуса"
+                    />
 
                     <TextInput
                         id="email"
@@ -40,7 +46,7 @@ export default function Login({
                         name="email"
                         className="mt-1 block w-full"
                         autoComplete="username"
-                        placeholder="email@atu.kz или +7 700 000 00 00"
+                        placeholder="email@atu.kz, +7 700 000 00 00 или 1Daulet_Rauan"
                         defaultValue={oldInput.email ?? ''}
                         isFocused={true}
                         required
@@ -74,25 +80,18 @@ export default function Login({
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                    <Link
-                        href={route('login.platonus')}
-                        className="rounded-md text-sm font-medium text-[#355da8] underline hover:text-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2"
-                    >
-                        Войти через Платонус
-                    </Link>
+                    {canResetPassword ? (
+                        <Link
+                            href={route('password.request')}
+                            className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2"
+                        >
+                            Забыли пароль?
+                        </Link>
+                    ) : (
+                        <span />
+                    )}
 
-                    <div className="flex items-center gap-4">
-                        {canResetPassword && (
-                            <Link
-                                href={route('password.request')}
-                                className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2"
-                            >
-                                Забыли пароль?
-                            </Link>
-                        )}
-
-                        <PrimaryButton type="submit">Войти</PrimaryButton>
-                    </div>
+                    <PrimaryButton type="submit">Войти</PrimaryButton>
                 </div>
             </form>
         </GuestLayout>

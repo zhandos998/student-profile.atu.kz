@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'departure_reason',
     'departure_reason_other',
     'departed_at',
+    'archived_at',
+    'archived_by_id',
     'submitted_at',
     'verified_at',
     'reviewed_by_id',
@@ -155,6 +158,32 @@ class StudentProfile extends Model
     }
 
     /**
+     * @return BelongsTo<User, StudentProfile>
+     */
+    public function archivedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'archived_by_id');
+    }
+
+    /**
+     * @param  Builder<StudentProfile>  $query
+     * @return Builder<StudentProfile>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    /**
+     * @param  Builder<StudentProfile>  $query
+     * @return Builder<StudentProfile>
+     */
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -164,8 +193,10 @@ class StudentProfile extends Model
         return [
             'birth_date' => 'date:Y-m-d',
             'departed_at' => 'date:Y-m-d',
+            'archived_at' => 'datetime',
             'course' => 'integer',
             'student_group_id' => 'integer',
+            'archived_by_id' => 'integer',
             'submitted_at' => 'datetime',
             'verified_at' => 'datetime',
             'reviewed_by_id' => 'integer',

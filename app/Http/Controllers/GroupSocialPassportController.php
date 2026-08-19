@@ -282,6 +282,7 @@ class GroupSocialPassportController extends Controller
         $groupName = $studentGroup?->name ?? $passport?->group_name;
 
         return StudentProfile::query()
+            ->active()
             ->with('user')
             ->when(
                 filled($groupId),

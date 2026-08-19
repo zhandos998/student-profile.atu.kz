@@ -28,10 +28,10 @@ class StudentGroupController extends Controller
 
         $groups = $this->accessibleGroups($request)
             ->with('curator:id,name,email')
-            ->withCount('studentProfiles')
+            ->withCount(['studentProfiles' => fn (Builder $query) => $query->active()])
             ->when($filters['faculty'] ?? null, fn (Builder $query, string $faculty) => $query->where('faculty', $faculty))
             ->when($filters['course'] ?? null, fn (Builder $query, int $course) => $query
-                ->whereHas('studentProfiles', fn (Builder $query) => $query->where('course', $course)))
+                ->whereHas('studentProfiles', fn (Builder $query) => $query->active()->where('course', $course)))
             ->when($filters['curator_id'] ?? null, fn (Builder $query, int $curatorId) => $query->where('curator_id', $curatorId))
             ->orderBy('faculty')
             ->orderBy('name')

@@ -36,15 +36,25 @@ function applyTextTranslations(root, locale) {
     let node = walker.nextNode();
 
     while (node) {
-        if (!textOriginals.has(node)) {
-            textOriginals.set(node, node.nodeValue);
+        const current = node.nodeValue;
+        const cached = textOriginals.get(node);
+
+        if (
+            !cached ||
+            (current !== cached.original && current !== cached.translated)
+        ) {
+            const original = current;
+            textOriginals.set(node, {
+                original,
+                translated: translateText(original, 'kk'),
+            });
         }
 
-        const original = textOriginals.get(node);
-        const translated = translateText(original, locale);
+        const { original, translated } = textOriginals.get(node);
+        const nextValue = locale === 'kk' ? translated : original;
 
-        if (node.nodeValue !== translated) {
-            node.nodeValue = translated;
+        if (node.nodeValue !== nextValue) {
+            node.nodeValue = nextValue;
         }
 
         node = walker.nextNode();
@@ -80,15 +90,25 @@ function applyAttributeTranslations(root, locale) {
                 return;
             }
 
-            if (!originals.has(attribute)) {
-                originals.set(attribute, element.getAttribute(attribute));
+            const current = element.getAttribute(attribute);
+            const cached = originals.get(attribute);
+
+            if (
+                !cached ||
+                (current !== cached.original && current !== cached.translated)
+            ) {
+                const original = current;
+                originals.set(attribute, {
+                    original,
+                    translated: translateText(original, 'kk'),
+                });
             }
 
-            const original = originals.get(attribute);
-            const translated = translateText(original, locale);
+            const { original, translated } = originals.get(attribute);
+            const nextValue = locale === 'kk' ? translated : original;
 
-            if (element.getAttribute(attribute) !== translated) {
-                element.setAttribute(attribute, translated);
+            if (element.getAttribute(attribute) !== nextValue) {
+                element.setAttribute(attribute, nextValue);
             }
         });
     });

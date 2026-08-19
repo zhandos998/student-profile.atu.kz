@@ -27,14 +27,9 @@ class AuthenticatedSessionController extends Controller
         ]);
     }
 
-    public function createPlatonus(): Response
+    public function createPlatonus(): RedirectResponse
     {
-        return Inertia::render('Auth/PlatonusLogin', [
-            'status' => session('status'),
-            'oldInput' => [
-                'login' => old('login', ''),
-            ],
-        ]);
+        return redirect()->route('login');
     }
 
     /**

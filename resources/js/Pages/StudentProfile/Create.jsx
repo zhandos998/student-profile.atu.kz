@@ -100,7 +100,7 @@ export default function Create({ options, availableGroups = [] }) {
             <Head title="Создать портрет студента" />
 
             <div className="bg-[#f4f7fc] py-8">
-                <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
                     <form
                         onSubmit={submit}
                         className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80"

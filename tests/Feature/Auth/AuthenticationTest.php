@@ -25,11 +25,10 @@ class AuthenticationTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_platonus_login_screen_can_be_rendered(): void
+    public function test_platonus_login_screen_redirects_to_combined_login(): void
     {
         $this->get('/login/platonus')
-            ->assertStatus(200)
-            ->assertInertia(fn (Assert $page) => $page->component('Auth/PlatonusLogin'));
+            ->assertRedirect(route('login'));
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void
@@ -37,6 +36,7 @@ class AuthenticationTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this->post('/login', [
+            'auth_type' => 'auto',
             'email' => $user->email,
             'password' => 'password',
         ]);
@@ -53,6 +53,7 @@ class AuthenticationTest extends TestCase
         ]);
 
         $response = $this->post('/login', [
+            'auth_type' => 'auto',
             'email' => '8 700 000 00 00',
             'password' => 'password',
         ]);
@@ -141,7 +142,7 @@ class AuthenticationTest extends TestCase
             'iin' => '980915300671',
             'birth_date' => '1998-09-15',
             'gender' => 'male',
-            'nationality' => 'казах',
+            'nationality' => 'Казах',
             'citizenship' => 'kazakhstan_citizen',
             'faculty' => $faculty,
             'group_name' => 'ИС-101',
@@ -225,15 +226,113 @@ class AuthenticationTest extends TestCase
         $this->assertSame(4, $profile->course);
     }
 
-    public function test_platonus_login_rejects_invalid_credentials(): void
+    public function test_users_can_authenticate_using_platonus_tutor_login(): void
     {
+        $this->seed(RoleSeeder::class);
+
         config([
             'services.platonus.verify_url' => 'https://hub.atu.kz/api/v1/students/verify',
+            'services.platonus.tutor_verify_url' => 'https://hub.atu.kz/api/v1/tutors/verify',
             'services.platonus.api_key' => 'test-key',
         ]);
 
         Http::fake([
             'https://hub.atu.kz/api/v1/students/verify' => Http::response([
+                'authenticated' => false,
+                'detail' => 'User not found',
+            ]),
+            'https://hub.atu.kz/api/v1/tutors/verify' => Http::response([
+                'authenticated' => true,
+                'tutor' => [
+                    'lastname' => 'Иванов',
+                    'firstname' => 'Иван',
+                    'patronymic' => 'Иванович',
+                    'email' => 'ivan.tutor@atu.kz',
+                    'phone' => '+7 701 222 33 44',
+                    'position' => 'Преподаватель',
+                ],
+            ]),
+        ]);
+
+        $response = $this->post('/login', [
+            'auth_type' => 'auto',
+            'email' => 'Tutor_Login',
+            'password' => 'plain_password',
+        ]);
+
+        $user = User::query()->where('platonus_login', 'tutor_login')->firstOrFail();
+
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertSame(Role::CURATOR, $user->role?->slug);
+        $this->assertSame('Иванов Иван Иванович', $user->name);
+        $this->assertSame('ivan.tutor@atu.kz', $user->email);
+        $this->assertSame('+7 701 222 33 44', $user->phone);
+        $this->assertSame('Преподаватель', $user->position);
+        $this->assertDatabaseMissing('student_profiles', [
+            'user_id' => $user->id,
+        ]);
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://hub.atu.kz/api/v1/students/verify'
+            && $request->hasHeader('X-API-Key', 'test-key')
+            && $request['login'] === 'Tutor_Login'
+            && $request['password'] === 'plain_password');
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://hub.atu.kz/api/v1/tutors/verify'
+            && $request->hasHeader('X-API-Key', 'test-key')
+            && $request['login'] === 'Tutor_Login'
+            && $request['password'] === 'plain_password');
+    }
+
+    public function test_legacy_platonus_post_authentication_still_works(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        config([
+            'services.platonus.verify_url' => 'https://hub.atu.kz/api/v1/students/verify',
+            'services.platonus.tutor_verify_url' => 'https://hub.atu.kz/api/v1/tutors/verify',
+            'services.platonus.api_key' => 'test-key',
+        ]);
+
+        Http::fake([
+            'https://hub.atu.kz/api/v1/students/verify' => Http::response([
+                'authenticated' => true,
+                'student' => [
+                    'iin' => '980915300671',
+                    'firstname' => 'Student',
+                    'lastname' => 'Legacy',
+                ],
+            ]),
+            'https://hub.atu.kz/api/v1/hub/student_full*' => Http::response([]),
+        ]);
+
+        $response = $this->post('/login', [
+            'auth_type' => 'platonus',
+            'login' => 'Legacy_Student',
+            'password' => 'plain_password',
+        ]);
+
+        $user = User::query()->where('platonus_login', 'legacy_student')->firstOrFail();
+
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertSame(Role::STUDENT, $user->role?->slug);
+    }
+
+    public function test_platonus_login_rejects_invalid_credentials(): void
+    {
+        config([
+            'services.platonus.verify_url' => 'https://hub.atu.kz/api/v1/students/verify',
+            'services.platonus.tutor_verify_url' => 'https://hub.atu.kz/api/v1/tutors/verify',
+            'services.platonus.api_key' => 'test-key',
+        ]);
+
+        Http::fake([
+            'https://hub.atu.kz/api/v1/students/verify' => Http::response([
+                'authenticated' => false,
+                'detail' => 'User not found',
+            ]),
+            'https://hub.atu.kz/api/v1/tutors/verify' => Http::response([
                 'authenticated' => false,
                 'detail' => 'User not found',
             ]),
@@ -250,10 +349,11 @@ class AuthenticationTest extends TestCase
         $response->assertSessionHasErrors(['login' => 'User not found']);
     }
 
-    public function test_platonus_login_page_keeps_login_after_failed_login(): void
+    public function test_combined_login_page_keeps_identifier_after_failed_login(): void
     {
         config([
             'services.platonus.verify_url' => 'https://hub.atu.kz/api/v1/students/verify',
+            'services.platonus.tutor_verify_url' => 'https://hub.atu.kz/api/v1/tutors/verify',
             'services.platonus.api_key' => 'test-key',
         ]);
 
@@ -262,18 +362,22 @@ class AuthenticationTest extends TestCase
                 'authenticated' => false,
                 'detail' => 'User not found',
             ]),
+            'https://hub.atu.kz/api/v1/tutors/verify' => Http::response([
+                'authenticated' => false,
+                'detail' => 'User not found',
+            ]),
         ]);
 
-        $this->from('/login/platonus')->post('/login', [
-            'auth_type' => 'platonus',
-            'login' => 'wrong_login',
+        $this->from('/login')->post('/login', [
+            'auth_type' => 'auto',
+            'email' => 'wrong_login',
             'password' => 'wrong-password',
-        ])->assertRedirect('/login/platonus');
+        ])->assertRedirect('/login');
 
-        $this->get('/login/platonus')
+        $this->get('/login')
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Auth/PlatonusLogin')
-                ->where('oldInput.login', 'wrong_login'));
+                ->component('Auth/Login')
+                ->where('oldInput.email', 'wrong_login'));
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void

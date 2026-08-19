@@ -160,6 +160,21 @@ class DashboardTest extends TestCase
             'title' => 'Олимпиада по программированию',
         ]);
 
+        $archivedStudent = User::factory()->create([
+            'role_id' => $studentRole->id,
+            'name' => 'Archived Student',
+            'position' => 'Студент',
+        ]);
+
+        StudentProfile::query()->create([
+            'user_id' => $archivedStudent->id,
+            'student_group_id' => $group->id,
+            'full_name' => 'Archived Student',
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'archived_at' => now(),
+        ]);
+
         $this->actingAs($curator)
             ->get(route('dashboard'))
             ->assertOk()

@@ -21,52 +21,37 @@ class PlatonusAuthClient
      */
     public function verify(string $login, string $password): array
     {
-        $url = trim((string) config('services.platonus.verify_url'));
-        $apiKey = trim((string) config('services.platonus.api_key'));
+        return $this->verifyAtUrl(
+            (string) config('services.platonus.verify_url'),
+            $login,
+            $password,
+            __('auth.platonus_not_configured'),
+            __('auth.platonus_connection_failed'),
+            __('auth.platonus_request_failed'),
+            __('auth.platonus_failed'),
+        );
+    }
 
-        if ($url === '' || $apiKey === '') {
-            return $this->response(false, false, null, __('auth.platonus_not_configured'));
-        }
-
-        try {
-            $response = Http::acceptJson()
-                ->asJson()
-                ->withHeaders(['X-API-Key' => $apiKey])
-                ->timeout((int) config('services.platonus.timeout', 15))
-                ->post($url, [
-                    'login' => $login,
-                    'password' => $password,
-                ]);
-        } catch (ConnectionException) {
-            return $this->response(true, false, null, __('auth.platonus_connection_failed'));
-        } catch (Throwable) {
-            return $this->response(true, false, null, __('auth.platonus_request_failed'));
-        }
-
-        $raw = $response->json();
-
-        if (! $response->successful()) {
-            return $this->response(true, false, $response->status(), $this->errorMessage($raw, $response->status()), [], $raw);
-        }
-
-        if (! $this->isAuthenticated($raw)) {
-            return $this->response(
-                true,
-                false,
-                $response->status(),
-                $this->errorMessage($raw, $response->status(), __('auth.platonus_failed')),
-                [],
-                $raw,
-            );
-        }
-
-        return $this->response(
-            true,
-            true,
-            $response->status(),
-            null,
-            $this->studentData($raw),
-            $raw,
+    /**
+     * @return array{
+     *     configured: bool,
+     *     ok: bool,
+     *     status: int|null,
+     *     message: string|null,
+     *     student: array<string, mixed>,
+     *     raw: mixed
+     * }
+     */
+    public function verifyTutor(string $login, string $password): array
+    {
+        return $this->verifyAtUrl(
+            (string) config('services.platonus.tutor_verify_url'),
+            $login,
+            $password,
+            __('auth.platonus_tutor_not_configured'),
+            __('auth.platonus_tutor_connection_failed'),
+            __('auth.platonus_tutor_request_failed'),
+            __('auth.platonus_tutor_failed'),
         );
     }
 
@@ -138,10 +123,78 @@ class PlatonusAuthClient
         return compact('configured', 'ok', 'status', 'message', 'student', 'raw');
     }
 
+    /**
+     * @return array{
+     *     configured: bool,
+     *     ok: bool,
+     *     status: int|null,
+     *     message: string|null,
+     *     student: array<string, mixed>,
+     *     raw: mixed
+     * }
+     */
+    private function verifyAtUrl(
+        string $url,
+        string $login,
+        string $password,
+        string $notConfiguredMessage,
+        string $connectionFailedMessage,
+        string $requestFailedMessage,
+        string $failedMessage,
+    ): array {
+        $url = trim($url);
+        $apiKey = trim((string) config('services.platonus.api_key'));
+
+        if ($url === '' || $apiKey === '') {
+            return $this->response(false, false, null, $notConfiguredMessage);
+        }
+
+        try {
+            $response = Http::acceptJson()
+                ->asJson()
+                ->withHeaders(['X-API-Key' => $apiKey])
+                ->timeout((int) config('services.platonus.timeout', 15))
+                ->post($url, [
+                    'login' => $login,
+                    'password' => $password,
+                ]);
+        } catch (ConnectionException) {
+            return $this->response(true, false, null, $connectionFailedMessage);
+        } catch (Throwable) {
+            return $this->response(true, false, null, $requestFailedMessage);
+        }
+
+        $raw = $response->json();
+
+        if (! $response->successful()) {
+            return $this->response(true, false, $response->status(), $this->errorMessage($raw, $response->status()), [], $raw);
+        }
+
+        if (! $this->isAuthenticated($raw)) {
+            return $this->response(
+                true,
+                false,
+                $response->status(),
+                $this->errorMessage($raw, $response->status(), $failedMessage),
+                [],
+                $raw,
+            );
+        }
+
+        return $this->response(
+            true,
+            true,
+            $response->status(),
+            null,
+            $this->studentData($raw),
+            $raw,
+        );
+    }
+
     private function isAuthenticated(mixed $raw): bool
     {
         if (! is_array($raw)) {
-            return true;
+            return false;
         }
 
         foreach (['authenticated', 'success', 'ok', 'verified', 'valid'] as $field) {
@@ -154,7 +207,7 @@ class PlatonusAuthClient
             return in_array(Str::lower($raw['status']), ['ok', 'success', 'authenticated', 'verified'], true);
         }
 
-        return true;
+        return $this->hasAccountData($raw);
     }
 
     /**
@@ -166,13 +219,58 @@ class PlatonusAuthClient
             return [];
         }
 
-        foreach (['student', 'data', 'user', 'result'] as $field) {
+        foreach (['student', 'tutor', 'teacher', 'employee', 'staff', 'data', 'user', 'result'] as $field) {
             if (isset($raw[$field]) && is_array($raw[$field]) && ! array_is_list($raw[$field])) {
                 return $raw[$field];
             }
         }
 
-        return $raw;
+        return $this->hasFlatAccountData($raw) ? $raw : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     */
+    private function hasAccountData(array $raw): bool
+    {
+        foreach (['student', 'tutor', 'teacher', 'employee', 'staff', 'data', 'user', 'result'] as $field) {
+            if (isset($raw[$field]) && is_array($raw[$field]) && $this->hasFlatAccountData($raw[$field])) {
+                return true;
+            }
+        }
+
+        return $this->hasFlatAccountData($raw);
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     */
+    private function hasFlatAccountData(array $raw): bool
+    {
+        foreach ([
+            'iin',
+            'IIN',
+            'email',
+            'mail',
+            'login',
+            'full_name',
+            'fullname',
+            'fullName',
+            'fio',
+            'name',
+            'firstname',
+            'first_name',
+            'firstName',
+            'lastname',
+            'last_name',
+            'lastName',
+        ] as $field) {
+            if (isset($raw[$field]) && is_scalar($raw[$field]) && trim((string) $raw[$field]) !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function errorMessage(mixed $raw, int $status, ?string $fallback = null): string
