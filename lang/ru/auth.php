@@ -18,4 +18,5 @@ return [
     'platonus_student_full_not_configured' => 'API полных данных студента не настроен.',
     'platonus_student_full_connection_failed' => 'Не удалось подключиться к API полных данных студента.',
     'platonus_student_full_request_failed' => 'Ошибка при запросе полных данных студента.',
+    'iin_already_used' => 'Этот ИИН уже привязан к другому пользователю.',
 ];

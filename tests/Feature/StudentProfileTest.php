@@ -250,6 +250,59 @@ class StudentProfileTest extends TestCase
         Storage::disk('public')->assertExists($profile->identity_card_path);
     }
 
+    public function test_student_cannot_save_iin_used_by_another_profile(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $existingStudent = $this->userWithRole(Role::STUDENT, 'Student');
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+
+        StudentProfile::query()->create([
+            'user_id' => $existingStudent->id,
+            'full_name' => 'Existing Student',
+            'iin' => '123456789012',
+        ]);
+
+        $this->actingAs($student)
+            ->post(route('student-profile.update'), [
+                'full_name' => 'Duplicate IIN Student',
+                'iin' => '123456789012',
+            ])
+            ->assertSessionHasErrors('iin');
+
+        $this->assertDatabaseMissing('student_profiles', [
+            'user_id' => $student->id,
+            'iin' => '123456789012',
+        ]);
+    }
+
+    public function test_student_can_save_existing_own_iin_again(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'full_name' => 'Original Name',
+            'iin' => '123456789012',
+        ]);
+
+        $this->actingAs($student)
+            ->post(route('student-profile.update'), [
+                'full_name' => 'Updated Name',
+                'iin' => '123456789012',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('student_profiles', [
+            'user_id' => $student->id,
+            'full_name' => 'Updated Name',
+            'iin' => '123456789012',
+        ]);
+    }
+
     public function test_student_can_submit_profile_for_review(): void
     {
         $this->seed(RoleSeeder::class);

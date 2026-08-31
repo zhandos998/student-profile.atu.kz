@@ -62,6 +62,22 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('dashboard', absolute: false));
     }
 
+    public function test_users_can_authenticate_using_local_platonus_login(): void
+    {
+        $user = User::factory()->create([
+            'platonus_login' => 'ibiken_turar',
+        ]);
+
+        $response = $this->post('/login', [
+            'auth_type' => 'auto',
+            'email' => 'Ibiken_Turar',
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
     public function test_users_can_authenticate_using_platonus_login(): void
     {
         $this->seed(RoleSeeder::class);
@@ -224,6 +240,63 @@ class AuthenticationTest extends TestCase
         $this->assertSame($group->id, $profile->student_group_id);
         $this->assertSame('IS-101', $profile->group_name);
         $this->assertSame(4, $profile->course);
+    }
+
+    public function test_platonus_login_uses_existing_user_with_same_iin(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        config([
+            'services.platonus.verify_url' => 'https://hub.atu.kz/api/v1/students/verify',
+            'services.platonus.api_key' => 'test-key',
+        ]);
+
+        $role = Role::query()->where('slug', Role::STUDENT)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'position' => 'Student',
+            'email' => 'local.student@example.com',
+            'platonus_login' => null,
+        ]);
+
+        StudentProfile::query()->create([
+            'user_id' => $user->id,
+            'full_name' => 'Local Student',
+            'iin' => '980915300671',
+        ]);
+
+        Http::fake([
+            'https://hub.atu.kz/api/v1/students/verify' => Http::response([
+                'authenticated' => true,
+                'student' => [
+                    'iin' => '980915300671',
+                ],
+            ]),
+            'https://hub.atu.kz/api/v1/hub/student_full*' => Http::response([
+                'lastname' => 'Linked',
+                'firstname' => 'Student',
+                'iin' => '980915300671',
+            ]),
+        ]);
+
+        $this->post('/login', [
+            'auth_type' => 'platonus',
+            'login' => '1Daulet_Rauan',
+            'password' => 'plain_password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame(1, User::query()->count());
+        $this->assertSame(1, StudentProfile::query()->count());
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'platonus_login' => '1daulet_rauan',
+        ]);
+        $this->assertDatabaseHas('student_profiles', [
+            'user_id' => $user->id,
+            'iin' => '980915300671',
+            'full_name' => 'Linked Student',
+        ]);
     }
 
     public function test_users_can_authenticate_using_platonus_tutor_login(): void

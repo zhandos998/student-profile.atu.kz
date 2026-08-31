@@ -2,11 +2,12 @@ import DangerButton from "@/Components/DangerButton";
 import Checkbox from "@/Components/Checkbox";
 import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
+import Modal from "@/Components/Modal";
 import PrimaryButton from "@/Components/PrimaryButton";
 import SecondaryButton from "@/Components/SecondaryButton";
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, router, useForm } from "@inertiajs/react";
+import { Head, Link, router, useForm, usePage } from "@inertiajs/react";
 import { useEffect, useRef, useState } from "react";
 
 const valueOrEmpty = (value) => value ?? "";
@@ -54,6 +55,13 @@ const platonusProfileFields = [
     "personal_email",
     "parent_guardian_contacts",
 ];
+
+const platonusOverwriteFields = platonusProfileFields.filter(
+    (field) => field !== "iin",
+);
+
+const platonusOverwriteWarning =
+    "Вы уверены? При загрузке данные из Платонуса могут заменить или очистить уже заполненные поля анкеты.";
 
 const normalizeIin = (value) =>
     String(value ?? "")
@@ -251,6 +259,44 @@ function FileSize({ size }) {
     const kilobytes = Math.max(1, Math.round(size / 1024));
 
     return <span>{kilobytes} KB</span>;
+}
+
+function TemporaryPasswordAlert({ flash }) {
+    if (!flash?.temporaryPassword) {
+        return null;
+    }
+
+    const user = flash.temporaryPasswordUser || {};
+
+    return (
+        <section className="overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm">
+            <div className="border-b border-emerald-200 bg-emerald-100 px-6 py-4">
+                <h3 className="text-base font-semibold text-emerald-900">
+                    Пароль сброшен
+                </h3>
+            </div>
+            <div className="space-y-3 p-6 text-sm text-emerald-900">
+                <p>
+                    Локальный пароль студента{" "}
+                    <span className="font-semibold">{user.name}</span>{" "}
+                    обновлен. Студент может войти через email, телефон или логин
+                    Платонуса и этот временный пароль.
+                </p>
+                <div className="inline-flex flex-wrap items-center gap-3 rounded-md bg-white px-4 py-3 ring-1 ring-emerald-200">
+                    <span className="text-xs font-semibold uppercase text-emerald-700">
+                        Временный пароль
+                    </span>
+                    <code className="rounded bg-emerald-900 px-3 py-1 text-sm font-semibold text-white">
+                        {flash.temporaryPassword}
+                    </code>
+                </div>
+                <p className="text-xs text-emerald-800">
+                    Пароль показан один раз. Передайте его студенту и попросите
+                    сменить пароль в профиле.
+                </p>
+            </div>
+        </section>
+    );
 }
 
 function formatPsychotestValue(value) {
@@ -580,9 +626,11 @@ export default function Edit({
     canEditHealthPassport = false,
     canViewPsychotestResults = false,
     canArchiveStudentProfile = false,
+    canResetStudentPassword = false,
     healthPassportUpdateUrl = null,
     targetUser = null,
 }) {
+    const { auth = {}, flash = {} } = usePage().props;
     const [achievementFileKey, setAchievementFileKey] = useState(0);
     const [portfolioFileKey, setPortfolioFileKey] = useState(0);
     const [healthPassportFileKey, setHealthPassportFileKey] = useState(0);
@@ -672,7 +720,8 @@ export default function Edit({
         message: "",
         error: "",
     });
-    const lastAutoLoadedIin = useRef("");
+    const [pendingPlatonusIin, setPendingPlatonusIin] = useState("");
+    const lastAutoLoadedIin = useRef(normalizeIin(profile.iin));
     const [blockReviewComments, setBlockReviewComments] = useState({
         social: "",
         academic: "",
@@ -798,6 +847,7 @@ export default function Edit({
         revision_comment: "",
     });
     const archiveForm = useForm({});
+    const passwordResetForm = useForm({});
     const healthPassportForm = useForm({
         fluorography_date: healthPassport.fluorography_date ?? "",
         fluorography_image: null,
@@ -808,6 +858,8 @@ export default function Edit({
         pregnancy: healthPassport.pregnancy ?? "",
     });
     const targetUserId = targetUser?.id;
+    const canResetCurrentStudentPassword =
+        canResetStudentPassword && targetUserId !== auth.user?.id;
     const profileUpdateUrl = isManagedProfile
         ? route("student-profiles.update", targetUserId)
         : route("student-profile.update");
@@ -855,19 +907,18 @@ export default function Edit({
         });
     };
 
-    const fetchPlatonusProfile = async (iinValue = profileData.iin) => {
-        const iin = normalizeIin(iinValue);
+    const hasPlatonusOverwriteData = () =>
+        platonusOverwriteFields.some((field) => {
+            const value = profileData[field];
 
-        if (iin.length !== 12) {
-            setPlatonusLookup({
-                processing: false,
-                message: "",
-                error: "Введите 12 цифр ИИН.",
-            });
+            return (
+                value !== null &&
+                value !== undefined &&
+                String(value).trim() !== ""
+            );
+        });
 
-            return;
-        }
-
+    const loadPlatonusProfile = async (iin) => {
         lastAutoLoadedIin.current = iin;
         setPlatonusLookup({
             processing: true,
@@ -917,6 +968,35 @@ export default function Edit({
                 error: "Не удалось подключиться к API Платонуса.",
             });
         }
+    };
+
+    const fetchPlatonusProfile = (iinValue = profileData.iin) => {
+        const iin = normalizeIin(iinValue);
+
+        if (iin.length !== 12) {
+            setPlatonusLookup({
+                processing: false,
+                message: "",
+                error: "Введите 12 цифр ИИН.",
+            });
+
+            return;
+        }
+
+        if (hasPlatonusOverwriteData()) {
+            setPendingPlatonusIin(iin);
+
+            return;
+        }
+
+        loadPlatonusProfile(iin);
+    };
+
+    const confirmPlatonusLoad = () => {
+        const iin = pendingPlatonusIin;
+
+        setPendingPlatonusIin("");
+        loadPlatonusProfile(iin);
     };
 
     useEffect(() => {
@@ -1026,6 +1106,23 @@ export default function Edit({
                     : "student-profiles.archive",
                 targetUserId,
             ),
+            {
+                preserveScroll: true,
+            },
+        );
+    };
+
+    const resetStudentPassword = () => {
+        const confirmed = window.confirm(
+            "Пароль студента будет заменен новым временным паролем. Продолжить?",
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        passwordResetForm.post(
+            route("student-profiles.password.reset", targetUserId),
             {
                 preserveScroll: true,
             },
@@ -1206,12 +1303,24 @@ export default function Edit({
                         )}
                     </div>
                     {isManagedProfile && (
-                        <Link
-                            href={route("student-profiles.index")}
-                            className="text-sm font-medium text-[#355da8] hover:text-[#2f5192]"
-                        >
-                            К списку портретов
-                        </Link>
+                        <div className="flex flex-wrap items-center gap-3">
+                            {canResetCurrentStudentPassword && (
+                                <button
+                                    type="button"
+                                    onClick={resetStudentPassword}
+                                    disabled={passwordResetForm.processing}
+                                    className="inline-flex items-center justify-center rounded-md border border-[#c9d8f0] bg-white px-4 py-2 text-sm font-semibold text-[#355da8] transition hover:bg-[#edf3ff] disabled:opacity-50"
+                                >
+                                    Сбросить пароль
+                                </button>
+                            )}
+                            <Link
+                                href={route("student-profiles.index")}
+                                className="text-sm font-medium text-[#355da8] hover:text-[#2f5192]"
+                            >
+                                К списку портретов
+                            </Link>
+                        </div>
                     )}
                 </div>
             }
@@ -1220,6 +1329,8 @@ export default function Edit({
 
             <div className="py-8">
                 <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+                    <TemporaryPasswordAlert flash={flash} />
+
                     {canEditProfile && (
                         <section className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                             <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
@@ -1663,7 +1774,9 @@ export default function Edit({
                                         </div>
                                         <p className="mt-2 text-xs text-gray-500">
                                             После ввода 12 цифр данные
-                                            загрузятся автоматически.
+                                            загрузятся автоматически. Перед
+                                            загрузкой система предупредит, если
+                                            заполненные поля могут измениться.
                                         </p>
                                         {platonusLookup.message && (
                                             <p className="mt-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 ring-1 ring-emerald-100">
@@ -3321,6 +3434,45 @@ export default function Edit({
                     )}
                 </div>
             </div>
+
+            <Modal
+                show={pendingPlatonusIin !== ""}
+                maxWidth="lg"
+                closeable={!platonusLookup.processing}
+                onClose={() => setPendingPlatonusIin("")}
+            >
+                <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                    <h3 className="text-base font-semibold text-[#274f93]">
+                        Подтвердите загрузку
+                    </h3>
+                </div>
+
+                <div className="space-y-3 p-6 text-sm text-gray-700">
+                    <p>{platonusOverwriteWarning}</p>
+                    <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-800 ring-1 ring-amber-100">
+                        Проверьте текущие данные перед продолжением. После
+                        загрузки нужно нажать “Сохранить”, чтобы изменения
+                        записались в систему.
+                    </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                    <SecondaryButton
+                        type="button"
+                        disabled={platonusLookup.processing}
+                        onClick={() => setPendingPlatonusIin("")}
+                    >
+                        Отмена
+                    </SecondaryButton>
+                    <PrimaryButton
+                        type="button"
+                        disabled={platonusLookup.processing}
+                        onClick={confirmPlatonusLoad}
+                    >
+                        Продолжить загрузку
+                    </PrimaryButton>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 }

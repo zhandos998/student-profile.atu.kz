@@ -111,15 +111,36 @@ class LoginRequest extends FormRequest
 
     private function attemptLocalLogin(string $login): bool
     {
-        $isEmail = filter_var($login, FILTER_VALIDATE_EMAIL) !== false;
-        $credentials = [
-            $isEmail ? 'email' : 'phone_normalized' => $isEmail
-                ? Str::lower($login)
-                : Phone::normalize($login),
-            'password' => $this->input('password'),
-        ];
+        $login = trim($login);
 
-        return Auth::attempt($credentials, $this->boolean('remember'));
+        if ($login === '') {
+            return false;
+        }
+
+        $password = $this->input('password');
+        $remember = $this->boolean('remember');
+        $isEmail = filter_var($login, FILTER_VALIDATE_EMAIL) !== false;
+
+        if ($isEmail && Auth::attempt([
+            'email' => Str::lower($login),
+            'password' => $password,
+        ], $remember)) {
+            return true;
+        }
+
+        $phone = Phone::normalize($login);
+
+        if (strlen($phone) >= 10 && Auth::attempt([
+            'phone_normalized' => $phone,
+            'password' => $password,
+        ], $remember)) {
+            return true;
+        }
+
+        return Auth::attempt([
+            'platonus_login' => $this->normalizePlatonusLogin($login),
+            'password' => $password,
+        ], $remember);
     }
 
     private function attemptPlatonusLogin(string $login): ?string
@@ -164,10 +185,19 @@ class LoginRequest extends FormRequest
         return DB::transaction(function () use ($login, $student): User {
             $platonusLogin = $this->normalizePlatonusLogin($login);
             $email = $this->studentEmail($student);
+            $iin = $this->studentIin($student);
             $user = User::query()->where('platonus_login', $platonusLogin)->first();
 
             if (! $user && $email) {
                 $user = User::query()->where('email', $email)->first();
+            }
+
+            if (! $user && $iin) {
+                $user = StudentProfile::query()
+                    ->with('user')
+                    ->where('iin', $iin)
+                    ->first()
+                    ?->user;
             }
 
             if (! $user) {
@@ -287,6 +317,7 @@ class LoginRequest extends FormRequest
     private function syncStudentProfile(User $user, array $student): void
     {
         $profile = StudentProfile::query()->firstOrNew(['user_id' => $user->id]);
+        $iin = $this->studentIin($student);
         $groupName = $this->studentValue($student, ['group', 'group_name', 'student_group', 'groupName', 'group_title', 'education.group_name']);
         $faculty = $this->normalizeFaculty($this->studentValue($student, [
             'faculty',
@@ -302,13 +333,19 @@ class LoginRequest extends FormRequest
             $profile->student_status = StudentProfile::STUDENT_STATUS_ACTIVE;
         }
 
+        if ($iin && StudentProfile::query()->where('iin', $iin)->where('user_id', '<>', $user->id)->exists()) {
+            throw ValidationException::withMessages([
+                $this->loginField() => trans('auth.iin_already_used'),
+            ]);
+        }
+
         $data = [
             'full_name' => $this->studentFullName($student) ?: $user->name,
             'birth_date' => $this->studentValue($student, ['birth_date', 'birthday', 'date_of_birth']),
             'study_form' => $this->studentValue($student, ['study_form', 'education_form', 'form_of_study', 'education.study_form_ru']),
             'nationality' => $this->studentNationality($student),
             'citizenship' => $this->studentCitizenship($student),
-            'iin' => $this->studentValue($student, ['iin', 'IIN', 'iin_number', 'individual_identification_number']),
+            'iin' => $iin,
             'identity_document_number' => $this->studentValue($student, ['identity_document_number', 'identity_number', 'document_number']),
             'gender' => $this->studentGender($student),
             'faculty' => $faculty,
@@ -479,7 +516,15 @@ class LoginRequest extends FormRequest
      */
     private function studentIin(array $student): ?string
     {
-        return $this->studentValue($student, ['iin', 'IIN', 'iin_number', 'individual_identification_number']);
+        $iin = $this->studentValue($student, ['iin', 'IIN', 'iin_number', 'individual_identification_number']);
+
+        if (! $iin) {
+            return null;
+        }
+
+        $iin = preg_replace('/\D/', '', $iin) ?? '';
+
+        return strlen($iin) === 12 ? $iin : null;
     }
 
     /**

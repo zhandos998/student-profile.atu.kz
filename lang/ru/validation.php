@@ -3,6 +3,7 @@
 return [
     'required' => 'Поле ":attribute" обязательно для заполнения.',
     'string' => 'Поле ":attribute" должно быть строкой.',
+    'digits' => 'Поле ":attribute" должно содержать :digits цифр.',
     'email' => 'Поле ":attribute" должно быть корректным email-адресом.',
     'confirmed' => 'Подтверждение поля ":attribute" не совпадает.',
     'min' => [
@@ -19,5 +20,6 @@ return [
         'password' => 'пароль',
         'name' => 'ФИО',
         'phone' => 'номер телефона',
+        'iin' => 'ИИН',
     ],
 ];

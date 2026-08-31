@@ -3,6 +3,7 @@
 return [
     'required' => '":attribute" өрісін толтыру міндетті.',
     'string' => '":attribute" өрісі мәтін болуы керек.',
+    'digits' => '":attribute" өрісі :digits цифрдан тұруы керек.',
     'email' => '":attribute" өрісі дұрыс email мекенжайы болуы керек.',
     'confirmed' => '":attribute" өрісінің растауы сәйкес келмейді.',
     'min' => [
@@ -19,5 +20,6 @@ return [
         'password' => 'құпиясөз',
         'name' => 'Аты-жөні',
         'phone' => 'телефон нөмірі',
+        'iin' => 'ЖСН',
     ],
 ];

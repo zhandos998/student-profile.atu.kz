@@ -12,6 +12,7 @@ use App\Support\StudentProfileOptions;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -57,6 +58,7 @@ class StudentProfileManagementTest extends TestCase
                 ->where('filters.student_group_id', (string) $group->id)
                 ->has('availableGroups', 1)
                 ->has('profileStatusOptions', 5)
+                ->where('canResetStudentPasswords', true)
                 ->has('students.data', 1)
                 ->where('students.data.0.fullName', 'Aidana Sadykova')
                 ->where('students.data.0.profileStatus', StudentProfile::STATUS_DRAFT)
@@ -640,6 +642,93 @@ class StudentProfileManagementTest extends TestCase
 
         $this->assertSame('Project contest', $achievement->title);
         Storage::disk('public')->assertExists($achievement->document_path);
+    }
+
+    public function test_advisor_can_reset_accessible_student_password(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
+        $student = $this->userWithRole(Role::STUDENT, 'Student', [
+            'email' => 'reset.student@example.com',
+            'password' => 'old-password',
+            'platonus_login' => 'ibiken_turar',
+        ]);
+        $group = StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-RESET',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'full_name' => 'Reset Student',
+        ]);
+
+        $response = $this->actingAs($advisor)
+            ->post(route('student-profiles.password.reset', $student))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('temporary_password')
+            ->assertSessionHas('temporary_password_user.id', $student->id)
+            ->assertRedirect();
+
+        $temporaryPassword = $response->getSession()->get('temporary_password');
+
+        $this->assertIsString($temporaryPassword);
+        $this->assertTrue(Hash::check($temporaryPassword, $student->refresh()->password));
+        $this->assertFalse(Hash::check('old-password', $student->password));
+    }
+
+    public function test_group_leader_cannot_reset_student_password_from_other_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Curator');
+        $leader = $this->userWithRole(Role::GROUP_LEADER, 'Group leader');
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $ownGroup = StudentGroup::query()->create([
+            'curator_id' => $curator->id,
+            'leader_id' => $leader->id,
+            'faculty' => StudentProfileOptions::facultyNames()[3],
+            'name' => 'IS-OWN',
+        ]);
+        $otherGroup = StudentGroup::query()->create([
+            'curator_id' => $curator->id,
+            'faculty' => StudentProfileOptions::facultyNames()[4],
+            'name' => 'TPP-OTHER',
+        ]);
+
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $otherGroup->id,
+            'faculty' => $otherGroup->faculty,
+            'group_name' => $otherGroup->name,
+            'full_name' => 'Other Group Student',
+        ]);
+
+        $this->assertNotNull($ownGroup->id);
+
+        $this->actingAs($leader)
+            ->post(route('student-profiles.password.reset', $student))
+            ->assertForbidden();
+    }
+
+    public function test_student_cannot_reset_student_password(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'full_name' => 'Own Student',
+        ]);
+
+        $this->actingAs($student)
+            ->post(route('student-profiles.password.reset', $student))
+            ->assertForbidden();
     }
 
     public function test_advisor_is_redirected_from_own_student_profile_route(): void

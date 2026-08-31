@@ -18,4 +18,5 @@ return [
     'platonus_student_full_not_configured' => 'Студенттің толық деректері API-і бапталмаған.',
     'platonus_student_full_connection_failed' => 'Студенттің толық деректері API-іне қосылу мүмкін болмады.',
     'platonus_student_full_request_failed' => 'Студенттің толық деректерін сұрау кезінде қате пайда болды.',
+    'iin_already_used' => 'Бұл ЖСН басқа пайдаланушыға тіркелген.',
 ];

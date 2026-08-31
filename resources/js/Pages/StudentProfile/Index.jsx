@@ -1,5 +1,5 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, router } from "@inertiajs/react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
 import { useState } from "react";
 
 const inputClass =
@@ -33,6 +33,44 @@ function isArchivedStudent(student) {
     );
 }
 
+function TemporaryPasswordAlert({ flash }) {
+    if (!flash?.temporaryPassword) {
+        return null;
+    }
+
+    const user = flash.temporaryPasswordUser || {};
+
+    return (
+        <section className="overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm">
+            <div className="border-b border-emerald-200 bg-emerald-100 px-5 py-4">
+                <h3 className="text-base font-semibold text-emerald-900">
+                    Пароль сброшен
+                </h3>
+            </div>
+            <div className="space-y-3 p-5 text-sm text-emerald-900">
+                <p>
+                    Локальный пароль студента{" "}
+                    <span className="font-semibold">{user.name}</span>{" "}
+                    обновлен. Студент может войти через email, телефон или логин
+                    Платонуса и этот временный пароль.
+                </p>
+                <div className="inline-flex flex-wrap items-center gap-3 rounded-md bg-white px-4 py-3 ring-1 ring-emerald-200">
+                    <span className="text-xs font-semibold uppercase text-emerald-700">
+                        Временный пароль
+                    </span>
+                    <code className="rounded bg-emerald-900 px-3 py-1 text-sm font-semibold text-white">
+                        {flash.temporaryPassword}
+                    </code>
+                </div>
+                <p className="text-xs text-emerald-800">
+                    Пароль показан один раз. Передайте его студенту и попросите
+                    сменить пароль в профиле.
+                </p>
+            </div>
+        </section>
+    );
+}
+
 export default function Index({
     students,
     filters,
@@ -41,7 +79,10 @@ export default function Index({
     profileStatusOptions = [],
     canCreateStudentProfiles = true,
     canArchiveStudentProfiles = false,
+    canResetStudentPasswords = false,
 }) {
+    const { auth = {}, flash = {} } = usePage().props;
+    const currentUserId = auth.user?.id;
     const normalizedFilters = {
         search: "",
         faculty: "",
@@ -163,6 +204,24 @@ export default function Index({
         );
     };
 
+    const resetPassword = (student) => {
+        const confirmed = window.confirm(
+            "Пароль студента будет заменен новым временным паролем. Продолжить?",
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        router.post(
+            route("student-profiles.password.reset", student.id),
+            {},
+            {
+                preserveScroll: true,
+            },
+        );
+    };
+
     return (
         <AuthenticatedLayout
             header={
@@ -191,6 +250,8 @@ export default function Index({
 
             <div className="bg-[#f4f7fc] py-8">
                 <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+                    <TemporaryPasswordAlert flash={flash} />
+
                     <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
                         <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
                             <h3 className="text-base font-semibold text-[#274f93]">
@@ -442,6 +503,21 @@ export default function Index({
                                                 >
                                                     Открыть
                                                 </Link>
+                                                {canResetStudentPasswords &&
+                                                    student.id !==
+                                                        currentUserId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            resetPassword(
+                                                                student,
+                                                            )
+                                                        }
+                                                        className="inline-flex items-center justify-center rounded-md border border-[#c9d8f0] bg-white px-4 py-2 text-sm font-semibold text-[#355da8] transition hover:bg-[#edf3ff]"
+                                                    >
+                                                        Сбросить пароль
+                                                    </button>
+                                                )}
                                                 {canArchiveStudentProfiles &&
                                                     !isArchived && (
                                                         <button

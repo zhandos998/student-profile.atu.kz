@@ -55,6 +55,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/student-profiles/{student}/edit', [StudentProfileController::class, 'editManaged'])->name('student-profiles.edit');
     Route::post('/student-profiles/{student}', [StudentProfileController::class, 'updateManaged'])->name('student-profiles.update');
     Route::post('/student-profiles/{student}/status', [StudentProfileController::class, 'updateStatus'])->name('student-profiles.status.update');
+    Route::post('/student-profiles/{student}/password/reset', [StudentProfileController::class, 'resetPassword'])->name('student-profiles.password.reset');
     Route::post('/student-profiles/{student}/archive', [StudentProfileController::class, 'archive'])->name('student-profiles.archive');
     Route::post('/student-profiles/{student}/restore', [StudentProfileController::class, 'restore'])->name('student-profiles.restore');
     Route::post('/student-profiles/{student}/review-block', [StudentProfileController::class, 'updateReviewBlock'])->name('student-profiles.review-block.update');

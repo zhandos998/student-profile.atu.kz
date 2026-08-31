@@ -142,6 +142,14 @@ class User extends Authenticatable
         return $this->hasAnyRole([Role::ADMINISTRATOR_DIT]);
     }
 
+    public function canResetStudentPasswords(): bool
+    {
+        return $this->hasAnyRole([
+            Role::ADMINISTRATOR_DIT,
+            ...self::GROUP_DATA_MANAGER_ROLES,
+        ]);
+    }
+
     public function canImpersonateUsers(): bool
     {
         return $this->canManageUsers();

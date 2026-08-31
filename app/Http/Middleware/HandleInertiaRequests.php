@@ -66,6 +66,11 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
             ],
             'csrfToken' => csrf_token(),
+            'flash' => [
+                'status' => $request->session()->get('status'),
+                'temporaryPassword' => $request->session()->get('temporary_password'),
+                'temporaryPasswordUser' => $request->session()->get('temporary_password_user'),
+            ],
             'locale' => app()->getLocale(),
             'availableLocales' => collect(config('locales.supported', []))
                 ->map(fn (string $label, string $value): array => [

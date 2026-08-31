@@ -128,6 +128,7 @@ class StudentProfileController extends Controller
             'profileStatusOptions' => $this->profileStatusOptions(),
             'canCreateStudentProfiles' => $request->user()?->canEditStudentProfileData() ?? false,
             'canArchiveStudentProfiles' => $request->user()?->canEditStudentProfileData() ?? false,
+            'canResetStudentPasswords' => $request->user()?->canResetStudentPasswords() ?? false,
         ]);
     }
 
@@ -236,6 +237,32 @@ class StudentProfileController extends Controller
         return back()->with('status', 'student-profile-status-updated');
     }
 
+    public function resetPassword(Request $request, User $student): RedirectResponse
+    {
+        abort_unless($request->user()?->canResetStudentPasswords(), 403);
+        abort_unless($student->loadMissing('role')->hasStudentDataRole(), 404);
+        abort_unless(StudentProfileAccess::canAccessStudent($request->user(), $student), 403);
+        abort_if($request->user()->is($student), 422);
+
+        $temporaryPassword = $this->temporaryPassword();
+
+        $student->forceFill([
+            'password' => $temporaryPassword,
+            'remember_token' => Str::random(60),
+        ])->save();
+
+        return back()
+            ->with('status', 'student-password-reset')
+            ->with('temporary_password', $temporaryPassword)
+            ->with('temporary_password_user', [
+                'id' => $student->id,
+                'name' => $student->name,
+                'email' => $student->email,
+                'phone' => $student->phone,
+                'platonusLogin' => $student->platonus_login,
+            ]);
+    }
+
     public function archive(Request $request, User $student): RedirectResponse
     {
         abort_unless($request->user()?->canEditStudentProfileData(), 403);
@@ -332,7 +359,15 @@ class StudentProfileController extends Controller
         bool $enforceManagedGroupAccess = false,
     ): void
     {
-        $validated = $request->validate($this->profileValidationRules($includeServiceFields, $includeLifecycleFields));
+        $existingProfileId = StudentProfile::query()
+            ->where('user_id', $user->id)
+            ->value('id');
+
+        $validated = $request->validate($this->profileValidationRules(
+            $includeServiceFields,
+            $includeLifecycleFields,
+            $existingProfileId,
+        ));
         $studentGroup = $this->selectedStudentGroup($validated);
         $this->ensureGroupNameIsKnown($validated, $studentGroup);
 
@@ -535,8 +570,18 @@ class StudentProfileController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function profileValidationRules(bool $includeServiceFields = true, bool $includeLifecycleFields = false): array
+    private function profileValidationRules(
+        bool $includeServiceFields = true,
+        bool $includeLifecycleFields = false,
+        ?int $ignoreProfileId = null,
+    ): array
     {
+        $iinUniqueRule = Rule::unique('student_profiles', 'iin');
+
+        if ($ignoreProfileId !== null) {
+            $iinUniqueRule->ignore($ignoreProfileId);
+        }
+
         $rules = [
             'full_name' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date'],
@@ -546,7 +591,7 @@ class StudentProfileController extends Controller
             'military_department_status' => ['nullable', Rule::in(StudentProfileOptions::values(StudentProfileOptions::MILITARY_DEPARTMENT_STATUSES))],
             'military_department_place' => ['nullable', 'string', 'max:255'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'iin' => ['nullable', 'string', 'size:12'],
+            'iin' => ['nullable', 'digits:12', $iinUniqueRule],
             'identity_document_number' => ['nullable', 'string', 'max:100'],
             'identity_card' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'gender' => ['nullable', Rule::in(StudentProfileOptions::values(StudentProfileOptions::GENDERS))],
@@ -738,6 +783,7 @@ class StudentProfileController extends Controller
             'canEditHealthPassport' => $canEditHealthPassport,
             'canViewPsychotestResults' => $canViewPsychotestResults,
             'canArchiveStudentProfile' => $managed && $canEditProfile,
+            'canResetStudentPassword' => $managed && ($viewer?->canResetStudentPasswords() ?? false),
             'healthPassportUpdateUrl' => $canEditHealthPassport
                 ? route('student-profiles.health-passport.update', $user)
                 : null,
@@ -826,6 +872,11 @@ class StudentProfileController extends Controller
             'completion' => $this->profileCompletion($profile),
             'editUrl' => route('student-profiles.edit', $student),
         ];
+    }
+
+    private function temporaryPassword(): string
+    {
+        return 'ATU-'.Str::upper(Str::random(4)).'-'.random_int(1000, 9999);
     }
 
     private function profileCompletion(?StudentProfile $profile): int
