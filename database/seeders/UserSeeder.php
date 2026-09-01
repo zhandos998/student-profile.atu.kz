@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Phone;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -89,18 +90,85 @@ class UserSeeder extends Seeder
                 'role' => Role::STUDENT,
                 'position' => 'Студент',
             ],
+            [
+                'name' => 'Куратор ФИТ',
+                'email' => 'curator.fit@atu.kz',
+                'phone' => '+7 701 100 00 01',
+                'platonus_login' => 'curator_fit',
+                'role' => Role::CURATOR,
+                'position' => 'Куратор / эдвайзер',
+            ],
+            [
+                'name' => 'Куратор ФЭБ',
+                'email' => 'curator.feb@atu.kz',
+                'phone' => '+7 701 100 00 02',
+                'platonus_login' => 'curator_feb',
+                'role' => Role::CURATOR,
+                'position' => 'Куратор / эдвайзер',
+            ],
+            [
+                'name' => 'Эдвайзер пищевых технологий',
+                'email' => 'advisor.food@atu.kz',
+                'phone' => '+7 701 100 00 03',
+                'platonus_login' => 'advisor_food',
+                'role' => Role::ADVISOR,
+                'position' => 'Куратор / эдвайзер',
+            ],
+            [
+                'name' => 'Староста ИС-23-1',
+                'email' => 'leader.is231@atu.kz',
+                'phone' => '+7 701 100 00 04',
+                'platonus_login' => 'leader_is231',
+                'role' => Role::GROUP_LEADER,
+                'position' => 'Староста',
+            ],
+            [
+                'name' => 'Айдана Садыкова',
+                'email' => 'aidana.sadykova@atu.kz',
+                'phone' => '+7 701 100 00 05',
+                'platonus_login' => 'aidana_sadykova',
+                'role' => Role::STUDENT,
+                'position' => 'Студент',
+            ],
+            [
+                'name' => 'Бекзат Нурланов',
+                'email' => 'bekzat.nurlanov@atu.kz',
+                'phone' => '+7 701 100 00 06',
+                'platonus_login' => 'bekzat_nurlanov',
+                'role' => Role::STUDENT,
+                'position' => 'Студент',
+            ],
+            [
+                'name' => 'Мадина Ермекова',
+                'email' => 'madina.ermekova@atu.kz',
+                'phone' => '+7 701 100 00 07',
+                'platonus_login' => 'madina_ermekova',
+                'role' => Role::STUDENT,
+                'position' => 'Студент',
+            ],
         ];
 
         foreach ($users as $definition) {
             $user = User::query()->firstOrNew(['email' => $definition['email']]);
 
-            $user->fill([
+            $attributes = [
                 'name' => $definition['name'],
                 'role_id' => $roles[$definition['role']] ?? null,
                 'position' => $definition['position'],
                 'email_verified_at' => $user->email_verified_at ?? now(),
                 'password' => Hash::make('password'),
-            ]);
+            ];
+
+            if (array_key_exists('phone', $definition)) {
+                $attributes['phone'] = $definition['phone'];
+                $attributes['phone_normalized'] = Phone::normalize($definition['phone']);
+            }
+
+            if (array_key_exists('platonus_login', $definition)) {
+                $attributes['platonus_login'] = $definition['platonus_login'];
+            }
+
+            $user->fill($attributes);
 
             $user->save();
         }

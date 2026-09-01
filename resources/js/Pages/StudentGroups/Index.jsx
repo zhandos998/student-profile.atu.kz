@@ -44,6 +44,9 @@ export default function Index({
     const [errors, setErrors] = useState({});
     const [processing, setProcessing] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [groupToDelete, setGroupToDelete] = useState(null);
+    const [deleteErrors, setDeleteErrors] = useState({});
+    const [deleteProcessing, setDeleteProcessing] = useState(false);
 
     const closeCreateModal = () => {
         if (processing) {
@@ -52,6 +55,15 @@ export default function Index({
 
         setShowCreateModal(false);
         setErrors({});
+    };
+
+    const closeDeleteModal = () => {
+        if (deleteProcessing) {
+            return;
+        }
+
+        setGroupToDelete(null);
+        setDeleteErrors({});
     };
 
     const submit = (event) => {
@@ -67,6 +79,23 @@ export default function Index({
                 setShowCreateModal(false);
             },
             onFinish: () => setProcessing(false),
+        });
+    };
+
+    const destroyGroup = () => {
+        if (!groupToDelete) {
+            return;
+        }
+
+        router.delete(route("groups.destroy", groupToDelete.id), {
+            preserveScroll: true,
+            onStart: () => setDeleteProcessing(true),
+            onError: (validationErrors) => setDeleteErrors(validationErrors),
+            onSuccess: () => {
+                setDeleteErrors({});
+                setGroupToDelete(null);
+            },
+            onFinish: () => setDeleteProcessing(false),
         });
     };
 
@@ -260,12 +289,42 @@ export default function Index({
                                                 </div>
                                             </div>
 
-                                            <Link
-                                                href={group.passport_url}
-                                                className="mt-4 inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192]"
-                                            >
-                                                Открыть соцпаспорт
-                                            </Link>
+                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                <Link
+                                                    href={group.passport_url}
+                                                    className="inline-flex flex-1 items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192]"
+                                                >
+                                                    Открыть соцпаспорт
+                                                </Link>
+                                                {(group.can_delete ||
+                                                    group.delete_blocked_reason) && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={
+                                                            !group.can_delete
+                                                        }
+                                                        title={
+                                                            group.delete_blocked_reason ||
+                                                            ""
+                                                        }
+                                                        onClick={() =>
+                                                            setGroupToDelete(
+                                                                group,
+                                                            )
+                                                        }
+                                                        className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                                                    >
+                                                        Удалить
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {group.delete_blocked_reason && (
+                                                <p className="mt-2 text-xs text-gray-500">
+                                                    {
+                                                        group.delete_blocked_reason
+                                                    }
+                                                </p>
+                                            )}
                                         </div>
                                     </article>
                                 ))}
@@ -352,6 +411,52 @@ export default function Index({
                         </PrimaryButton>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal
+                show={Boolean(groupToDelete)}
+                maxWidth="lg"
+                closeable={!deleteProcessing}
+                onClose={closeDeleteModal}
+            >
+                <div className="border-b border-red-100 bg-red-50 px-6 py-4">
+                    <h3 className="text-base font-semibold text-red-800">
+                        Удалить группу
+                    </h3>
+                    <p className="mt-1 text-sm text-red-700">
+                        {groupToDelete?.name}
+                    </p>
+                </div>
+
+                <div className="space-y-3 p-6 text-sm text-gray-700">
+                    <p>
+                        Группа будет удалена вместе с социальным паспортом. Это
+                        действие нельзя отменить.
+                    </p>
+                    {deleteErrors.group_delete && (
+                        <p className="rounded-md bg-red-50 px-3 py-2 text-red-700 ring-1 ring-red-100">
+                            {deleteErrors.group_delete}
+                        </p>
+                    )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                    <SecondaryButton
+                        type="button"
+                        disabled={deleteProcessing}
+                        onClick={closeDeleteModal}
+                    >
+                        Отмена
+                    </SecondaryButton>
+                    <button
+                        type="button"
+                        disabled={deleteProcessing}
+                        onClick={destroyGroup}
+                        className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                    >
+                        Удалить
+                    </button>
+                </div>
             </Modal>
         </AuthenticatedLayout>
     );

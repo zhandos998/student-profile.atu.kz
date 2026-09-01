@@ -115,6 +115,74 @@ class GroupSocialPassportTest extends TestCase
         ]);
     }
 
+    public function test_curator_can_delete_empty_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = $this->userWithRole(Role::CURATOR, 'Curator');
+        $group = $this->studentGroup($user, 'IS-DELETE');
+
+        GroupSocialPassport::query()->create([
+            'user_id' => $user->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+        ]);
+
+        $this->actingAs($user)
+            ->delete(route('groups.destroy', $group))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('groups.index'));
+
+        $this->assertDatabaseMissing('student_groups', [
+            'id' => $group->id,
+        ]);
+        $this->assertDatabaseMissing('group_social_passports', [
+            'student_group_id' => $group->id,
+        ]);
+    }
+
+    public function test_curator_cannot_delete_group_with_students(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = $this->userWithRole(Role::CURATOR, 'Curator');
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = $this->studentGroup($user, 'IS-WITH-STUDENTS');
+
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'full_name' => 'Student In Group',
+        ]);
+
+        $this->actingAs($user)
+            ->delete(route('groups.destroy', $group))
+            ->assertSessionHasErrors('group_delete');
+
+        $this->assertDatabaseHas('student_groups', [
+            'id' => $group->id,
+        ]);
+    }
+
+    public function test_group_leader_cannot_delete_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $leader = $this->userWithRole(Role::GROUP_LEADER, 'Group leader');
+        $group = $this->studentGroup($leader, 'LEADER-GROUP');
+
+        $this->actingAs($leader)
+            ->delete(route('groups.destroy', $group))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('student_groups', [
+            'id' => $group->id,
+        ]);
+    }
+
     public function test_group_social_passport_uses_faculty_deputy_dean_defaults(): void
     {
         $this->seed(RoleSeeder::class);

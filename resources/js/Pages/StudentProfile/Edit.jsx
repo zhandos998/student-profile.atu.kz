@@ -2049,6 +2049,9 @@ export default function Edit({
                                                 )
                                             }
                                         />
+                                        <p className="mt-2 text-xs text-gray-500">
+                                            Если вы не нашли свою группу, обратитесь к куратору/эдвайзеру.
+                                        </p>
                                     </Field>
 
                                     <Field

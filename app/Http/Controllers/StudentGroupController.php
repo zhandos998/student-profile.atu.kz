@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\GroupSocialPassport;
+use App\Models\Role;
 use App\Models\StudentGroup;
 use App\Models\User;
 use App\Support\FacultyDeputyDeanContacts;
@@ -28,7 +29,10 @@ class StudentGroupController extends Controller
 
         $groups = $this->accessibleGroups($request)
             ->with('curator:id,name,email')
-            ->withCount(['studentProfiles' => fn (Builder $query) => $query->active()])
+            ->withCount([
+                'studentProfiles' => fn (Builder $query) => $query->active(),
+                'studentProfiles as total_student_profiles_count',
+            ])
             ->when($filters['faculty'] ?? null, fn (Builder $query, string $faculty) => $query->where('faculty', $faculty))
             ->when($filters['course'] ?? null, fn (Builder $query, int $course) => $query
                 ->whereHas('studentProfiles', fn (Builder $query) => $query->active()->where('course', $course)))
@@ -36,14 +40,23 @@ class StudentGroupController extends Controller
             ->orderBy('faculty')
             ->orderBy('name')
             ->get()
-            ->map(fn (StudentGroup $group): array => [
-                'id' => $group->id,
-                'name' => $group->name,
-                'faculty' => $group->faculty,
-                'students_count' => $group->student_profiles_count,
-                'curator_name' => $group->curator?->name,
-                'passport_url' => route('groups.social-passport.edit', $group),
-            ]);
+            ->map(function (StudentGroup $group) use ($request): array {
+                $canRequestDelete = $this->canDeleteGroup($request, $group);
+                $hasStudents = (int) $group->total_student_profiles_count > 0;
+
+                return [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'faculty' => $group->faculty,
+                    'students_count' => $group->student_profiles_count,
+                    'curator_name' => $group->curator?->name,
+                    'passport_url' => route('groups.social-passport.edit', $group),
+                    'can_delete' => $canRequestDelete && ! $hasStudents,
+                    'delete_blocked_reason' => $canRequestDelete && $hasStudents
+                        ? 'Удаление недоступно: в группе есть студенты.'
+                        : null,
+                ];
+            });
 
         return Inertia::render('StudentGroups/Index', [
             'groups' => $groups,
@@ -96,6 +109,24 @@ class StudentGroupController extends Controller
             ->with('status', 'group-created');
     }
 
+    public function destroy(Request $request, StudentGroup $studentGroup): RedirectResponse
+    {
+        abort_unless($this->canDeleteGroup($request, $studentGroup), 403);
+
+        if ($studentGroup->studentProfiles()->exists()) {
+            return back()->withErrors([
+                'group_delete' => 'Нельзя удалить группу, пока в ней есть студенты.',
+            ]);
+        }
+
+        $studentGroup->socialPassport()->delete();
+        $studentGroup->delete();
+
+        return redirect()
+            ->route('groups.index')
+            ->with('status', 'group-deleted');
+    }
+
     /**
      * @return Builder<StudentGroup>
      */
@@ -136,5 +167,25 @@ class StudentGroupController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    private function canDeleteGroup(Request $request, StudentGroup $studentGroup): bool
+    {
+        $user = $request->user();
+        $user?->loadMissing('role');
+
+        if (! $user?->canViewGroupSocialPassport()) {
+            return false;
+        }
+
+        if ($user->canViewAllStudentData()) {
+            return true;
+        }
+
+        if ($user->hasAnyRole([Role::GROUP_LEADER])) {
+            return false;
+        }
+
+        return $studentGroup->curator_id === $user->id;
     }
 }

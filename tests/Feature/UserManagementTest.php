@@ -42,6 +42,29 @@ class UserManagementTest extends TestCase
             );
     }
 
+    public function test_users_pagination_labels_are_translated(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $dit = $this->userWithRole(Role::ADMINISTRATOR_DIT);
+        $studentRole = Role::query()->where('slug', Role::STUDENT)->firstOrFail();
+
+        User::factory()
+            ->count(25)
+            ->create([
+                'role_id' => $studentRole->id,
+                'position' => $studentRole->name,
+            ]);
+
+        $this->actingAs($dit)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('users.links.0.label', '&laquo; Назад')
+                ->where('users.links.3.label', 'Далее &raquo;')
+            );
+    }
+
     public function test_student_cannot_view_users_page(): void
     {
         $this->seed(RoleSeeder::class);
