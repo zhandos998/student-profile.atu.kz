@@ -70,6 +70,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/groups', [StudentGroupController::class, 'index'])->name('groups.index');
     Route::post('/groups', [StudentGroupController::class, 'store'])->name('groups.store');
+    Route::patch('/groups/{studentGroup}', [StudentGroupController::class, 'update'])->name('groups.update');
     Route::delete('/groups/{studentGroup}', [StudentGroupController::class, 'destroy'])->name('groups.destroy');
     Route::get('/groups/{studentGroup}/social-passport', [GroupSocialPassportController::class, 'editGroup'])->name('groups.social-passport.edit');
     Route::post('/groups/{studentGroup}/social-passport', [GroupSocialPassportController::class, 'updateGroup'])->name('groups.social-passport.update');

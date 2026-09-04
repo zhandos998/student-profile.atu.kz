@@ -44,6 +44,10 @@ export default function Index({
     const [errors, setErrors] = useState({});
     const [processing, setProcessing] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [groupToRename, setGroupToRename] = useState(null);
+    const [renameData, setRenameData] = useState({ name: "" });
+    const [renameErrors, setRenameErrors] = useState({});
+    const [renameProcessing, setRenameProcessing] = useState(false);
     const [groupToDelete, setGroupToDelete] = useState(null);
     const [deleteErrors, setDeleteErrors] = useState({});
     const [deleteProcessing, setDeleteProcessing] = useState(false);
@@ -55,6 +59,21 @@ export default function Index({
 
         setShowCreateModal(false);
         setErrors({});
+    };
+
+    const openRenameModal = (group) => {
+        setGroupToRename(group);
+        setRenameData({ name: group.name || "" });
+        setRenameErrors({});
+    };
+
+    const closeRenameModal = () => {
+        if (renameProcessing) {
+            return;
+        }
+
+        setGroupToRename(null);
+        setRenameErrors({});
     };
 
     const closeDeleteModal = () => {
@@ -79,6 +98,25 @@ export default function Index({
                 setShowCreateModal(false);
             },
             onFinish: () => setProcessing(false),
+        });
+    };
+
+    const renameGroup = (event) => {
+        event.preventDefault();
+
+        if (!groupToRename) {
+            return;
+        }
+
+        router.patch(route("groups.update", groupToRename.id), renameData, {
+            preserveScroll: true,
+            onStart: () => setRenameProcessing(true),
+            onError: (validationErrors) => setRenameErrors(validationErrors),
+            onSuccess: () => {
+                setRenameErrors({});
+                setGroupToRename(null);
+            },
+            onFinish: () => setRenameProcessing(false),
         });
     };
 
@@ -296,6 +334,19 @@ export default function Index({
                                                 >
                                                     Открыть соцпаспорт
                                                 </Link>
+                                                {group.can_rename && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            openRenameModal(
+                                                                group,
+                                                            )
+                                                        }
+                                                        className="inline-flex items-center justify-center rounded-md border border-[#c9d8f0] bg-white px-4 py-2 text-sm font-semibold text-[#355da8] transition hover:bg-[#edf3ff]"
+                                                    >
+                                                        Переименовать
+                                                    </button>
+                                                )}
                                                 {(group.can_delete ||
                                                     group.delete_blocked_reason) && (
                                                     <button
@@ -408,6 +459,59 @@ export default function Index({
                         </SecondaryButton>
                         <PrimaryButton disabled={processing}>
                             Создать
+                        </PrimaryButton>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal
+                show={Boolean(groupToRename)}
+                maxWidth="lg"
+                closeable={!renameProcessing}
+                onClose={closeRenameModal}
+            >
+                <form onSubmit={renameGroup}>
+                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                        <h3 className="text-base font-semibold text-[#274f93]">
+                            Переименовать группу
+                        </h3>
+                        <p className="mt-1 text-sm text-[#426aa8]">
+                            Новое название будет применено к группе, социальному
+                            паспорту и карточкам студентов этой группы.
+                        </p>
+                    </div>
+
+                    <div className="space-y-5 p-6">
+                        <div>
+                            <InputLabel value="Название группы" />
+                            <TextInput
+                                value={renameData.name}
+                                onChange={(event) =>
+                                    setRenameData({
+                                        name: event.target.value,
+                                    })
+                                }
+                                className="mt-1 block w-full"
+                                placeholder="Например, IS-23-1"
+                                autoFocus
+                            />
+                            <InputError
+                                message={renameErrors.name}
+                                className="mt-2"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                        <SecondaryButton
+                            type="button"
+                            disabled={renameProcessing}
+                            onClick={closeRenameModal}
+                        >
+                            Отмена
+                        </SecondaryButton>
+                        <PrimaryButton disabled={renameProcessing}>
+                            Сохранить
                         </PrimaryButton>
                     </div>
                 </form>

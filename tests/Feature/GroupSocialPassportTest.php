@@ -115,6 +115,69 @@ class GroupSocialPassportTest extends TestCase
         ]);
     }
 
+    public function test_advisor_can_rename_own_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = $this->studentGroup($advisor, 'OLD-23-1');
+
+        GroupSocialPassport::query()->create([
+            'user_id' => $advisor->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => 'OLD-23-1',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => 'OLD-23-1',
+            'full_name' => 'Student In Group',
+        ]);
+
+        $this->actingAs($advisor)
+            ->patch(route('groups.update', $group), [
+                'name' => 'NEW-23-1',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('student_groups', [
+            'id' => $group->id,
+            'name' => 'NEW-23-1',
+        ]);
+        $this->assertDatabaseHas('group_social_passports', [
+            'student_group_id' => $group->id,
+            'group_name' => 'NEW-23-1',
+        ]);
+        $this->assertDatabaseHas('student_profiles', [
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'group_name' => 'NEW-23-1',
+        ]);
+    }
+
+    public function test_group_leader_cannot_rename_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $leader = $this->userWithRole(Role::GROUP_LEADER, 'Group leader');
+        $group = $this->studentGroup($leader, 'LEADER-OLD');
+
+        $this->actingAs($leader)
+            ->patch(route('groups.update', $group), [
+                'name' => 'LEADER-NEW',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('student_groups', [
+            'id' => $group->id,
+            'name' => 'LEADER-OLD',
+        ]);
+    }
+
     public function test_curator_can_delete_empty_group(): void
     {
         $this->seed(RoleSeeder::class);

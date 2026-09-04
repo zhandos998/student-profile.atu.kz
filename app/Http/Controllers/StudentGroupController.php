@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\GroupSocialPassport;
 use App\Models\Role;
 use App\Models\StudentGroup;
+use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\FacultyDeputyDeanContacts;
 use App\Support\StudentProfileOptions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -51,6 +53,7 @@ class StudentGroupController extends Controller
                     'students_count' => $group->student_profiles_count,
                     'curator_name' => $group->curator?->name,
                     'passport_url' => route('groups.social-passport.edit', $group),
+                    'can_rename' => $this->canRenameGroup($request, $group),
                     'can_delete' => $canRequestDelete && ! $hasStudents,
                     'delete_blocked_reason' => $canRequestDelete && $hasStudents
                         ? 'Удаление недоступно: в группе есть студенты.'
@@ -107,6 +110,45 @@ class StudentGroupController extends Controller
         return redirect()
             ->route('groups.social-passport.edit', $group)
             ->with('status', 'group-created');
+    }
+
+    public function update(Request $request, StudentGroup $studentGroup): RedirectResponse
+    {
+        abort_unless($this->canRenameGroup($request, $studentGroup), 403);
+
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('student_groups', 'name')->ignore($studentGroup->id),
+            ],
+        ]);
+
+        $oldName = $studentGroup->name;
+        $newName = $validated['name'];
+
+        DB::transaction(function () use ($studentGroup, $oldName, $newName): void {
+            $studentGroup->update([
+                'name' => $newName,
+            ]);
+
+            GroupSocialPassport::query()
+                ->where('student_group_id', $studentGroup->id)
+                ->orWhere('group_name', $oldName)
+                ->update([
+                    'group_name' => $newName,
+                ]);
+
+            StudentProfile::query()
+                ->where('student_group_id', $studentGroup->id)
+                ->orWhere('group_name', $oldName)
+                ->update([
+                    'group_name' => $newName,
+                ]);
+        });
+
+        return back()->with('status', 'group-renamed');
     }
 
     public function destroy(Request $request, StudentGroup $studentGroup): RedirectResponse
@@ -167,6 +209,26 @@ class StudentGroupController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    private function canRenameGroup(Request $request, StudentGroup $studentGroup): bool
+    {
+        $user = $request->user();
+        $user?->loadMissing('role');
+
+        if (! $user?->canViewGroupSocialPassport()) {
+            return false;
+        }
+
+        if ($user->canViewAllStudentData()) {
+            return true;
+        }
+
+        if (! $user->hasAnyRole([Role::CURATOR, Role::ADVISOR])) {
+            return false;
+        }
+
+        return $studentGroup->curator_id === $user->id;
     }
 
     private function canDeleteGroup(Request $request, StudentGroup $studentGroup): bool
