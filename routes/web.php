@@ -85,6 +85,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/users', [UserManagementController::class, 'index'])->name('users.index');
     Route::post('/users/{user}/impersonate', [UserManagementController::class, 'impersonate'])->name('users.impersonate');
+    Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
     Route::post('/impersonation/stop', [UserManagementController::class, 'stopImpersonating'])->name('impersonation.stop');
 });
 

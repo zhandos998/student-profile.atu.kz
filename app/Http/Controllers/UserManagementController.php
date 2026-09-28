@@ -62,6 +62,8 @@ class UserManagementController extends Controller
                 'createdAt' => $user->created_at?->format('d.m.Y H:i'),
                 'canImpersonate' => ! $request->session()->has('impersonator_id')
                     && ! $request->user()?->is($user),
+                'canDelete' => $this->canDeleteUser($request, $user),
+                'deleteBlockedReason' => $this->deleteBlockedReason($request, $user),
             ]);
 
         return Inertia::render('Users/Index', [
@@ -115,5 +117,71 @@ class UserManagementController extends Controller
         return redirect()
             ->route('users.index')
             ->with('status', 'Вы вернулись в аккаунт администратора ДИТ.');
+    }
+    public function destroy(Request $request, User $user): RedirectResponse
+    {
+        abort_unless($request->user()?->canManageUsers(), 403);
+        abort_if($request->session()->has('impersonator_id'), 403);
+
+        if ($request->user()->is($user)) {
+            return back()->withErrors([
+                'user_delete' => 'Нельзя удалить свой аккаунт.',
+            ]);
+        }
+
+        if ($this->isLastDitAdministrator($user)) {
+            return back()->withErrors([
+                'user_delete' => 'Нельзя удалить последнего администратора ДИТ.',
+            ]);
+        }
+
+        $user->delete();
+
+        return redirect()
+            ->route('users.index')
+            ->with('status', 'user-deleted');
+    }
+
+    private function canDeleteUser(Request $request, User $user): bool
+    {
+        return $request->user()?->canManageUsers()
+            && ! $request->session()->has('impersonator_id')
+            && ! $request->user()?->is($user)
+            && ! $this->isLastDitAdministrator($user);
+    }
+
+    private function deleteBlockedReason(Request $request, User $user): ?string
+    {
+        if (! $request->user()?->canManageUsers()) {
+            return null;
+        }
+
+        if ($request->session()->has('impersonator_id')) {
+            return 'Удаление недоступно в режиме входа от имени пользователя.';
+        }
+
+        if ($request->user()?->is($user)) {
+            return 'Нельзя удалить свой аккаунт.';
+        }
+
+        if ($this->isLastDitAdministrator($user)) {
+            return 'Нельзя удалить последнего администратора ДИТ.';
+        }
+
+        return null;
+    }
+
+    private function isLastDitAdministrator(User $user): bool
+    {
+        $user->loadMissing('role');
+
+        if ($user->role?->slug !== Role::ADMINISTRATOR_DIT) {
+            return false;
+        }
+
+        return User::query()
+            ->whereKeyNot($user->id)
+            ->whereHas('role', fn ($query) => $query->where('slug', Role::ADMINISTRATOR_DIT))
+            ->doesntExist();
     }
 }

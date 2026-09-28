@@ -124,6 +124,54 @@ class UserManagementTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_dit_administrator_can_delete_user(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $dit = $this->userWithRole(Role::ADMINISTRATOR_DIT);
+        $student = $this->userWithRole(Role::STUDENT);
+
+        $this->actingAs($dit)
+            ->delete(route('users.destroy', $student))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('users.index'));
+
+        $this->assertDatabaseMissing('users', [
+            'id' => $student->id,
+        ]);
+    }
+
+    public function test_dit_administrator_cannot_delete_self(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $dit = $this->userWithRole(Role::ADMINISTRATOR_DIT);
+
+        $this->actingAs($dit)
+            ->delete(route('users.destroy', $dit))
+            ->assertSessionHasErrors('user_delete');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $dit->id,
+        ]);
+    }
+
+    public function test_student_cannot_delete_user(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $student = $this->userWithRole(Role::STUDENT);
+        $otherStudent = $this->userWithRole(Role::STUDENT);
+
+        $this->actingAs($student)
+            ->delete(route('users.destroy', $otherStudent))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('users', [
+            'id' => $otherStudent->id,
+        ]);
+    }
+
     /**
      * @param  array<string, mixed>  $attributes
      */

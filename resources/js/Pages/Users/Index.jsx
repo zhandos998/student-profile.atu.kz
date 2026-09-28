@@ -1,4 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import Modal from '@/Components/Modal';
+import SecondaryButton from '@/Components/SecondaryButton';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -27,6 +29,9 @@ export default function Index({
     roleOptions = [],
 }) {
     const [filterData, setFilterData] = useState(filters);
+    const [userToDelete, setUserToDelete] = useState(null);
+    const [deleteErrors, setDeleteErrors] = useState({});
+    const [deleteProcessing, setDeleteProcessing] = useState(false);
 
     const submitFilters = (event) => {
         event.preventDefault();
@@ -57,6 +62,32 @@ export default function Index({
 
         router.post(route('users.impersonate', user.id), {}, {
             preserveScroll: true,
+        });
+    };
+
+    const closeDeleteModal = () => {
+        if (deleteProcessing) {
+            return;
+        }
+
+        setUserToDelete(null);
+        setDeleteErrors({});
+    };
+
+    const deleteUser = () => {
+        if (!userToDelete) {
+            return;
+        }
+
+        router.delete(route('users.destroy', userToDelete.id), {
+            preserveScroll: true,
+            onStart: () => setDeleteProcessing(true),
+            onError: (validationErrors) => setDeleteErrors(validationErrors),
+            onSuccess: () => {
+                setDeleteErrors({});
+                setUserToDelete(null);
+            },
+            onFinish: () => setDeleteProcessing(false),
         });
     };
 
@@ -216,6 +247,7 @@ export default function Index({
                                             </p>
                                         </div>
 
+                                        <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
                                         <button
                                             type="button"
                                             onClick={() => impersonate(user)}
@@ -224,6 +256,24 @@ export default function Index({
                                         >
                                             Войти как
                                         </button>
+                                            {(user.canDelete ||
+                                                user.deleteBlockedReason) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setUserToDelete(user)
+                                                    }
+                                                    disabled={!user.canDelete}
+                                                    title={
+                                                        user.deleteBlockedReason ||
+                                                        ''
+                                                    }
+                                                    className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                                                >
+                                                    Удалить
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -255,6 +305,52 @@ export default function Index({
                     </section>
                 </div>
             </div>
+
+            <Modal
+                show={Boolean(userToDelete)}
+                maxWidth="lg"
+                closeable={!deleteProcessing}
+                onClose={closeDeleteModal}
+            >
+                <div className="border-b border-red-100 bg-red-50 px-6 py-4">
+                    <h3 className="text-base font-semibold text-red-800">
+                        Удалить пользователя
+                    </h3>
+                    <p className="mt-1 text-sm text-red-700">
+                        {userToDelete?.name}
+                    </p>
+                </div>
+
+                <div className="space-y-3 p-6 text-sm text-gray-700">
+                    <p>
+                        Аккаунт пользователя и связанные с ним данные будут
+                        удалены. Это действие нельзя отменить.
+                    </p>
+                    {deleteErrors.user_delete && (
+                        <p className="rounded-md bg-red-50 px-3 py-2 text-red-700 ring-1 ring-red-100">
+                            {deleteErrors.user_delete}
+                        </p>
+                    )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                    <SecondaryButton
+                        type="button"
+                        disabled={deleteProcessing}
+                        onClick={closeDeleteModal}
+                    >
+                        Отмена
+                    </SecondaryButton>
+                    <button
+                        type="button"
+                        disabled={deleteProcessing}
+                        onClick={deleteUser}
+                        className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                    >
+                        Удалить
+                    </button>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 }
