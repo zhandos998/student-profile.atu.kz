@@ -44,17 +44,6 @@ If Docker is not installed on Ubuntu:
 After usermod, reconnect to SSH.
 
 
-First deploy from Git
----------------------
-Prepare project folder on server:
-
-  ssh zhagparovr@172.20.252.171
-  sudo mkdir -p /opt/apps/student_profile
-  sudo chown -R zhagparovr:zhagparovr /opt/apps/student_profile
-  rm -rf /opt/apps/student_profile/*
-  git clone --branch main https://github.com/zhandos998/student-profile.atu.kz.git /opt/apps/student_profile
-
-
 Create .env.docker on server
 ----------------------------
   cd /opt/apps/student_profile
@@ -71,11 +60,9 @@ Set real values:
   PLATONUS_VERIFY_URL=https://hub.atu.kz/api/v1/students/verify
   PLATONUS_TUTOR_VERIFY_URL=https://hub.atu.kz/api/v1/tutors/verify
   PLATONUS_STUDENT_FULL_URL=https://hub.atu.kz/api/v1/hub/student_full
+  PLATONUS_SURVEYS_URL=https://hub.atu.kz/api/v1/students/surveys
   PLATONUS_API_KEY=<hub_api_key>
   PLATONUS_TIMEOUT=15
-  PSYCHOTEST_API_URL=https://psychologist.atu.kz
-  PSYCHOTEST_API_TOKEN=<psychotest_api_token>
-  PSYCHOTEST_TEST_IDS=
 
 Generate APP_KEY:
   docker compose --env-file .env.docker -f docker-compose.prod.yml run --rm --no-deps --build app php artisan key:generate --show
@@ -215,6 +202,16 @@ Clear cache:
 
 Show Laravel environment:
   docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan about --only=environment
+
+Daily survey sync (00:00 Asia/Almaty):
+  The app container runs Laravel schedule:work under Supervisor; no host cron is needed.
+
+Check the scheduled time and worker:
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan schedule:list
+  docker compose --env-file .env.docker -f docker-compose.prod.yml logs app
+
+Run survey sync manually when needed:
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan student-surveys:sync
 
 
 Database

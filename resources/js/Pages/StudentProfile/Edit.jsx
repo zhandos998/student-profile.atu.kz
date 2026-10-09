@@ -299,312 +299,98 @@ function TemporaryPasswordAlert({ flash }) {
     );
 }
 
-function formatPsychotestValue(value) {
-    if (value === null || value === undefined || value === "") {
-        return "Не указано";
-    }
-
-    if (typeof value === "object") {
-        return JSON.stringify(value, null, 2);
-    }
-
-    return String(value);
-}
-
-function formatPsychotestDate(value) {
-    if (!value) {
-        return "";
-    }
-
-    const match = String(value).match(
-        /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/,
-    );
-
-    if (!match) {
-        return value;
-    }
-
-    return `${match[3]}.${match[2]}.${match[1]} ${match[4]}:${match[5]}`;
-}
-
-function formatPsychotestText(value) {
-    return formatPsychotestValue(value).replace(/\\n/g, "\n");
-}
-
-const psychotestStatusMap = {
-    completed: {
-        label: "Завершено",
-        className: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-    },
-    in_progress: {
-        label: "В процессе",
-        className: "bg-[#edf3ff] text-[#274f93] ring-[#dbe5f6]",
-    },
-    cancelled: {
-        label: "Отменена",
-        className: "bg-gray-100 text-gray-700 ring-gray-200",
-    },
-    expired: {
-        label: "Истекло время",
-        className: "bg-amber-50 text-amber-800 ring-amber-200",
-    },
-    failed: {
-        label: "Ошибка подсчёта",
-        className: "bg-red-50 text-red-700 ring-red-100",
-    },
-};
-
-const psychotestTypeMap = {
-    psychology: "Психология",
-    social_survey: "Социальный опрос",
-};
-
-function PsychotestStatusBadge({ status }) {
-    const meta = psychotestStatusMap[status] ?? {
-        label: formatPsychotestValue(status),
-        className: "bg-gray-100 text-gray-700 ring-gray-200",
-    };
-
-    return (
-        <span
-            className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${meta.className}`}
-        >
-            {meta.label}
-        </span>
-    );
-}
-
-function psychotestTypeLabel(type) {
-    return psychotestTypeMap[type] ?? formatPsychotestValue(type);
-}
-
-function PsychotestResultCard({ result, index }) {
-    if (!result || typeof result !== "object" || Array.isArray(result)) {
-        return (
-            <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
-                <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
-                    <h4 className="text-sm font-semibold text-[#274f93]">
-                        Результат теста #{index + 1}
-                    </h4>
-                </div>
-                <div className="p-4 text-sm text-gray-900">
-                    {formatPsychotestValue(result)}
-                </div>
-            </article>
-        );
-    }
-
-    const attempts = Array.isArray(result.attempts) ? result.attempts : [];
-
-    return (
-        <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
-            <div className="space-y-2 border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
-                <h4 className="text-sm font-semibold text-[#274f93]">
-                    {result.title || `Результат теста #${index + 1}`}
-                </h4>
-                <div className="flex flex-wrap gap-2 text-xs font-medium text-gray-600">
-                    {result.id && (
-                        <span className="rounded-full bg-white px-2 py-1 ring-1 ring-[#dbe5f6]">
-                            ID: {result.id}
-                        </span>
-                    )}
-                    {result.category && (
-                        <span className="rounded-full bg-white px-2 py-1 ring-1 ring-[#dbe5f6]">
-                            {result.category}
-                        </span>
-                    )}
-                    {result.type && (
-                        <span className="rounded-full bg-white px-2 py-1 ring-1 ring-[#dbe5f6]">
-                            {psychotestTypeLabel(result.type)}
-                        </span>
-                    )}
-                </div>
-            </div>
-            <div className="space-y-4 p-4">
-                {result.description && (
-                    <p className="text-sm leading-6 text-gray-700">
-                        {result.description}
-                    </p>
-                )}
-
-                {attempts.length === 0 && (
-                    <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600 ring-1 ring-gray-200/70">
-                        По этому тесту попыток пока нет.
-                    </p>
-                )}
-
-                {attempts.map((attempt, attemptIndex) => {
-                    const scales = Object.entries(
-                        attempt?.result_json?.scales ?? {},
-                    );
-                    const interpretation = attempt?.result_json?.interpretation;
-
-                    return (
-                        <div
-                            key={attempt.id ?? attemptIndex}
-                            className="rounded-md border border-gray-200"
-                        >
-                            <div className="grid gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-sm md:grid-cols-4">
-                                <div>
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                        Статус
-                                    </p>
-                                    <div className="mt-1">
-                                        <PsychotestStatusBadge
-                                            status={attempt.status}
-                                        />
-                                    </div>
-                                </div>
-                                <DisplayField
-                                    label="Общий балл"
-                                    value={attempt.total_score}
-                                />
-                                <DisplayField
-                                    label="Высокий риск"
-                                    value={yesNo(attempt.is_high_risk)}
-                                />
-                                <DisplayField
-                                    label="Завершено"
-                                    value={formatPsychotestDate(
-                                        attempt.finished_at,
-                                    )}
-                                />
-                            </div>
-
-                            {scales.length > 0 && (
-                                <div className="divide-y divide-gray-100">
-                                    {scales.map(([scaleKey, scale]) => (
-                                        <div
-                                            key={scaleKey}
-                                            className="space-y-2 px-4 py-3 text-sm"
-                                        >
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className="font-semibold text-gray-900">
-                                                    {scale.label || scaleKey}
-                                                </span>
-                                                {scale.score !== undefined && (
-                                                    <span className="rounded-full bg-[#edf3ff] px-2 py-1 text-xs font-semibold text-[#274f93]">
-                                                        Балл: {scale.score}
-                                                    </span>
-                                                )}
-                                                {scale.interpretation
-                                                    ?.title && (
-                                                    <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-100">
-                                                        {
-                                                            scale.interpretation
-                                                                .title
-                                                        }
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {scale.interpretation
-                                                ?.description && (
-                                                <p className="whitespace-pre-wrap leading-6 text-gray-700">
-                                                    {formatPsychotestText(
-                                                        scale.interpretation
-                                                            .description,
-                                                    )}
-                                                </p>
-                                            )}
-                                            {scale.interpretation
-                                                ?.recommendation && (
-                                                <p className="whitespace-pre-wrap rounded-md bg-amber-50 px-3 py-2 leading-6 text-amber-900 ring-1 ring-amber-100">
-                                                    {formatPsychotestText(
-                                                        scale.interpretation
-                                                            .recommendation,
-                                                    )}
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {interpretation && (
-                                <div className="space-y-2 px-4 py-3 text-sm">
-                                    {interpretation.title && (
-                                        <span className="inline-flex rounded-full bg-[#edf3ff] px-2 py-1 text-xs font-semibold text-[#274f93] ring-1 ring-[#dbe5f6]">
-                                            {interpretation.title}
-                                        </span>
-                                    )}
-                                    {interpretation.description && (
-                                        <p className="whitespace-pre-wrap leading-6 text-gray-700">
-                                            {formatPsychotestText(
-                                                interpretation.description,
-                                            )}
-                                        </p>
-                                    )}
-                                    {interpretation.recommendation && (
-                                        <p className="whitespace-pre-wrap rounded-md bg-amber-50 px-3 py-2 leading-6 text-amber-900 ring-1 ring-amber-100">
-                                            {formatPsychotestText(
-                                                interpretation.recommendation,
-                                            )}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-        </article>
-    );
-}
-
-function PsychotestResultsSection({ psychotestResults }) {
-    const results = Array.isArray(psychotestResults?.results)
-        ? psychotestResults.results
+function StudentSurveysSection({ surveyResults }) {
+    const { locale = "ru" } = usePage().props;
+    const results = Array.isArray(surveyResults?.results)
+        ? surveyResults.results
         : [];
-    const apiUser = psychotestResults?.user ?? null;
+    const cachedDate = surveyResults?.cached_at
+        ? new Date(surveyResults.cached_at)
+        : null;
+    const cachedAt = cachedDate && !Number.isNaN(cachedDate.getTime())
+        ? cachedDate.toLocaleString(locale === "kk" ? "kk-KZ" : "ru-RU")
+        : null;
 
     return (
-        <Section title="Результаты психотестов из API">
-            <div className="space-y-5">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <DisplayField label="ИИН" value={psychotestResults?.iin} />
-                    {/* <DisplayField
-                        label="ID тестов"
-                        value={psychotestResults?.test_ids}
-                    /> */}
-                    <DisplayField label="ФИО студента" value={apiUser?.name} />
-                    <DisplayField label="Email" value={apiUser?.email} />
-                    <DisplayField label="Группа" value={apiUser?.group_name} />
-                    <DisplayField
-                        label="ID студента в API"
-                        value={apiUser?.student_id}
-                    />
-                </div>
-
-                {!psychotestResults?.configured && (
+        <Section title="Результаты анкет">
+            <div className="space-y-4">
+                {!surveyResults?.configured && (
                     <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
-                        {psychotestResults?.message}
+                        {surveyResults?.message}
                     </p>
                 )}
 
-                {psychotestResults?.configured &&
-                    !psychotestResults?.ok &&
-                    psychotestResults?.message && (
+                {surveyResults?.configured &&
+                    !surveyResults?.ok &&
+                    surveyResults?.message && (
                         <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-                            {psychotestResults.message}
+                            {surveyResults.message}
                         </p>
                     )}
 
-                {psychotestResults?.ok && results.length === 0 && (
-                    <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600 ring-1 ring-gray-200/70">
-                        API не вернул результаты по ИИН студента.
+                {surveyResults?.cached && (
+                    <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+                        <span>Показаны сохранённые результаты.</span>{" "}
+                        {cachedAt && <><span>Последняя проверка:</span> {cachedAt}. </>}
+                        <span>Данные могли измениться.</span>
                     </p>
                 )}
 
-                {psychotestResults?.ok && results.length > 0 && (
-                    <div className="space-y-4">
+                {surveyResults?.ok && results.length === 0 && (
+                    <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600 ring-1 ring-gray-200/70">
+                        По этому студенту анкеты пока не найдены.
+                    </p>
+                )}
+
+                {(surveyResults?.ok || surveyResults?.cached) && results.length > 0 && (
+                    <div className="divide-y divide-gray-200">
                         {results.map((result, index) => (
-                            <PsychotestResultCard
-                                key={index}
-                                result={result}
-                                index={index}
-                            />
+                            <div key={result.key ?? index} className="space-y-3 py-4 first:pt-0 last:pb-0">
+                                <h4 className="break-words text-sm font-semibold text-[#274f93]">
+                                    {result.name || `Анкета ${index + 1}`}
+                                </h4>
+                                {result.metrics?.length > 0 && (
+                                    <dl className={result.key === 'five_traits' ? 'divide-y divide-gray-100' : 'grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-4'}>
+                                        {result.metrics.map((metric, metricIndex) => (
+                                            <div key={metricIndex} className={result.key === 'five_traits' ? 'min-w-0 py-3 first:pt-0 last:pb-0' : 'min-w-0'}>
+                                                <dt className="text-xs text-gray-600">
+                                                    {metric.label}
+                                                </dt>
+                                                <dd className="mt-1 text-sm font-semibold text-gray-900">
+                                                    {metric.score} / {metric.maximum}
+                                                </dd>
+                                                {metric.level && (
+                                                    <dd className="mt-1 text-xs text-gray-600">
+                                                        {metric.level}
+                                                    </dd>
+                                                )}
+                                                {metric.description && (
+                                                    <dd className="mt-1 text-xs leading-5 text-gray-600">
+                                                        {metric.description}
+                                                    </dd>
+                                                )}
+                                                {metric.share !== undefined && metric.share !== null && (
+                                                    <dd className="mt-1 text-xs text-gray-600">
+                                                        Доля: {metric.share}%
+                                                    </dd>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </dl>
+                                )}
+                                {result.message && (
+                                    <p className="text-xs leading-5 text-gray-600">
+                                        {result.message}
+                                    </p>
+                                )}
+                            </div>
                         ))}
                     </div>
+                )}
+                {(surveyResults?.ok || surveyResults?.cached) && results.length > 0 && (
+                    <p className="border-t border-gray-100 pt-4 text-xs text-gray-500">
+                        Расчёт по ТЗ СПП. Результаты не являются медицинским диагнозом.
+                    </p>
                 )}
             </div>
         </Section>
@@ -615,7 +401,7 @@ export default function Edit({
     profile,
     academicProfile,
     healthPassport = {},
-    psychotestResults = null,
+    surveyResults = null,
     achievements,
     portfolioItems,
     options,
@@ -624,7 +410,7 @@ export default function Edit({
     isManagedProfile = false,
     canEditProfile = true,
     canEditHealthPassport = false,
-    canViewPsychotestResults = false,
+    canViewSurveyResults = false,
     canArchiveStudentProfile = false,
     canResetStudentPassword = false,
     healthPassportUpdateUrl = null,
@@ -1706,10 +1492,10 @@ export default function Edit({
                         </section>
                     )}
 
-                    {canViewPsychotestResults && (
+                    {canViewSurveyResults && (
                         <div className="mb-6">
-                            <PsychotestResultsSection
-                                psychotestResults={psychotestResults}
+                            <StudentSurveysSection
+                                surveyResults={surveyResults}
                             />
                         </div>
                     )}

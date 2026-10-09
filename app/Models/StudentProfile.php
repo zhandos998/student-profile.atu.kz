@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'user_id',
@@ -70,6 +71,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class StudentProfile extends Model
 {
+    /** @return HasMany<StudentSurveyResultSnapshot, StudentProfile> */
+    public function surveyResultSnapshots(): HasMany
+    {
+        return $this->hasMany(StudentSurveyResultSnapshot::class);
+    }
+
     public const STATUS_NOT_STARTED = 'not_started';
 
     public const STATUS_DRAFT = 'draft';

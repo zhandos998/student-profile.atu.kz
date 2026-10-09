@@ -9,8 +9,8 @@ use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Services\PlatonusAuthClient;
-use App\Services\PsychotestApiClient;
 use App\Services\StudentRiskService;
+use App\Services\StudentSurveySynchronizer;
 use App\Support\StudentProfileAccess;
 use App\Support\StudentProfileOptions;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +28,7 @@ class StudentProfileController extends Controller
 {
     public function __construct(
         private readonly StudentRiskService $riskService,
-        private readonly PsychotestApiClient $psychotestApi,
+        private readonly StudentSurveySynchronizer $surveySynchronizer,
         private readonly PlatonusAuthClient $platonusApi,
     )
     {
@@ -452,8 +452,13 @@ class StudentProfileController extends Controller
             $profileData['identity_card_path'] = $request->file('identity_card')->store('student-profiles/identity-cards', 'public');
         }
 
+        $previousIin = $profile->getRawOriginal('iin');
         $profile->fill($profileData);
         $profile->save();
+
+        if ($previousIin && $profile->wasChanged('iin')) {
+            $profile->surveyResultSnapshots()->delete();
+        }
 
         if ($includeServiceFields) {
             $academicData = Arr::only($validated, $this->academicFields());
@@ -756,14 +761,14 @@ class StudentProfileController extends Controller
         $viewer = request()->user();
         $canEditProfile = ! $managed || ($viewer?->canEditStudentProfileData() ?? false);
         $canEditHealthPassport = $managed && ($viewer?->canEditStudentHealthPassport() ?? false);
-        $canViewPsychotestResults = $managed && ($viewer?->canViewPsychologicalProfile() ?? false);
+        $canViewSurveyResults = $managed && ($viewer?->canViewPsychologicalProfile() ?? false);
 
         return Inertia::render('StudentProfile/Edit', [
             'profile' => $this->profilePayload($user->studentProfile),
             'academicProfile' => $this->academicPayload($user->academicProfile),
             'healthPassport' => $this->healthPassportPayload($user->healthPassport),
-            'psychotestResults' => $canViewPsychotestResults
-                ? $this->psychotestResultsPayload($user->studentProfile)
+            'surveyResults' => $canViewSurveyResults
+                ? $this->surveySynchronizer->synchronize($user->studentProfile, app()->getLocale())
                 : null,
             'achievements' => $user->extracurricularAchievements->map(fn ($achievement): array => [
                 ...$achievement->toArray(),
@@ -781,7 +786,7 @@ class StudentProfileController extends Controller
             'isManagedProfile' => $managed,
             'canEditProfile' => $canEditProfile,
             'canEditHealthPassport' => $canEditHealthPassport,
-            'canViewPsychotestResults' => $canViewPsychotestResults,
+            'canViewSurveyResults' => $canViewSurveyResults,
             'canArchiveStudentProfile' => $managed && $canEditProfile,
             'canResetStudentPassword' => $managed && ($viewer?->canResetStudentPasswords() ?? false),
             'healthPassportUpdateUrl' => $canEditHealthPassport
@@ -793,36 +798,6 @@ class StudentProfileController extends Controller
                 'email' => $user->email,
             ] : null,
         ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function psychotestResultsPayload(?StudentProfile $profile): array
-    {
-        $iin = trim((string) $profile?->iin);
-        $testIds = config('services.psychotest.test_ids', []);
-        $testIds = is_array($testIds) ? $testIds : [];
-        $testIdsLabel = $testIds === [] ? 'Все доступные' : implode(',', $testIds);
-
-        if ($iin === '') {
-            return [
-                'iin' => '',
-                'test_ids' => $testIdsLabel,
-                'configured' => true,
-                'ok' => false,
-                'status' => null,
-                'message' => 'У студента не указан ИИН. Результаты психотестов нельзя получить.',
-                'results' => [],
-                'raw' => null,
-            ];
-        }
-
-        return [
-            'iin' => $iin,
-            'test_ids' => $testIdsLabel,
-            ...$this->psychotestApi->testResults($iin, $testIds),
-        ];
     }
 
     /**

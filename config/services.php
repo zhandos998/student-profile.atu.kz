@@ -35,19 +35,11 @@ return [
         ],
     ],
 
-    'psychotest' => [
-        'base_url' => env('PSYCHOTEST_API_URL'),
-        'token' => env('PSYCHOTEST_API_TOKEN'),
-        'test_ids' => array_values(array_filter(array_map(
-            fn (string $id): string => trim($id),
-            explode(',', (string) env('PSYCHOTEST_TEST_IDS', '')),
-        ))),
-    ],
-
     'platonus' => [
         'verify_url' => env('PLATONUS_VERIFY_URL', 'https://hub.atu.kz/api/v1/students/verify'),
         'tutor_verify_url' => env('PLATONUS_TUTOR_VERIFY_URL', 'https://hub.atu.kz/api/v1/tutors/verify'),
         'student_full_url' => env('PLATONUS_STUDENT_FULL_URL', 'https://hub.atu.kz/api/v1/hub/student_full'),
+        'surveys_url' => env('PLATONUS_SURVEYS_URL', 'https://hub.atu.kz/api/v1/students/surveys'),
         'api_key' => env('PLATONUS_API_KEY'),
         'timeout' => env('PLATONUS_TIMEOUT', 15),
     ],

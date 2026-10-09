@@ -63,7 +63,7 @@ export default function Error({ status, auth }) {
                                 href={homeUrl}
                                 className="inline-flex min-h-11 items-center justify-center rounded-md bg-[#355da8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2"
                             >
-                                На главную
+                                Домой
                             </Link>
                             <button
                                 type="button"

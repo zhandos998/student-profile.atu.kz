@@ -157,6 +157,7 @@ class UserSeeder extends Seeder
                 'position' => $definition['position'],
                 'email_verified_at' => $user->email_verified_at ?? now(),
                 'password' => Hash::make('password'),
+                // $2y$12$9rGX.NKkNgxQuClznp3gSezTwBzCXNY4KHK/ymM0d0FBN9A9B3uYG
             ];
 
             if (array_key_exists('phone', $definition)) {
