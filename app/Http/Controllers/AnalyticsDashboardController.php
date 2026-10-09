@@ -51,6 +51,9 @@ class AnalyticsDashboardController extends Controller
             'notificationChannels' => $this->notificationChannels(),
             'notificationEvents' => $this->notificationEvents(),
             'reports' => $this->reports(),
+            'testScoresUrl' => $request->user()->canViewPsychologicalProfile()
+                ? route('reports.test-scores.index')
+                : null,
             'integrations' => $this->integrations(),
         ]);
     }

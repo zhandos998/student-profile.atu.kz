@@ -10,7 +10,7 @@ use Throwable;
 
 class SyncStudentSurveys extends Command
 {
-    protected $signature = 'student-surveys:sync {--limit=0 : Maximum number of profiles to process (0 = all)} {--delay-ms=200 : Delay between API requests in milliseconds}';
+    protected $signature = 'student-surveys:sync {--limit=0 : Maximum number of profiles to fetch (0 = all)} {--delay-ms=200 : Delay between API requests in milliseconds} {--force : Refresh profiles with complete saved results}';
 
     protected $description = 'Fetch and save current survey results for all student profiles with an IIN';
 
@@ -24,6 +24,7 @@ class SyncStudentSurveys extends Command
 
         $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
         $delayMs = filter_var($this->option('delay-ms'), FILTER_VALIDATE_INT);
+        $force = (bool) $this->option('force');
 
         if ($limit === false || $limit < 0 || $delayMs === false || $delayMs < 0 || $delayMs > 5000) {
             $this->error('Invalid --limit or --delay-ms value.');
@@ -35,22 +36,27 @@ class SyncStudentSurveys extends Command
         $succeeded = 0;
         $failed = 0;
         $invalid = 0;
+        $skipped = 0;
 
         StudentProfile::query()
             ->select(['id', 'iin'])
             ->whereNotNull('iin')
             ->where('iin', '<>', '')
-            ->chunkById(100, function ($profiles) use ($synchronizer, $limit, $delayMs, &$processed, &$succeeded, &$failed, &$invalid): bool {
+            ->chunkById(100, function ($profiles) use ($synchronizer, $limit, $delayMs, $force, &$processed, &$succeeded, &$failed, &$invalid, &$skipped): bool {
                 foreach ($profiles as $profile) {
                     if (! preg_match('/^\d{12}$/D', (string) $profile->iin)) {
                         $invalid++;
                         continue;
                     }
 
-                    $processed++;
-
                     try {
-                        $result = $synchronizer->synchronize($profile, 'ru');
+                        $result = $synchronizer->synchronize($profile, 'ru', $force);
+                        if ($result['skipped'] ?? false) {
+                            $skipped++;
+                            continue;
+                        }
+
+                        $processed++;
                         if ($result['ok']) {
                             $succeeded++;
                         } else {
@@ -61,6 +67,7 @@ class SyncStudentSurveys extends Command
                             ]);
                         }
                     } catch (Throwable $exception) {
+                        $processed++;
                         $failed++;
                         Log::error('Student survey sync failed', [
                             'student_profile_id' => $profile->id,
@@ -80,7 +87,7 @@ class SyncStudentSurveys extends Command
                 return true;
             });
 
-        $this->info("Processed: {$processed}; synchronized: {$succeeded}; failed: {$failed}; invalid IIN: {$invalid}.");
+        $this->info("Processed: {$processed}; synchronized: {$succeeded}; skipped complete: {$skipped}; failed: {$failed}; invalid IIN: {$invalid}.");
 
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
     }

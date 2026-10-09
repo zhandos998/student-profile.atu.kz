@@ -13,7 +13,7 @@ class StudentSurveySynchronizer
     ) {}
 
     /** @return array<string, mixed> */
-    public function synchronize(?StudentProfile $profile, string $locale = 'ru'): array
+    public function synchronize(?StudentProfile $profile, string $locale = 'ru', bool $force = false): array
     {
         $iin = trim((string) $profile?->iin);
 
@@ -26,6 +26,21 @@ class StudentSurveySynchronizer
                 'cached' => false,
                 'cached_at' => null,
                 'results' => [],
+            ];
+        }
+
+        if (! $force && $profile && $this->surveyResultStore->hasCompleteResults($profile, $iin)) {
+            $stored = $this->surveyResultStore->latest($profile, $iin);
+
+            return [
+                'iin' => $iin,
+                'configured' => true,
+                'ok' => false,
+                'message' => null,
+                'cached' => true,
+                'cached_at' => $stored['updated_at'],
+                'results' => $stored['results'],
+                'skipped' => true,
             ];
         }
 

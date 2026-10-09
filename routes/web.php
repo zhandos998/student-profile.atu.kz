@@ -10,6 +10,7 @@ use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StudentGroupController;
 use App\Http\Controllers\StudentProfileController;
+use App\Http\Controllers\TestScoreReportController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -79,6 +80,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/group-social-passport', [GroupSocialPassportController::class, 'update'])->name('group-social-passport.update');
 
     Route::get('/analytics-dashboard', [AnalyticsDashboardController::class, 'index'])->name('analytics-dashboard.index');
+    Route::get('/reports/test-scores', [TestScoreReportController::class, 'index'])->name('reports.test-scores.index');
+    Route::get('/reports/test-scores/export', [TestScoreReportController::class, 'export'])->name('reports.test-scores.export');
+    Route::get('/reports/test-scores/export.xlsx', [TestScoreReportController::class, 'exportXlsx'])->name('reports.test-scores.xlsx');
     Route::get('/analytics-dashboard/reports/{type}/export', [AnalyticsDashboardController::class, 'export'])
         ->whereIn('type', ['student', 'group', 'course', 'faculty', 'academic-risks', 'social-risks', 'psychological-risks', 'medical-risks'])
         ->name('analytics-dashboard.reports.export');

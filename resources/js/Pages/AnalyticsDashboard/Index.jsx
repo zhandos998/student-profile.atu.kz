@@ -347,9 +347,22 @@ function NotificationEvents({ events }) {
     );
 }
 
-function ReportGrid({ reports }) {
+function ReportGrid({ reports, testScoresUrl }) {
     return (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {testScoresUrl && (
+                <div className="flex flex-col overflow-hidden rounded-md border border-gray-200">
+                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
+                        <h4 className="text-base font-semibold text-[#274f93]">Баллы по тестам</h4>
+                    </div>
+                    <div className="flex flex-1 flex-col p-4">
+                        <p className="flex-1 text-sm text-gray-600">Результаты тестов по студентам и шкалам.</p>
+                        <a href={testScoresUrl} className="mt-4 inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2">
+                            Открыть отчёт
+                        </a>
+                    </div>
+                </div>
+            )}
             {reports.map((report) => (
                 <div
                     key={report.type}
@@ -437,6 +450,7 @@ export default function Index({
     notificationChannels,
     notificationEvents,
     reports,
+    testScoresUrl,
     integrations,
 }) {
     return (
@@ -510,7 +524,7 @@ export default function Index({
                     </Panel>
 
                     <Panel title="Отчетность">
-                        <ReportGrid reports={reports} />
+                        <ReportGrid reports={reports} testScoresUrl={testScoresUrl} />
                     </Panel>
 
                     <Panel title="Интеграции">

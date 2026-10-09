@@ -213,6 +213,9 @@ Check the scheduled time and worker:
 Run survey sync manually when needed:
   docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan student-surveys:sync
 
+Profiles with all calculated test results are skipped. To refresh them from Hub anyway:
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan student-surveys:sync --force
+
 
 Database
 --------
