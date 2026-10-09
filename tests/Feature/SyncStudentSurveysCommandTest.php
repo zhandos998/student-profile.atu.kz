@@ -76,7 +76,7 @@ class SyncStudentSurveysCommandTest extends TestCase
         $this->configureSurveyApi();
         $complete = $this->student('123456789012');
         $this->saveCompleteResults($complete);
-        $this->student('234567890123');
+        $missing = $this->student('234567890123');
 
         Http::fake(['*' => Http::response([
             'iin' => '234567890123',
@@ -93,10 +93,25 @@ class SyncStudentSurveysCommandTest extends TestCase
         Http::assertNothingSent();
 
         $this->artisan('student-surveys:sync', ['--limit' => 1, '--delay-ms' => 0])
-            ->expectsOutput('Processed: 1; synchronized: 1; skipped complete: 1; failed: 0; invalid IIN: 0.')
+            ->expectsOutput("Profile {$missing->id}: API OK; calculated tests in response 1; saved complete tests 1/9.")
+            ->expectsOutput('Processed: 1; API OK: 1; profiles with calculated tests: 1; calculated tests in responses: 1; complete after sync: 0; skipped complete: 1; failed: 0; invalid IIN: 0.')
             ->assertSuccessful();
 
         Http::assertSentCount(1);
+    }
+
+    public function test_successful_empty_api_response_is_not_reported_as_calculated_data(): void
+    {
+        $this->configureSurveyApi();
+        $profile = $this->student('123456789012');
+        Http::fake(['*' => Http::response(['iin' => '123456789012', 'surveys' => []])]);
+
+        $this->artisan('student-surveys:sync', ['--limit' => 1, '--delay-ms' => 0])
+            ->expectsOutput("Profile {$profile->id}: API OK; calculated tests in response 0; saved complete tests 0/9.")
+            ->expectsOutput('Processed: 1; API OK: 1; profiles with calculated tests: 0; calculated tests in responses: 0; complete after sync: 0; skipped complete: 0; failed: 0; invalid IIN: 0.')
+            ->assertSuccessful();
+
+        $this->assertSame(0, StudentSurveyResultSnapshot::query()->count());
     }
 
     public function test_missing_or_outdated_results_are_fetched_and_force_refreshes_complete_results(): void

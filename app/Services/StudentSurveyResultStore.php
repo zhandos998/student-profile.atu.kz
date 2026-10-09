@@ -22,6 +22,16 @@ class StudentSurveyResultStore
 
     public function hasCompleteResults(StudentProfile $profile, string $iin): bool
     {
+        return $this->completedTestCount($profile, $iin) === count(self::EXPECTED_METRIC_COUNTS);
+    }
+
+    public function expectedTestCount(): int
+    {
+        return count(self::EXPECTED_METRIC_COUNTS);
+    }
+
+    public function completedTestCount(StudentProfile $profile, string $iin): int
+    {
         $latestIds = DB::table('student_survey_result_snapshots')
             ->selectRaw('MAX(id)')
             ->where('student_profile_id', $profile->id)
@@ -33,15 +43,11 @@ class StudentSurveyResultStore
             ->whereIn('survey_key', array_keys(self::EXPECTED_METRIC_COUNTS))
             ->get(['survey_key', 'status', 'metrics']);
 
-        if ($snapshots->count() !== count(self::EXPECTED_METRIC_COUNTS)) {
-            return false;
-        }
-
-        return $snapshots->every(fn (StudentSurveyResultSnapshot $snapshot): bool =>
+        return $snapshots->filter(fn (StudentSurveyResultSnapshot $snapshot): bool =>
             $snapshot->status === 'calculated'
             && count($snapshot->metrics ?? []) === self::EXPECTED_METRIC_COUNTS[$snapshot->survey_key]
             && collect($snapshot->metrics)->every(fn (array $metric): bool => is_numeric($metric['score'] ?? null))
-        );
+        )->count();
     }
 
     /** @param array<int, array<string, mixed>> $results */

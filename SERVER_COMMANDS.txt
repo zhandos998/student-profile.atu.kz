@@ -191,6 +191,14 @@ docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php ar
 docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan config:cache
 docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan view:cache
 
+Do not run db:seed during routine updates. The Docker build installs PHP dependencies
+(including the XLSX writer) and builds the React assets.
+
+Check the test-score report routes after deployment:
+docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan route:list --path=reports/test-scores
+Report URL (sign in as DIT administrator or authorized psychology staff):
+https://student-profile.atu.kz/reports/test-scores
+
 
 Laravel commands
 ----------------
@@ -213,7 +221,16 @@ Check the scheduled time and worker:
 Run survey sync manually when needed:
   docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan student-surveys:sync
 
-Profiles with all calculated test results are skipped. To refresh them from Hub anyway:
+Try synchronization on one profile that still needs data:
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan student-surveys:sync --limit=1 --delay-ms=0
+This prints the profile ID, calculated tests returned by Hub, and saved complete tests out of 9.
+"API OK" only means Hub responded successfully; it does not mean all test data exists.
+
+Show per-profile details during a full run:
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan student-surveys:sync -v
+
+Profiles with all 9 calculated test results for their current IIN are skipped.
+The command output shows "skipped complete". To refresh complete profiles from Hub anyway:
   docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan student-surveys:sync --force
 
 

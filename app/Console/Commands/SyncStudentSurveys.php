@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\StudentProfile;
+use App\Services\StudentSurveyResultStore;
 use App\Services\StudentSurveySynchronizer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +15,7 @@ class SyncStudentSurveys extends Command
 
     protected $description = 'Fetch and save current survey results for all student profiles with an IIN';
 
-    public function handle(StudentSurveySynchronizer $synchronizer): int
+    public function handle(StudentSurveySynchronizer $synchronizer, StudentSurveyResultStore $store): int
     {
         if (blank(config('services.platonus.api_key')) || blank(config('services.platonus.surveys_url'))) {
             $this->error('Hub survey API is not configured.');
@@ -33,7 +34,10 @@ class SyncStudentSurveys extends Command
         }
 
         $processed = 0;
-        $succeeded = 0;
+        $apiOk = 0;
+        $withCalculatedTests = 0;
+        $calculatedTests = 0;
+        $completeAfterSync = 0;
         $failed = 0;
         $invalid = 0;
         $skipped = 0;
@@ -42,7 +46,7 @@ class SyncStudentSurveys extends Command
             ->select(['id', 'iin'])
             ->whereNotNull('iin')
             ->where('iin', '<>', '')
-            ->chunkById(100, function ($profiles) use ($synchronizer, $limit, $delayMs, $force, &$processed, &$succeeded, &$failed, &$invalid, &$skipped): bool {
+            ->chunkById(100, function ($profiles) use ($synchronizer, $store, $limit, $delayMs, $force, &$processed, &$apiOk, &$withCalculatedTests, &$calculatedTests, &$completeAfterSync, &$failed, &$invalid, &$skipped): bool {
                 foreach ($profiles as $profile) {
                     if (! preg_match('/^\d{12}$/D', (string) $profile->iin)) {
                         $invalid++;
@@ -53,14 +57,31 @@ class SyncStudentSurveys extends Command
                         $result = $synchronizer->synchronize($profile, 'ru', $force);
                         if ($result['skipped'] ?? false) {
                             $skipped++;
+                            if ($limit === 1 || $this->getOutput()->isVerbose()) {
+                                $this->line("Profile {$profile->id}: skipped, saved tests {$store->expectedTestCount()}/{$store->expectedTestCount()}.");
+                            }
                             continue;
                         }
 
                         $processed++;
                         if ($result['ok']) {
-                            $succeeded++;
+                            $apiOk++;
+                            $calculated = collect($result['results'])
+                                ->filter(fn (array $survey): bool => $survey['status'] === 'calculated')
+                                ->count();
+                            $saved = $store->completedTestCount($profile, (string) $profile->iin);
+                            $calculatedTests += $calculated;
+                            $withCalculatedTests += (int) ($calculated > 0);
+                            $completeAfterSync += (int) ($saved === $store->expectedTestCount());
+
+                            if ($limit === 1 || $this->getOutput()->isVerbose()) {
+                                $this->line("Profile {$profile->id}: API OK; calculated tests in response {$calculated}; saved complete tests {$saved}/{$store->expectedTestCount()}.");
+                            }
                         } else {
                             $failed++;
+                            if ($limit === 1 || $this->getOutput()->isVerbose()) {
+                                $this->warn("Profile {$profile->id}: API failed: {$result['message']}");
+                            }
                             Log::warning('Student survey sync API failed', [
                                 'student_profile_id' => $profile->id,
                                 'message' => $result['message'],
@@ -87,7 +108,7 @@ class SyncStudentSurveys extends Command
                 return true;
             });
 
-        $this->info("Processed: {$processed}; synchronized: {$succeeded}; skipped complete: {$skipped}; failed: {$failed}; invalid IIN: {$invalid}.");
+        $this->info("Processed: {$processed}; API OK: {$apiOk}; profiles with calculated tests: {$withCalculatedTests}; calculated tests in responses: {$calculatedTests}; complete after sync: {$completeAfterSync}; skipped complete: {$skipped}; failed: {$failed}; invalid IIN: {$invalid}.");
 
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
     }
