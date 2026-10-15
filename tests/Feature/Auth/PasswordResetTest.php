@@ -30,6 +30,31 @@ class PasswordResetTest extends TestCase
         Notification::assertSentTo($user, ResetPassword::class);
     }
 
+    public function test_unknown_email_error_is_translated_in_each_supported_locale(): void
+    {
+        foreach (['ru', 'kk', 'en'] as $locale) {
+            $messages = require base_path("lang/{$locale}/passwords.php");
+
+            $this->withSession(['locale' => $locale])
+                ->post('/forgot-password', ['email' => 'missing@example.com'])
+                ->assertSessionHasErrors(['email' => $messages['user']]);
+        }
+    }
+
+    public function test_reset_link_success_is_translated_in_each_supported_locale(): void
+    {
+        Notification::fake();
+
+        foreach (['ru', 'kk', 'en'] as $locale) {
+            $messages = require base_path("lang/{$locale}/passwords.php");
+            $user = User::factory()->create();
+
+            $this->withSession(['locale' => $locale])
+                ->post('/forgot-password', ['email' => $user->email])
+                ->assertSessionHas('status', $messages['sent']);
+        }
+    }
+
     public function test_reset_password_screen_can_be_rendered(): void
     {
         Notification::fake();

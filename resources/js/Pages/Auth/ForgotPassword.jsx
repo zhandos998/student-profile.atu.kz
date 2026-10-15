@@ -1,10 +1,34 @@
 import InputError from '@/Components/InputError';
+import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
+
+const copy = {
+    ru: {
+        title: 'Восстановление пароля',
+        description: 'Укажите электронную почту. Мы отправим ссылку для восстановления пароля.',
+        email: 'Электронная почта',
+        submit: 'Отправить ссылку',
+    },
+    kk: {
+        title: 'Құпия сөзді қалпына келтіру',
+        description: 'Электрондық поштаңызды көрсетіңіз. Құпия сөзді қалпына келтіру сілтемесін жібереміз.',
+        email: 'Электрондық пошта',
+        submit: 'Сілтемені жіберу',
+    },
+    en: {
+        title: 'Reset password',
+        description: 'Enter your email address and we will send you a password reset link.',
+        email: 'Email address',
+        submit: 'Send reset link',
+    },
+};
 
 export default function ForgotPassword({ status }) {
+    const { locale = 'ru' } = usePage().props;
+    const labels = copy[locale] ?? copy.ru;
     const { data, setData, post, processing, errors } = useForm({
         email: '',
     });
@@ -17,12 +41,10 @@ export default function ForgotPassword({ status }) {
 
     return (
         <GuestLayout>
-            <Head title="Forgot Password" />
+            <Head title={labels.title} />
 
             <div className="mb-4 text-sm text-gray-600">
-                Forgot your password? No problem. Just let us know your email
-                address and we will email you a password reset link that will
-                allow you to choose a new one.
+                {labels.description}
             </div>
 
             {status && (
@@ -32,6 +54,7 @@ export default function ForgotPassword({ status }) {
             )}
 
             <form onSubmit={submit}>
+                <InputLabel htmlFor="email" value={labels.email} />
                 <TextInput
                     id="email"
                     type="email"
@@ -39,6 +62,7 @@ export default function ForgotPassword({ status }) {
                     value={data.email}
                     className="mt-1 block w-full"
                     isFocused={true}
+                    autoComplete="email"
                     onChange={(e) => setData('email', e.target.value)}
                 />
 
@@ -46,7 +70,7 @@ export default function ForgotPassword({ status }) {
 
                 <div className="mt-4 flex items-center justify-end">
                     <PrimaryButton className="ms-4" disabled={processing}>
-                        Email Password Reset Link
+                        {labels.submit}
                     </PrimaryButton>
                 </div>
             </form>

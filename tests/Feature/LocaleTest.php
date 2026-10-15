@@ -33,7 +33,22 @@ class LocaleTest extends TestCase
     public function test_unknown_locale_is_rejected(): void
     {
         $this->from(route('login'))
-            ->post(route('locale.update'), ['locale' => 'en'])
+            ->post(route('locale.update'), ['locale' => 'fr'])
             ->assertSessionHasErrors('locale');
+    }
+
+    public function test_guest_can_switch_to_english(): void
+    {
+        $this->from(route('login'))
+            ->post(route('locale.update'), ['locale' => 'en'])
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('locale', 'en');
+
+        $this->get(route('password.request'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('locale', 'en')
+                ->where('availableLocales.2.value', 'en')
+            );
     }
 }

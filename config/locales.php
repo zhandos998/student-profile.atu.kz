@@ -6,5 +6,6 @@ return [
     'supported' => [
         'ru' => 'Русский',
         'kk' => 'Қазақша',
+        'en' => 'English',
     ],
 ];
