@@ -25,6 +25,7 @@ class StudentRiskServiceTest extends TestCase
             'full_name' => 'Student Name',
             'birth_date' => '2005-01-01',
             'faculty' => 'Faculty',
+            'student_group_id' => 1,
             'group_name' => 'IS-101',
         ]);
         $profile->setRelation('user', $user);

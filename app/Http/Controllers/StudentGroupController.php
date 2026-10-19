@@ -125,24 +125,21 @@ class StudentGroupController extends Controller
             ],
         ]);
 
-        $oldName = $studentGroup->name;
         $newName = $validated['name'];
 
-        DB::transaction(function () use ($studentGroup, $oldName, $newName): void {
+        DB::transaction(function () use ($studentGroup, $newName): void {
             $studentGroup->update([
                 'name' => $newName,
             ]);
 
             GroupSocialPassport::query()
                 ->where('student_group_id', $studentGroup->id)
-                ->orWhere('group_name', $oldName)
                 ->update([
                     'group_name' => $newName,
                 ]);
 
             StudentProfile::query()
                 ->where('student_group_id', $studentGroup->id)
-                ->orWhere('group_name', $oldName)
                 ->update([
                     'group_name' => $newName,
                 ]);

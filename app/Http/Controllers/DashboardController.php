@@ -26,7 +26,7 @@ class DashboardController extends Controller
 
         $user?->loadMissing([
             'role',
-            'studentProfile',
+            'studentProfile.studentGroup',
             'academicProfile',
             'extracurricularAchievements',
             'portfolioItems',
@@ -63,7 +63,7 @@ class DashboardController extends Controller
             'personalInfo' => [
                 'fullName' => $profile?->full_name ?: $user->name,
                 'faculty' => $profile?->faculty,
-                'group' => $profile?->group_name,
+                'group' => $profile?->currentGroupName(),
                 'course' => $profile?->course,
                 'specialty' => $profile?->specialty,
                 'contactDetails' => $profile?->contact_details,
@@ -114,7 +114,7 @@ class DashboardController extends Controller
                     ->take(8)
                     ->map(fn (StudentProfile $profile): array => [
                         'name' => $profile->full_name ?: $profile->user?->name ?: 'Без имени',
-                        'group' => $profile->group_name,
+                        'group' => $profile->currentGroupName(),
                         'course' => $profile->course,
                         'faculty' => $profile->faculty,
                         'gpa' => $profile->user?->academicProfile?->gpa !== null
@@ -139,8 +139,7 @@ class DashboardController extends Controller
     {
         $query = StudentProfile::query()
             ->active()
-            ->with(['user.academicProfile', 'user.extracurricularAchievements', 'user.portfolioItems'])
-            ->orderBy('group_name')
+            ->with(['studentGroup', 'user.academicProfile', 'user.extracurricularAchievements', 'user.portfolioItems'])
             ->orderBy('full_name');
 
         if ($user) {
@@ -161,7 +160,7 @@ class DashboardController extends Controller
             ->take(6)
             ->map(fn (StudentProfile $profile): array => [
                 'name' => $profile->full_name ?: $profile->user?->name ?: 'Без имени',
-                'group' => $profile->group_name,
+                'group' => $profile->currentGroupName(),
                 'statuses' => $this->riskService->socialStatusLabels($profile),
             ])
             ->values()
@@ -211,7 +210,7 @@ class DashboardController extends Controller
         return $profiles
             ->map(fn (StudentProfile $profile): array => [
                 'name' => $profile->full_name ?: $profile->user?->name ?: 'Без имени',
-                'group' => $profile->group_name,
+                'group' => $profile->currentGroupName(),
                 'reasons' => $this->riskService->dashboardRiskReasons($profile),
             ])
             ->filter(fn (array $student): bool => $student['reasons'] !== [])
@@ -238,7 +237,7 @@ class DashboardController extends Controller
         return [
             'totalStudents' => $profiles->count(),
             'groupsCount' => $profiles
-                ->pluck('group_name')
+                ->pluck('student_group_id')
                 ->filter()
                 ->unique()
                 ->count(),
@@ -260,7 +259,7 @@ class DashboardController extends Controller
     private function analyticsByGroups(Collection $profiles): array
     {
         return $profiles
-            ->groupBy(fn (StudentProfile $profile): string => $profile->group_name ?: 'Не указано')
+            ->groupBy(fn (StudentProfile $profile): string => $profile->currentGroupName() ?: 'Не указано')
             ->sortKeys()
             ->take(6)
             ->map(function (Collection $groupProfiles, string $group): array {
@@ -391,14 +390,14 @@ class DashboardController extends Controller
     private function administrationRatings(): array
     {
         return AcademicProfile::query()
-            ->with(['user.studentProfile', 'user.extracurricularAchievements'])
+            ->with(['user.studentProfile.studentGroup', 'user.extracurricularAchievements'])
             ->whereNotNull('gpa')
             ->orderByDesc('gpa')
             ->limit(5)
             ->get()
             ->map(fn (AcademicProfile $profile): array => [
                 'name' => $profile->user?->studentProfile?->full_name ?: $profile->user?->name ?: 'Без имени',
-                'group' => $profile->user?->studentProfile?->group_name,
+                'group' => $profile->user?->studentProfile?->currentGroupName(),
                 'faculty' => $profile->user?->studentProfile?->faculty,
                 'gpa' => $profile->gpa !== null ? (float) $profile->gpa : null,
                 'achievements' => $profile->user?->extracurricularAchievements?->count() ?? 0,

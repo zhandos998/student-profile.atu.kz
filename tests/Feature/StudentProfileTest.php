@@ -40,6 +40,34 @@ class StudentProfileTest extends TestCase
             );
     }
 
+    public function test_profile_and_home_use_current_group_name_from_group_id(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        $group = StudentGroup::query()->create(['name' => 'NEW-101']);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'group_name' => 'OLD-101',
+            'full_name' => 'Student',
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('student-profile.edit'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('profile.group_name', 'NEW-101')
+                ->where('profile.student_group_id', $group->id)
+            );
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('studentHome.personalInfo.group', 'NEW-101')
+            );
+    }
+
     public function test_group_leader_can_use_own_student_profile_page(): void
     {
         $this->seed(RoleSeeder::class);

@@ -375,6 +375,37 @@ class GroupSocialPassportTest extends TestCase
             );
     }
 
+    public function test_group_passport_only_includes_students_linked_by_group_id(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Curator');
+        $group = $this->studentGroup($curator, 'IS-23-1');
+        $linkedStudent = $this->userWithRole(Role::STUDENT, 'Linked student');
+        $unlinkedStudent = $this->userWithRole(Role::STUDENT, 'Unlinked student');
+
+        StudentProfile::query()->create([
+            'user_id' => $linkedStudent->id,
+            'student_group_id' => $group->id,
+            'group_name' => 'OLD-23-1',
+            'full_name' => 'Linked student',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $unlinkedStudent->id,
+            'group_name' => 'IS-23-1',
+            'full_name' => 'Unlinked student',
+        ]);
+
+        $this->actingAs($curator)
+            ->get(route('groups.social-passport.edit', $group))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('passport.students', 1)
+                ->where('passport.students.0.full_name', 'Linked student')
+                ->where('passport.summary.total_students', 1)
+            );
+    }
+
     public function test_curator_cannot_open_another_curators_group(): void
     {
         $this->seed(RoleSeeder::class);

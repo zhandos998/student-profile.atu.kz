@@ -148,6 +148,11 @@ class StudentProfile extends Model
         return $this->belongsTo(StudentGroup::class);
     }
 
+    public function currentGroupName(): ?string
+    {
+        return $this->studentGroup?->name;
+    }
+
     /**
      * @return BelongsTo<User, StudentProfile>
      */

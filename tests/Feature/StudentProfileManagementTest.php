@@ -66,6 +66,29 @@ class StudentProfileManagementTest extends TestCase
             );
     }
 
+    public function test_unlinked_group_name_does_not_grant_access_to_student(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $advisor = $this->userWithRole(Role::ADVISOR, 'Advisor');
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        StudentGroup::query()->create([
+            'curator_id' => $advisor->id,
+            'name' => 'IS-101',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'group_name' => 'IS-101',
+        ]);
+
+        $this->actingAs($advisor)
+            ->get(route('student-profiles.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('students.data', 0));
+
+        $this->get(route('student-profiles.edit', $student))->assertForbidden();
+    }
+
     public function test_advisor_can_create_student_profile_for_student(): void
     {
         $this->seed(RoleSeeder::class);

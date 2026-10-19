@@ -232,7 +232,7 @@ class AnalyticsDashboardController extends Controller
     private function topStudents(): array
     {
         return AcademicProfile::query()
-            ->with(['user.studentProfile', 'user.extracurricularAchievements'])
+            ->with(['user.studentProfile.studentGroup', 'user.extracurricularAchievements'])
             ->whereIn('user_id', $this->activeStudentUserIds())
             ->whereNotNull('gpa')
             ->orderByDesc('gpa')
@@ -242,7 +242,7 @@ class AnalyticsDashboardController extends Controller
                 'name' => $profile->user?->studentProfile?->full_name
                     ?: $profile->user?->name
                     ?: 'Без имени',
-                'group' => $profile->user?->studentProfile?->group_name ?: 'Не указано',
+                'group' => $profile->user?->studentProfile?->currentGroupName() ?: 'Не указано',
                 'gpa' => $profile->gpa !== null ? (float) $profile->gpa : null,
                 'achievements' => $profile->user?->extracurricularAchievements?->count() ?? 0,
             ])
@@ -522,7 +522,7 @@ class AnalyticsDashboardController extends Controller
             'group' => [
                 'title' => 'Отчет по группе',
                 'columns' => ['Группа', 'Факультет', 'Количество студентов', 'Средний GPA', 'Студенты с задолженностью'],
-                'rows' => $this->groupedReportRows('group_name'),
+                'rows' => $this->groupedReportRows('student_group_id'),
             ],
             'course' => [
                 'title' => 'Отчет по курсу',
@@ -571,7 +571,7 @@ class AnalyticsDashboardController extends Controller
                 $profile->full_name ?: $profile->user?->name ?: 'Без имени',
                 $profile->user?->email,
                 $profile->faculty,
-                $profile->group_name,
+                $profile->currentGroupName(),
                 $profile->course,
                 $profile->user?->academicProfile?->gpa,
                 $profile->user?->academicProfile?->academic_debt,
@@ -611,10 +611,12 @@ class AnalyticsDashboardController extends Controller
             ->count();
 
         $base = [
-            $label,
+            $field === 'student_group_id'
+                ? ($profiles->first()?->currentGroupName() ?: 'Не указано')
+                : $label,
         ];
 
-        if ($field === 'group_name') {
+        if ($field === 'student_group_id') {
             $base[] = $profiles->first()?->faculty ?: 'Не указано';
         }
 
@@ -632,7 +634,7 @@ class AnalyticsDashboardController extends Controller
     private function academicRiskReportRows(): array
     {
         return AcademicProfile::query()
-            ->with('user.studentProfile')
+            ->with('user.studentProfile.studentGroup')
             ->whereIn('user_id', $this->activeStudentUserIds())
             ->get()
             ->filter(fn (AcademicProfile $profile): bool => $this->riskService->academicRiskReasons($profile) !== [])
@@ -643,7 +645,7 @@ class AnalyticsDashboardController extends Controller
                     $this->reportStudentName($profile->user),
                     $profile->user?->email,
                     $student?->faculty,
-                    $student?->group_name,
+                    $student?->currentGroupName(),
                     $student?->course,
                     $profile->gpa !== null ? (float) $profile->gpa : null,
                     $profile->academic_debt,
@@ -667,7 +669,7 @@ class AnalyticsDashboardController extends Controller
                 $this->reportStudentName($profile->user),
                 $profile->user?->email,
                 $profile->faculty,
-                $profile->group_name,
+                $profile->currentGroupName(),
                 $profile->course,
                 $this->riskReasonText($this->riskService->socialRiskReasons($profile)),
             ])
@@ -681,7 +683,7 @@ class AnalyticsDashboardController extends Controller
     private function psychologicalRiskReportRows(): array
     {
         return User::query()
-            ->with(['studentProfile', 'psychologicalProfile', 'healthPassport'])
+            ->with(['studentProfile.studentGroup', 'psychologicalProfile', 'healthPassport'])
             ->whereIn('id', $this->activeStudentUserIds())
             ->where(function ($query) {
                 $query
@@ -703,7 +705,7 @@ class AnalyticsDashboardController extends Controller
                     $this->reportStudentName($user),
                     $user->email,
                     $student?->faculty,
-                    $student?->group_name,
+                    $student?->currentGroupName(),
                     $this->riskReasonText($row['reasons']),
                 ];
             })
@@ -717,7 +719,7 @@ class AnalyticsDashboardController extends Controller
     private function medicalRiskReportRows(): array
     {
         return HealthPassport::query()
-            ->with('user.studentProfile')
+            ->with('user.studentProfile.studentGroup')
             ->whereIn('user_id', $this->activeStudentUserIds())
             ->get()
             ->map(fn (HealthPassport $passport): array => [
@@ -734,7 +736,7 @@ class AnalyticsDashboardController extends Controller
                     $this->reportStudentName($passport->user),
                     $passport->user?->email,
                     $student?->faculty,
-                    $student?->group_name,
+                    $student?->currentGroupName(),
                     $this->riskReasonText($row['reasons']),
                 ];
             })
@@ -754,7 +756,7 @@ class AnalyticsDashboardController extends Controller
      */
     private function activeStudentProfiles(): Builder
     {
-        return StudentProfile::query()->active();
+        return StudentProfile::query()->active()->with('studentGroup');
     }
 
     /**

@@ -36,7 +36,7 @@ class StudentRiskService
             $profile->full_name,
             $profile->birth_date,
             $profile->faculty,
-            $profile->group_name,
+            $profile->student_group_id,
             $profile->specialty,
             $profile->course,
             $profile->contact_details,

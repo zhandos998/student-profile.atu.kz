@@ -6,6 +6,7 @@ use App\Models\AcademicProfile;
 use App\Models\HealthPassport;
 use App\Models\PsychologicalProfile;
 use App\Models\Role;
+use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -216,11 +217,17 @@ class AnalyticsDashboardTest extends TestCase
             'position' => 'Студент',
         ]);
 
+        $group = StudentGroup::query()->create([
+            'faculty' => 'Факультет информационных технологий',
+            'name' => 'ИС-101',
+        ]);
+
         StudentProfile::query()->create([
             'user_id' => $student->id,
+            'student_group_id' => $group->id,
             'full_name' => 'Иван Иванов',
             'faculty' => 'Факультет информационных технологий',
-            'group_name' => 'ИС-101',
+            'group_name' => 'Старое название',
             'course' => 1,
         ]);
 
@@ -238,6 +245,7 @@ class AnalyticsDashboardTest extends TestCase
 
         $this->assertStringContainsString('Иван Иванов', $response->getContent());
         $this->assertStringContainsString('ИС-101', $response->getContent());
+        $this->assertStringNotContainsString('Старое название', $response->getContent());
     }
 
     public function test_dit_administrator_can_export_academic_risks_report(): void
@@ -281,6 +289,38 @@ class AnalyticsDashboardTest extends TestCase
 
         $this->assertStringContainsString('Risk Student', $response->getContent());
         $this->assertStringContainsString('Calculus', $response->getContent());
+    }
+
+    public function test_group_report_uses_group_ids_and_does_not_create_phantom_groups(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create([
+            'role_id' => Role::query()->where('slug', Role::ADMINISTRATOR_DIT)->value('id'),
+        ]);
+        $group = StudentGroup::query()->create(['name' => 'NEW-101']);
+        $linkedStudent = User::factory()->create();
+        $unlinkedStudent = User::factory()->create();
+
+        StudentProfile::query()->create([
+            'user_id' => $linkedStudent->id,
+            'student_group_id' => $group->id,
+            'group_name' => 'OLD-101',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $unlinkedStudent->id,
+            'group_name' => 'GHOST-101',
+        ]);
+
+        $content = $this->actingAs($administrator)
+            ->get(route('analytics-dashboard.reports.export', ['type' => 'group']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('NEW-101', $content);
+        $this->assertStringContainsString('Не указано', $content);
+        $this->assertStringNotContainsString('OLD-101', $content);
+        $this->assertStringNotContainsString('GHOST-101', $content);
     }
 
     public function test_student_cannot_export_analytics_report(): void

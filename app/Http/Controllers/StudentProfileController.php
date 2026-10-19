@@ -58,7 +58,7 @@ class StudentProfileController extends Controller
         $archiveStatus = $filters['archive_status'] ?? 'active';
 
         $students = StudentProfileAccess::scopeStudentUsers(User::query(), $request->user())
-            ->with(['role', 'studentProfile', 'academicProfile'])
+            ->with(['role', 'studentProfile.studentGroup', 'academicProfile'])
             ->whereHas('role', fn ($query) => $query->whereIn('slug', User::STUDENT_DATA_ROLES))
             ->when($archiveStatus === 'active', fn ($query) => $query
                 ->where(function ($query): void {
@@ -77,7 +77,7 @@ class StudentProfileController extends Controller
                             $query
                                 ->where('full_name', 'like', "%{$search}%")
                                 ->orWhere('iin', 'like', "%{$search}%")
-                                ->orWhere('group_name', 'like', "%{$search}%");
+                                ->orWhereHas('studentGroup', fn ($group) => $group->where('name', 'like', "%{$search}%"));
                         });
                 });
             })
@@ -86,7 +86,7 @@ class StudentProfileController extends Controller
             ->when($filters['student_group_id'] ?? null, fn ($query, int $studentGroupId) => $query
                 ->whereHas('studentProfile', fn ($query) => $query->where('student_group_id', $studentGroupId)))
             ->when($filters['group_name'] ?? null, fn ($query, string $groupName) => $query
-                ->whereHas('studentProfile', fn ($query) => $query->where('group_name', 'like', "%{$groupName}%")))
+                ->whereHas('studentProfile.studentGroup', fn ($query) => $query->where('name', 'like', "%{$groupName}%")))
             ->when($filters['course'] ?? null, fn ($query, int $course) => $query
                 ->whereHas('studentProfile', fn ($query) => $query->where('course', $course)))
             ->when(($filters['profile_status'] ?? null) === 'with_profile', fn ($query) => $query->has('studentProfile'))
@@ -754,7 +754,7 @@ class StudentProfileController extends Controller
             'academicProfile',
             'extracurricularAchievements' => fn ($query) => $query->latest(),
             'portfolioItems' => fn ($query) => $query->latest(),
-            'studentProfile',
+            'studentProfile.studentGroup',
             'healthPassport',
         ]);
 
@@ -835,7 +835,7 @@ class StudentProfileController extends Controller
             'hasProfile' => $profile !== null,
             'fullName' => $profile?->full_name ?: $student->name,
             'faculty' => $profile?->faculty,
-            'groupName' => $profile?->group_name,
+            'groupName' => $profile?->currentGroupName(),
             'course' => $profile?->course,
             'specialty' => $profile?->specialty,
             'iin' => $profile?->iin,
@@ -907,6 +907,7 @@ class StudentProfileController extends Controller
                 ...$profile->toArray(),
             ];
             $payload['has_profile'] = true;
+            $payload['group_name'] = $profile->currentGroupName();
         }
 
         foreach ($this->booleanProfileFields() as $field) {

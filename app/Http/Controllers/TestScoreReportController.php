@@ -35,7 +35,7 @@ class TestScoreReportController extends Controller
 
         $filters = $this->filters($request);
         $snapshots = $this->snapshots($filters)
-            ->with('studentProfile.user')
+            ->with(['studentProfile.user', 'studentProfile.studentGroup'])
             ->orderBy('id')
             ->paginate(20)
             ->withQueryString()
@@ -144,7 +144,7 @@ class TestScoreReportController extends Controller
             'student_url' => $profile?->user_id ? route('student-profiles.show', $profile->user_id) : null,
             'iin' => $snapshot->source_iin,
             'faculty' => $profile?->faculty,
-            'group' => $profile?->group_name,
+            'group' => $profile?->currentGroupName(),
             'test' => $snapshot->survey_name,
             'metrics' => collect($snapshot->metrics ?? [])->map(fn (array $metric): array => [
                 'label' => $metric['label'] ?? '',
@@ -158,7 +158,7 @@ class TestScoreReportController extends Controller
     private function eachScore(array $filters, callable $callback): void
     {
         $this->snapshots($filters)
-            ->with('studentProfile.user')
+            ->with(['studentProfile.user', 'studentProfile.studentGroup'])
             ->orderBy('id')
             ->chunkById(200, function ($snapshots) use ($callback): void {
                 foreach ($snapshots as $snapshot) {

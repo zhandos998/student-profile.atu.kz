@@ -261,7 +261,7 @@ class GroupSocialPassportController extends Controller
                 'full_name' => $profile->full_name ?: $profile->user?->name,
                 'faculty' => $profile->faculty,
                 'education_program' => $profile->specialty,
-                'group_name' => $profile->group_name,
+                'group_name' => $profile->currentGroupName(),
                 'course' => $profile->course,
                 'reason' => $profile->departure_reason,
                 'reason_label' => $this->departureReasonLabel($profile),
@@ -279,18 +279,11 @@ class GroupSocialPassportController extends Controller
     ): Builder
     {
         $groupId = $studentGroup?->id ?? $passport?->student_group_id;
-        $groupName = $studentGroup?->name ?? $passport?->group_name;
 
         return StudentProfile::query()
             ->active()
-            ->with('user')
-            ->when(
-                filled($groupId),
-                fn (Builder $query) => $query->where('student_group_id', $groupId),
-                fn (Builder $query) => filled($groupName)
-                    ? $query->where('group_name', $groupName)
-                    : $query->whereRaw('1 = 0'),
-            )
+            ->with(['user', 'studentGroup'])
+            ->where('student_group_id', $groupId ?? 0)
             ->when(
                 $studentStatus,
                 fn (Builder $query, string $status) => $query->where('student_status', $status),

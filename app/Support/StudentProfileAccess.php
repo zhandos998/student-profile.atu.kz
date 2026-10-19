@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\StudentGroup;
-use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -15,11 +14,11 @@ class StudentProfileAccess
             return $query;
         }
 
-        $groups = self::accessibleGroupKeys($viewer);
+        $groupIds = self::accessibleGroupIds($viewer);
 
         return $query->whereHas(
             'studentProfile',
-            fn (Builder $query) => self::scopeStudentProfilesByGroups($query, $groups),
+            fn (Builder $query) => $query->whereIn('student_group_id', $groupIds),
         );
     }
 
@@ -29,9 +28,7 @@ class StudentProfileAccess
             return $query;
         }
 
-        return $query->where(
-            fn (Builder $query) => self::scopeStudentProfilesByGroups($query, self::accessibleGroupKeys($viewer)),
-        );
+        return $query->whereIn('student_group_id', self::accessibleGroupIds($viewer));
     }
 
     public static function accessibleGroupsQuery(User $viewer): Builder
@@ -63,7 +60,7 @@ class StudentProfileAccess
             return false;
         }
 
-        return self::studentProfileMatchesGroups($student->studentProfile, self::accessibleGroupKeys($viewer));
+        return in_array($student->studentProfile->student_group_id, self::accessibleGroupIds($viewer), true);
     }
 
     public static function canAccessGroup(User $viewer, ?StudentGroup $group): bool
@@ -81,49 +78,13 @@ class StudentProfileAccess
     }
 
     /**
-     * @return array{ids: array<int, int>, names: array<int, string>}
+     * @return array<int, int>
      */
-    private static function accessibleGroupKeys(User $viewer): array
+    private static function accessibleGroupIds(User $viewer): array
     {
-        $groups = self::accessibleGroupsQuery($viewer)->get(['id', 'name']);
-
-        return [
-            'ids' => $groups->pluck('id')->map(fn (int $id): int => $id)->values()->all(),
-            'names' => $groups->pluck('name')->filter()->values()->all(),
-        ];
-    }
-
-    /**
-     * @param  array{ids: array<int, int>, names: array<int, string>}  $groups
-     */
-    private static function scopeStudentProfilesByGroups(Builder $query, array $groups): void
-    {
-        $query->where(function (Builder $query) use ($groups): void {
-            $hasCondition = false;
-
-            if ($groups['ids'] !== []) {
-                $query->whereIn('student_group_id', $groups['ids']);
-                $hasCondition = true;
-            }
-
-            if ($groups['names'] !== []) {
-                $method = $hasCondition ? 'orWhereIn' : 'whereIn';
-                $query->{$method}('group_name', $groups['names']);
-                $hasCondition = true;
-            }
-
-            if (! $hasCondition) {
-                $query->whereRaw('1 = 0');
-            }
-        });
-    }
-
-    /**
-     * @param  array{ids: array<int, int>, names: array<int, string>}  $groups
-     */
-    private static function studentProfileMatchesGroups(StudentProfile $profile, array $groups): bool
-    {
-        return ($profile->student_group_id && in_array($profile->student_group_id, $groups['ids'], true))
-            || ($profile->group_name && in_array($profile->group_name, $groups['names'], true));
+        return self::accessibleGroupsQuery($viewer)
+            ->pluck('id')
+            ->map(fn (int $id): int => $id)
+            ->all();
     }
 }
