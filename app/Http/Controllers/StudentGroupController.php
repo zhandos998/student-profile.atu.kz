@@ -93,13 +93,13 @@ class StudentGroupController extends Controller
         abort_unless($request->user()?->canViewGroupSocialPassport(), 403);
 
         $validated = $request->validate([
-            'faculty' => ['nullable', 'string', Rule::in(StudentProfileOptions::facultyNames())],
+            'faculty' => ['required', 'string', Rule::in(StudentProfileOptions::facultyNames())],
             'name' => ['required', 'string', 'max:100', 'unique:student_groups,name'],
         ]);
 
         $group = StudentGroup::query()->create([
             'curator_id' => $request->user()->id,
-            'faculty' => $validated['faculty'] ?? null,
+            'faculty' => $validated['faculty'],
             'name' => $validated['name'],
         ]);
 

@@ -117,6 +117,55 @@ class GroupSocialPassportTest extends TestCase
         ]);
     }
 
+    public function test_group_creation_requires_a_known_faculty(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Curator');
+
+        foreach ([null, 'Unknown faculty'] as $faculty) {
+            $this->actingAs($curator)
+                ->post(route('groups.store'), [
+                    'faculty' => $faculty,
+                    'name' => 'IS-NO-FACULTY',
+                ])
+                ->assertSessionHasErrors('faculty');
+        }
+
+        $this->assertDatabaseMissing('student_groups', ['name' => 'IS-NO-FACULTY']);
+    }
+
+    public function test_legacy_passport_route_cannot_create_group_without_faculty(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Curator');
+
+        $this->actingAs($curator)
+            ->post(route('group-social-passport.update'), [
+                'group_name' => 'LEGACY-NO-FACULTY',
+            ])
+            ->assertSessionHasErrors('faculty');
+
+        $this->assertDatabaseMissing('student_groups', ['name' => 'LEGACY-NO-FACULTY']);
+    }
+
+    public function test_passport_save_without_faculty_preserves_existing_group_faculty(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Curator');
+        $group = $this->studentGroup($curator, 'IS-23-1');
+
+        $this->actingAs($curator)
+            ->post(route('groups.social-passport.update', $group), [
+                'student_group_id' => $group->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($group->faculty, $group->fresh()->faculty);
+    }
+
     public function test_advisor_can_rename_own_group(): void
     {
         $this->seed(RoleSeeder::class);

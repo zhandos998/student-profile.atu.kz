@@ -487,6 +487,7 @@ export default function Index({
                             <InputLabel value="Факультет" />
                             <select
                                 value={data.faculty}
+                                required
                                 onChange={(event) =>
                                     setData((current) => ({
                                         ...current,
@@ -495,7 +496,9 @@ export default function Index({
                                 }
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
                             >
-                                <option value="">Не указано</option>
+                                <option value="" disabled>
+                                    Выберите факультет
+                                </option>
                                 {options.faculties.map((faculty) => (
                                     <option
                                         key={faculty.value}

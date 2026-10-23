@@ -8,6 +8,7 @@ use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\FacultyDeputyDeanContacts;
+use App\Support\StudentProfileOptions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -316,9 +317,17 @@ class GroupSocialPassportController extends Controller
             return null;
         }
 
+        $faculty = $validated['faculty'] ?? null;
+        $isNewGroup = ! $group->exists;
+        $isFacultyChange = filled($faculty) && $faculty !== $group->faculty;
+
+        if (($isNewGroup || $isFacultyChange) && ! in_array($faculty, StudentProfileOptions::facultyNames(), true)) {
+            throw ValidationException::withMessages(['faculty' => 'Выберите факультет из списка.']);
+        }
+
         $group->fill([
             'curator_id' => $group->curator_id ?: $request->user()->id,
-            'faculty' => $validated['faculty'] ?? $group->faculty,
+            'faculty' => filled($faculty) ? $faculty : $group->faculty,
             'name' => filled($validated['group_name'] ?? null) ? $validated['group_name'] : $group->name,
         ]);
         $group->save();
