@@ -242,6 +242,61 @@ class AuthenticationTest extends TestCase
         $this->assertSame(4, $profile->course);
     }
 
+    public function test_platonus_faculty_change_clears_an_unmatched_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        config([
+            'services.platonus.verify_url' => 'https://hub.atu.kz/api/v1/students/verify',
+            'services.platonus.api_key' => 'test-key',
+        ]);
+
+        $oldFaculty = StudentProfileOptions::facultyNames()[1];
+        $newFaculty = StudentProfileOptions::facultyNames()[3];
+        $oldGroup = StudentGroup::query()->create([
+            'faculty' => $oldFaculty,
+            'name' => 'OLD-101',
+        ]);
+        $user = User::factory()->create([
+            'role_id' => Role::query()->where('slug', Role::STUDENT)->firstOrFail()->id,
+            'platonus_login' => 'faculty_student',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $user->id,
+            'full_name' => 'Faculty Student',
+            'iin' => '980915300671',
+            'faculty' => $oldFaculty,
+            'student_group_id' => $oldGroup->id,
+            'group_name' => $oldGroup->name,
+        ]);
+
+        Http::fake([
+            'https://hub.atu.kz/api/v1/students/verify' => Http::response([
+                'authenticated' => true,
+                'student' => ['iin' => '980915300671'],
+            ]),
+            'https://hub.atu.kz/api/v1/hub/student_full*' => Http::response([
+                'iin' => '980915300671',
+                'education' => [
+                    'faculty_name_ru' => $newFaculty,
+                    'group_name' => 'UNKNOWN-101',
+                ],
+            ]),
+        ]);
+
+        $this->post('/login', [
+            'auth_type' => 'platonus',
+            'login' => 'faculty_student',
+            'password' => 'plain_password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $profile = $user->studentProfile()->firstOrFail();
+
+        $this->assertSame($newFaculty, $profile->faculty);
+        $this->assertNull($profile->student_group_id);
+        $this->assertNull($profile->group_name);
+    }
+
     public function test_platonus_login_uses_existing_user_with_same_iin(): void
     {
         $this->seed(RoleSeeder::class);

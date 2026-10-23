@@ -327,6 +327,7 @@ class LoginRequest extends FormRequest
             'education.faculty_name_kz',
         ]));
         $studentGroup = $this->studentGroup($groupName, $faculty);
+        $facultyChanged = filled($faculty) && $faculty !== $profile->faculty;
 
         if (! $profile->exists) {
             $profile->profile_status = StudentProfile::STATUS_DRAFT;
@@ -359,14 +360,18 @@ class LoginRequest extends FormRequest
             'parent_guardian_contacts' => $this->studentParentContacts($student),
         ];
 
-        if ($studentGroup) {
-            $profile->student_group_id = $studentGroup->id;
-        }
-
         foreach ($data as $field => $value) {
             if (filled($value)) {
                 $profile->{$field} = $value;
             }
+        }
+
+        if ($studentGroup) {
+            $profile->student_group_id = $studentGroup->id;
+            $profile->group_name = $studentGroup->name;
+        } elseif ($facultyChanged) {
+            $profile->student_group_id = null;
+            $profile->group_name = null;
         }
 
         $profile->save();

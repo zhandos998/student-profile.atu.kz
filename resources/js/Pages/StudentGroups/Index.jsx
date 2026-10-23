@@ -6,11 +6,11 @@ import SecondaryButton from "@/Components/SecondaryButton";
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, router } from "@inertiajs/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const valueOrEmpty = (value) => value ?? "";
 
-function SectionCard({ title, description = null, badge = null, children }) {
+function SectionCard({ title, description = null, badge = null, bodyClassName = "p-6", children }) {
     return (
         <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
             <div className="flex flex-col gap-2 border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4 sm:flex-row sm:items-start sm:justify-between">
@@ -26,14 +26,63 @@ function SectionCard({ title, description = null, badge = null, children }) {
                 </div>
                 {badge}
             </div>
-            <div className="p-6">{children}</div>
+            <div className={bodyClassName}>{children}</div>
         </section>
     );
 }
 
+function GroupPagination({ groups }) {
+    if (groups.last_page <= 1) {
+        return null;
+    }
+
+    return (
+        <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-600">
+                Страница {groups.current_page} из {groups.last_page}
+            </p>
+            <nav aria-label="Страницы групп" className="flex flex-wrap gap-1.5">
+                {groups.links.map((link, index) => {
+                    const label = index === 0
+                        ? "Назад"
+                        : index === groups.links.length - 1
+                          ? "Далее"
+                          : link.label;
+                    const className = `inline-flex min-h-9 min-w-9 items-center justify-center rounded border px-2.5 text-sm font-medium ${
+                        link.active
+                            ? "border-[#355da8] bg-[#355da8] text-white"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-[#edf3ff]"
+                    }`;
+
+                    return link.url ? (
+                        <Link
+                            key={index}
+                            href={link.url}
+                            preserveScroll
+                            preserveState
+                            aria-current={link.active ? "page" : undefined}
+                            className={className}
+                        >
+                            {label}
+                        </Link>
+                    ) : (
+                        <span
+                            key={index}
+                            aria-disabled="true"
+                            className={`${className} cursor-default opacity-50`}
+                        >
+                            {label}
+                        </span>
+                    );
+                })}
+            </nav>
+        </div>
+    );
+}
+
 export default function Index({
-    groups = [],
-    filters = { faculty: "", course: "", curator_id: "" },
+    groups = { data: [], total: 0, last_page: 1, links: [] },
+    filters = { name: "", faculty: "", course: "", curator_id: "", per_page: "20" },
     options = { faculties: [], courses: [], curators: [] },
 }) {
     const [data, setData] = useState({
@@ -51,6 +100,10 @@ export default function Index({
     const [groupToDelete, setGroupToDelete] = useState(null);
     const [deleteErrors, setDeleteErrors] = useState({});
     const [deleteProcessing, setDeleteProcessing] = useState(false);
+
+    useEffect(() => {
+        setFilterData(filters);
+    }, [filters.name, filters.faculty, filters.course, filters.curator_id, filters.per_page]);
 
     const closeCreateModal = () => {
         if (processing) {
@@ -148,13 +201,25 @@ export default function Index({
 
     const resetFilters = () => {
         const emptyFilters = {
+            name: "",
             faculty: "",
             course: "",
             curator_id: "",
+            per_page: "20",
         };
 
         setFilterData(emptyFilters);
         router.get(route("groups.index"), emptyFilters, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+
+    const changePageSize = (event) => {
+        const nextFilters = { ...filters, per_page: event.target.value };
+
+        setFilterData(nextFilters);
+        router.get(route("groups.index"), nextFilters, {
             preserveState: true,
             preserveScroll: true,
         });
@@ -171,7 +236,7 @@ export default function Index({
             <Head title="Группы" />
 
             <div className="bg-[#f4f7fc] py-8">
-                <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+                <div className="w-full space-y-6 px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-end">
                         <button
                             type="button"
@@ -185,9 +250,24 @@ export default function Index({
                     <SectionCard title="Фильтр групп">
                         <form
                             onSubmit={submitFilters}
-                            className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_0.5fr_1fr_auto]"
+                            className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
                         >
-                            <div>
+                            <div className="xl:col-span-2">
+                                <InputLabel value="Название группы" />
+                                <TextInput
+                                    value={filterData.name}
+                                    onChange={(event) =>
+                                        setFilterData((current) => ({
+                                            ...current,
+                                            name: event.target.value,
+                                        }))
+                                    }
+                                    className="mt-1 block w-full"
+                                    placeholder="Например, IS-23-1"
+                                />
+                            </div>
+
+                            <div className="xl:col-span-2">
                                 <InputLabel value="Факультет" />
                                 <select
                                     value={filterData.faculty}
@@ -256,7 +336,7 @@ export default function Index({
                                 </select>
                             </div>
 
-                            <div className="flex items-end gap-3">
+                            <div className="flex items-end gap-3 xl:col-span-2">
                                 <button
                                     type="submit"
                                     className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192]"
@@ -276,110 +356,110 @@ export default function Index({
 
                     <SectionCard
                         title="Список групп"
-                        description="У каждой группы свой социальный паспорт и свой список студентов."
+                        bodyClassName="p-0"
                         badge={
-                            <div className="rounded-md bg-[#355da8] px-3 py-2 text-sm font-semibold text-white">
-                                {groups.length}
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                                <span>Всего: {groups.total}</span>
+                                <label className="flex items-center gap-2">
+                                    На странице
+                                    <select
+                                        value={filters.per_page}
+                                        onChange={changePageSize}
+                                        className="rounded border-gray-300 py-1 text-sm shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
+                                    >
+                                        {[10, 20, 50, 100].map((size) => (
+                                            <option key={size} value={size}>
+                                                {size}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
                             </div>
                         }
                     >
-                        {groups.length === 0 ? (
-                            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-600">
-                                Группы пока не созданы.
-                            </div>
+                        {groups.data.length === 0 ? (
+                            <p className="px-5 py-8 text-sm text-gray-600">
+                                {filters.name || filters.faculty || filters.course || filters.curator_id
+                                    ? "Группы не найдены."
+                                    : "Группы пока не созданы."}
+                            </p>
                         ) : (
-                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                {groups.map((group) => (
-                                    <article
-                                        key={group.id}
-                                        className="flex flex-col overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm"
-                                    >
-                                        <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
-                                            <h4 className="text-base font-semibold text-[#274f93]">
-                                                {group.name}
-                                            </h4>
-                                            <p className="mt-1 text-sm text-[#426aa8]">
-                                                {valueOrEmpty(
-                                                    group.faculty,
-                                                ) || "Факультет не указан"}
-                                            </p>
-                                        </div>
-
-                                        <div className="flex flex-1 flex-col p-4">
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="rounded-md bg-gray-50 p-3 ring-1 ring-gray-200/70">
-                                                    <p className="text-xs font-medium text-gray-500">
-                                                        Студенты
-                                                    </p>
-                                                    <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+                            <>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full min-w-[1000px] table-fixed text-left text-sm">
+                                        <colgroup>
+                                            <col className="w-[20%]" />
+                                            <col className="w-[27%]" />
+                                            <col className="w-[9%]" />
+                                            <col className="w-[18%]" />
+                                            <col className="w-[26%]" />
+                                        </colgroup>
+                                        <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase text-gray-600">
+                                            <tr>
+                                                <th scope="col" className="px-5 py-3">Группа</th>
+                                                <th scope="col" className="px-5 py-3">Факультет</th>
+                                                <th scope="col" className="px-5 py-3 text-right">Студенты</th>
+                                                <th scope="col" className="px-5 py-3">Ответственный</th>
+                                                <th scope="col" className="px-5 py-3 text-right">Действия</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {groups.data.map((group) => (
+                                                <tr key={group.id} className="hover:bg-[#f7f9fd]">
+                                                    <td className="px-5 py-3 align-middle">
+                                                        <Link
+                                                            href={group.passport_url}
+                                                            className="font-semibold text-[#274f93] hover:underline"
+                                                        >
+                                                            {group.name}
+                                                        </Link>
+                                                    </td>
+                                                    <td className="px-5 py-3 align-middle text-gray-700">
+                                                        {valueOrEmpty(group.faculty) || "Факультет не указан"}
+                                                    </td>
+                                                    <td className="px-5 py-3 text-right align-middle font-semibold tabular-nums text-gray-900">
                                                         {group.students_count}
-                                                    </p>
-                                                </div>
-                                                <div className="rounded-md bg-gray-50 p-3 ring-1 ring-gray-200/70">
-                                                    <p className="text-xs font-medium text-gray-500">
-                                                        Ответственный
-                                                    </p>
-                                                    <p className="mt-1 truncate text-sm font-semibold text-gray-950">
-                                                        {valueOrEmpty(
-                                                            group.curator_name,
-                                                        ) || "Не указан"}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-4 flex flex-wrap gap-2">
-                                                <Link
-                                                    href={group.passport_url}
-                                                    className="inline-flex flex-1 items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192]"
-                                                >
-                                                    Открыть соцпаспорт
-                                                </Link>
-                                                {group.can_rename && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            openRenameModal(
-                                                                group,
-                                                            )
-                                                        }
-                                                        className="inline-flex items-center justify-center rounded-md border border-[#c9d8f0] bg-white px-4 py-2 text-sm font-semibold text-[#355da8] transition hover:bg-[#edf3ff]"
-                                                    >
-                                                        Переименовать
-                                                    </button>
-                                                )}
-                                                {(group.can_delete ||
-                                                    group.delete_blocked_reason) && (
-                                                    <button
-                                                        type="button"
-                                                        disabled={
-                                                            !group.can_delete
-                                                        }
-                                                        title={
-                                                            group.delete_blocked_reason ||
-                                                            ""
-                                                        }
-                                                        onClick={() =>
-                                                            setGroupToDelete(
-                                                                group,
-                                                            )
-                                                        }
-                                                        className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                                                    >
-                                                        Удалить
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {group.delete_blocked_reason && (
-                                                <p className="mt-2 text-xs text-gray-500">
-                                                    {
-                                                        group.delete_blocked_reason
-                                                    }
-                                                </p>
-                                            )}
-                                        </div>
-                                    </article>
-                                ))}
-                            </div>
+                                                    </td>
+                                                    <td className="px-5 py-3 align-middle text-gray-700">
+                                                        {valueOrEmpty(group.curator_name) || "Не указан"}
+                                                    </td>
+                                                    <td className="px-5 py-3 align-middle">
+                                                        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                                                            <Link
+                                                                href={group.passport_url}
+                                                                className="font-medium text-[#355da8] hover:underline"
+                                                            >
+                                                                Открыть
+                                                            </Link>
+                                                            {group.can_rename && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openRenameModal(group)}
+                                                                    className="font-medium text-gray-700 hover:text-[#355da8]"
+                                                                >
+                                                                    Переименовать
+                                                                </button>
+                                                            )}
+                                                            {(group.can_delete || group.delete_blocked_reason) && (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={!group.can_delete}
+                                                                    title={group.delete_blocked_reason || ""}
+                                                                    onClick={() => setGroupToDelete(group)}
+                                                                    className="font-medium text-red-700 hover:text-red-800 disabled:cursor-not-allowed disabled:text-gray-400"
+                                                                >
+                                                                    Удалить
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <GroupPagination groups={groups} />
+                            </>
                         )}
                     </SectionCard>
                 </div>

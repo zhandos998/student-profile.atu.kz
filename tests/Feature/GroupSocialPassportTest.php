@@ -28,7 +28,8 @@ class GroupSocialPassportTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('StudentGroups/Index')
-                ->has('groups', 0)
+                ->has('groups.data', 0)
+                ->where('groups.total', 0)
             );
     }
 
@@ -54,7 +55,8 @@ class GroupSocialPassportTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('StudentGroups/Index')
-                ->has('groups', 0)
+                ->has('groups.data', 0)
+                ->where('groups.total', 0)
             );
     }
 
@@ -301,7 +303,6 @@ class GroupSocialPassportTest extends TestCase
             );
     }
 
-
     public function test_administration_can_filter_group_list(): void
     {
         $this->seed(RoleSeeder::class);
@@ -353,9 +354,104 @@ class GroupSocialPassportTest extends TestCase
                 ->where('filters.course', '2')
                 ->where('filters.curator_id', (string) $curator->id)
                 ->has('options.curators', 2)
-                ->has('groups', 1)
-                ->where('groups.0.name', 'IS-23-1')
+                ->has('groups.data', 1)
+                ->where('groups.total', 1)
+                ->where('groups.data.0.name', 'IS-23-1')
             );
+    }
+
+    public function test_group_list_can_search_by_partial_name_with_other_filters(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = $this->userWithRole(Role::ADMINISTRATION, 'Dean');
+        $faculty = StudentProfileOptions::facultyNames()[3];
+        $otherFaculty = StudentProfileOptions::facultyNames()[4];
+
+        foreach ([
+            [$faculty, 'IS-23-1'],
+            [$faculty, 'IS-23-2'],
+            [$faculty, 'IS-24-1'],
+            [$otherFaculty, 'TPP-23-1'],
+        ] as [$groupFaculty, $name]) {
+            StudentGroup::query()->create([
+                'faculty' => $groupFaculty,
+                'name' => $name,
+            ]);
+        }
+
+        $this->actingAs($administrator)
+            ->get(route('groups.index', [
+                'name' => '23-',
+                'faculty' => $faculty,
+                'per_page' => 10,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('StudentGroups/Index')
+                ->where('filters.name', '23-')
+                ->where('filters.faculty', $faculty)
+                ->where('groups.total', 2)
+                ->has('groups.data', 2)
+                ->where('groups.data.0.name', 'IS-23-1')
+                ->where('groups.data.1.name', 'IS-23-2')
+            );
+    }
+
+    public function test_group_list_is_paginated_after_role_and_faculty_filters(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $curator = $this->userWithRole(Role::CURATOR, 'Curator');
+        $otherCurator = $this->userWithRole(Role::CURATOR, 'Other curator');
+        $faculty = StudentProfileOptions::facultyNames()[3];
+
+        for ($number = 1; $number <= 23; $number++) {
+            StudentGroup::query()->create([
+                'curator_id' => $curator->id,
+                'faculty' => $faculty,
+                'name' => sprintf('IS-%02d', $number),
+            ]);
+        }
+
+        StudentGroup::query()->create([
+            'curator_id' => $otherCurator->id,
+            'faculty' => $faculty,
+            'name' => 'OTHER-01',
+        ]);
+
+        $this->actingAs($curator)
+            ->get(route('groups.index', ['name' => 'IS-', 'faculty' => $faculty, 'per_page' => 10, 'page' => 2]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('StudentGroups/Index')
+                ->where('filters.name', 'IS-')
+                ->where('filters.faculty', $faculty)
+                ->where('filters.per_page', '10')
+                ->where('groups.total', 23)
+                ->where('groups.current_page', 2)
+                ->where('groups.last_page', 3)
+                ->has('groups.data', 10)
+                ->where('groups.data.0.name', 'IS-11')
+                ->where('groups.data.9.name', 'IS-20')
+                ->where('groups.next_page_url', fn (string $url): bool => str_contains($url, 'faculty=')
+                    && str_contains($url, 'name=IS-')
+                    && str_contains($url, 'per_page=10')
+                    && str_contains($url, 'page=3'))
+            );
+
+        $this->actingAs($curator)
+            ->get(route('groups.index', ['name' => 'IS-', 'faculty' => $faculty, 'per_page' => 10, 'page' => 3]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('groups.total', 23)
+                ->has('groups.data', 3)
+                ->where('groups.data.0.name', 'IS-21')
+            );
+
+        $this->actingAs($curator)
+            ->get(route('groups.index', ['faculty' => $faculty, 'per_page' => 10, 'page' => 4]))
+            ->assertRedirect(route('groups.index', ['faculty' => $faculty, 'per_page' => 10, 'page' => 3]));
     }
 
     public function test_curator_can_open_group_social_passport_page(): void
@@ -566,8 +662,8 @@ class GroupSocialPassportTest extends TestCase
             ->get(route('groups.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->has('groups', 1)
-                ->where('groups.0.name', 'IS-23-1')
+                ->has('groups.data', 1)
+                ->where('groups.data.0.name', 'IS-23-1')
             );
 
         $this->actingAs($student)

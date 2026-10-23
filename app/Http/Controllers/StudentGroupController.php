@@ -19,15 +19,19 @@ use Inertia\Response;
 
 class StudentGroupController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         abort_unless($request->user()?->canViewGroupSocialPassport(), 403);
 
         $filters = $request->validate([
+            'name' => ['nullable', 'string', 'max:100'],
             'faculty' => ['nullable', 'string', Rule::in(StudentProfileOptions::facultyNames())],
             'course' => ['nullable', 'integer', 'min:1', 'max:8'],
             'curator_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
+            'per_page' => ['nullable', 'integer', Rule::in([10, 20, 50, 100])],
         ]);
+
+        $perPage = (int) ($filters['per_page'] ?? 20);
 
         $groups = $this->accessibleGroups($request)
             ->with('curator:id,name,email')
@@ -35,14 +39,16 @@ class StudentGroupController extends Controller
                 'studentProfiles' => fn (Builder $query) => $query->active(),
                 'studentProfiles as total_student_profiles_count',
             ])
+            ->when($filters['name'] ?? null, fn (Builder $query, string $name) => $query->where('name', 'like', "%{$name}%"))
             ->when($filters['faculty'] ?? null, fn (Builder $query, string $faculty) => $query->where('faculty', $faculty))
             ->when($filters['course'] ?? null, fn (Builder $query, int $course) => $query
                 ->whereHas('studentProfiles', fn (Builder $query) => $query->active()->where('course', $course)))
             ->when($filters['curator_id'] ?? null, fn (Builder $query, int $curatorId) => $query->where('curator_id', $curatorId))
             ->orderBy('faculty')
             ->orderBy('name')
-            ->get()
-            ->map(function (StudentGroup $group) use ($request): array {
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(function (StudentGroup $group) use ($request): array {
                 $canRequestDelete = $this->canDeleteGroup($request, $group);
                 $hasStudents = (int) $group->total_student_profiles_count > 0;
 
@@ -61,12 +67,18 @@ class StudentGroupController extends Controller
                 ];
             });
 
+        if ($groups->currentPage() > $groups->lastPage()) {
+            return redirect()->to($request->fullUrlWithQuery(['page' => $groups->lastPage()]));
+        }
+
         return Inertia::render('StudentGroups/Index', [
             'groups' => $groups,
             'filters' => [
+                'name' => $filters['name'] ?? '',
                 'faculty' => $filters['faculty'] ?? '',
                 'course' => $filters['course'] ?? '',
                 'curator_id' => isset($filters['curator_id']) ? (string) $filters['curator_id'] : '',
+                'per_page' => (string) $perPage,
             ],
             'options' => [
                 'faculties' => StudentProfileOptions::toSameValueOptions(StudentProfileOptions::facultyNames()),

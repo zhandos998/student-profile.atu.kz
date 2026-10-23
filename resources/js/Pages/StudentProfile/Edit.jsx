@@ -547,25 +547,13 @@ export default function Edit({
     );
 
     const setFaculty = (faculty) => {
-        profileForm.setData((current) => {
-            const selectedGroup = availableGroups.find(
-                (group) =>
-                    String(group.value) === String(current.student_group_id),
-            );
-
-            return {
-                ...current,
-                faculty,
-                student_group_id:
-                    selectedGroup?.faculty && selectedGroup.faculty !== faculty
-                        ? ""
-                        : current.student_group_id,
-                group_name:
-                    selectedGroup?.faculty && selectedGroup.faculty !== faculty
-                        ? ""
-                        : current.group_name,
-            };
-        });
+        profileForm.setData((current) => ({
+            ...current,
+            faculty,
+            student_group_id:
+                current.faculty === faculty ? current.student_group_id : "",
+            group_name: current.faculty === faculty ? current.group_name : "",
+        }));
     };
 
     const setStudentGroupId = (studentGroupId) => {
@@ -680,6 +668,9 @@ export default function Edit({
     const applyPlatonusProfile = (platonusProfile = {}) => {
         setProfileData((current) => {
             const next = { ...current };
+            const facultyChanged =
+                platonusProfile.faculty &&
+                platonusProfile.faculty !== current.faculty;
 
             platonusProfileFields.forEach((field) => {
                 const value = platonusProfile[field];
@@ -688,6 +679,11 @@ export default function Edit({
                     next[field] = String(value);
                 }
             });
+
+            if (facultyChanged) {
+                next.student_group_id = platonusProfile.student_group_id || "";
+                next.group_name = platonusProfile.group_name || "";
+            }
 
             return next;
         });
