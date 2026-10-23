@@ -16,7 +16,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use OpenSpout\Common\Entity\Cell;
+use OpenSpout\Common\Entity\Cell\NumericCell;
+use OpenSpout\Common\Entity\Cell\StringCell;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\Style;
+use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AnalyticsDashboardController extends Controller
 {
@@ -58,21 +64,43 @@ class AnalyticsDashboardController extends Controller
         ]);
     }
 
-    public function export(Request $request, string $type): SymfonyResponse
+    public function export(Request $request, string $type): StreamedResponse
     {
         abort_unless($request->user()?->canViewAnalyticsDashboard(), 403);
 
         $report = $this->reportData($type);
         abort_if($report === null, 404);
 
-        return response($this->excelHtml($report['title'], $report['columns'], $report['rows']), 200, [
-            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
-            'Content-Disposition' => sprintf(
-                'attachment; filename="%s-report-%s.xls"',
-                $type,
-                now()->format('Y-m-d'),
-            ),
-            'Cache-Control' => 'max-age=0',
+        return response()->streamDownload(function () use ($report): void {
+            $writer = new XlsxWriter();
+            $writer->openToFile('php://output');
+            $writer->addRow(Row::fromValues($report['columns']));
+            $gpaColumn = array_search('GPA', $report['columns'], true);
+            if ($gpaColumn === false) {
+                $gpaColumn = array_search('Средний GPA', $report['columns'], true);
+            }
+            $gpaStyle = (new Style())->setFormat('0.00');
+
+            foreach ($report['rows'] as $values) {
+                $writer->addRow(new Row(array_map(
+                    static function ($value, int $column) use ($gpaColumn, $gpaStyle): Cell {
+                        if ($column === $gpaColumn && $value !== null && $value !== '') {
+                            return new NumericCell((float) $value, $gpaStyle);
+                        }
+
+                        return is_string($value) && $value !== ''
+                            ? new StringCell($value, null)
+                            : Cell::fromValue($value);
+                    },
+                    $values,
+                    array_keys($values),
+                )));
+            }
+
+            $writer->close();
+        }, sprintf('%s-report-%s.xlsx', $type, now()->format('Y-m-d')), [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'private, no-store',
         ]);
     }
 
@@ -589,7 +617,9 @@ class AnalyticsDashboardController extends Controller
         return $this->activeStudentProfiles()
             ->with('user.academicProfile')
             ->get()
-            ->groupBy(fn (StudentProfile $profile): string => (string) ($profile->{$field} ?: 'Не указано'))
+            ->groupBy(fn (StudentProfile $profile): string => $field === 'student_group_id' && $profile->student_group_id === null
+                ? 'unassigned:'.($profile->faculty ?: 'Не указано')
+                : (string) ($profile->{$field} ?: 'Не указано'))
             ->sortKeys()
             ->map(fn (Collection $profiles, string $label): array => $this->groupedReportRow($profiles, $field, $label))
             ->values()
@@ -787,43 +817,4 @@ class AnalyticsDashboardController extends Controller
             ->implode(', ');
     }
 
-    /**
-     * @param  array<int, string>  $columns
-     * @param  array<int, array<int, string|int|float|null>>  $rows
-     */
-    private function excelHtml(string $title, array $columns, array $rows): string
-    {
-        $headerCells = collect($columns)
-            ->map(fn (string $column): string => '<th>'.e($column).'</th>')
-            ->implode('');
-
-        $bodyRows = collect($rows)
-            ->map(fn (array $row): string => '<tr>'.collect($row)
-                ->map(fn ($value): string => '<td>'.e((string) ($value ?? '')).'</td>')
-                ->implode('').'</tr>')
-            ->implode('');
-
-        if ($bodyRows === '') {
-            $bodyRows = '<tr><td colspan="'.count($columns).'">Нет данных</td></tr>';
-        }
-
-        return '<!doctype html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        table { border-collapse: collapse; }
-        th, td { border: 1px solid #999; padding: 6px; }
-        th { background: #f3f4f6; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <h1>'.e($title).'</h1>
-    <table>
-        <thead><tr>'.$headerCells.'</tr></thead>
-        <tbody>'.$bodyRows.'</tbody>
-    </table>
-</body>
-</html>';
-    }
 }

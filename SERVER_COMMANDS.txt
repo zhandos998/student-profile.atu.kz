@@ -2,13 +2,13 @@ Student Profile server commands
 ===============================
 
 Server:
-  172.20.252.171
+172.20.252.171
 
 SSH:
-  ssh zhagparovr@172.20.252.171
+ssh zhagparovr@172.20.252.171
 
 Project path on server:
-  /opt/apps/student_profile
+cd /opt/apps/student_profile
 
 Domain:
   student-profile.atu.kz

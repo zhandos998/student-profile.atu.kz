@@ -12,6 +12,7 @@ use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use OpenSpout\Reader\XLSX\Reader as XlsxReader;
 use Tests\TestCase;
 
 class AnalyticsDashboardTest extends TestCase
@@ -240,12 +241,15 @@ class AnalyticsDashboardTest extends TestCase
         $response = $this->actingAs($administrator)
             ->get(route('analytics-dashboard.reports.export', ['type' => 'student']))
             ->assertOk()
-            ->assertHeader('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
-            ->assertHeader('Content-Disposition');
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
-        $this->assertStringContainsString('Иван Иванов', $response->getContent());
-        $this->assertStringContainsString('ИС-101', $response->getContent());
-        $this->assertStringNotContainsString('Старое название', $response->getContent());
+        $this->assertStringContainsString('.xlsx', $response->headers->get('Content-Disposition'));
+        $rows = $this->xlsxRows($response->streamedContent());
+        $this->assertSame('ФИО', $rows[0][0]);
+        $this->assertSame('Иван Иванов', $rows[1][0]);
+        $this->assertSame('ИС-101', $rows[1][3]);
+        $this->assertSame(3.45, $rows[1][5]);
+        $this->assertCount(2, $rows);
     }
 
     public function test_dit_administrator_can_export_academic_risks_report(): void
@@ -284,11 +288,11 @@ class AnalyticsDashboardTest extends TestCase
         $response = $this->actingAs($administrator)
             ->get(route('analytics-dashboard.reports.export', ['type' => 'academic-risks']))
             ->assertOk()
-            ->assertHeader('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
-            ->assertHeader('Content-Disposition');
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
-        $this->assertStringContainsString('Risk Student', $response->getContent());
-        $this->assertStringContainsString('Calculus', $response->getContent());
+        $rows = $this->xlsxRows($response->streamedContent());
+        $this->assertSame('Risk Student', $rows[1][0]);
+        $this->assertSame('Calculus', $rows[1][6]);
     }
 
     public function test_group_report_uses_group_ids_and_does_not_create_phantom_groups(): void
@@ -301,26 +305,44 @@ class AnalyticsDashboardTest extends TestCase
         $group = StudentGroup::query()->create(['name' => 'NEW-101']);
         $linkedStudent = User::factory()->create();
         $unlinkedStudent = User::factory()->create();
+        $anotherUnlinkedStudent = User::factory()->create();
+        $sameFacultyUnlinkedStudent = User::factory()->create();
 
         StudentProfile::query()->create([
             'user_id' => $linkedStudent->id,
             'student_group_id' => $group->id,
             'group_name' => 'OLD-101',
+            'faculty' => 'Факультет информационных технологий',
+        ]);
+        AcademicProfile::query()->create([
+            'user_id' => $linkedStudent->id,
+            'gpa' => 3.45,
         ]);
         StudentProfile::query()->create([
             'user_id' => $unlinkedStudent->id,
             'group_name' => 'GHOST-101',
+            'faculty' => 'Факультет экономики и бизнеса',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $anotherUnlinkedStudent->id,
+            'faculty' => 'Факультет информационных технологий',
+        ]);
+        StudentProfile::query()->create([
+            'user_id' => $sameFacultyUnlinkedStudent->id,
+            'faculty' => 'Факультет экономики и бизнеса',
         ]);
 
-        $content = $this->actingAs($administrator)
+        $response = $this->actingAs($administrator)
             ->get(route('analytics-dashboard.reports.export', ['type' => 'group']))
             ->assertOk()
-            ->getContent();
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
-        $this->assertStringContainsString('NEW-101', $content);
-        $this->assertStringContainsString('Не указано', $content);
-        $this->assertStringNotContainsString('OLD-101', $content);
-        $this->assertStringNotContainsString('GHOST-101', $content);
+        $rows = $this->xlsxRows($response->streamedContent());
+        $this->assertSame(['Группа', 'Факультет', 'Количество студентов', 'Средний GPA', 'Студенты с задолженностью'], $rows[0]);
+        $this->assertContains(['NEW-101', 'Факультет информационных технологий', 1, 3.45, 0], $rows);
+        $this->assertContains(['Не указано', 'Факультет экономики и бизнеса', 2, '', 0], $rows);
+        $this->assertContains(['Не указано', 'Факультет информационных технологий', 1, '', 0], $rows);
+        $this->assertCount(4, $rows);
     }
 
     public function test_student_cannot_export_analytics_report(): void
@@ -366,5 +388,29 @@ class AnalyticsDashboardTest extends TestCase
         $this->actingAs($user)
             ->get(route('analytics-dashboard.index'))
             ->assertForbidden();
+    }
+
+    private function xlsxRows(string $contents): array
+    {
+        $file = tempnam(sys_get_temp_dir(), 'analytics-report-');
+        file_put_contents($file, $contents);
+
+        try {
+            $reader = new XlsxReader();
+            $reader->open($file);
+            $rows = [];
+
+            foreach ($reader->getSheetIterator() as $sheet) {
+                foreach ($sheet->getRowIterator() as $row) {
+                    $rows[] = array_map(fn ($cell) => $cell->getValue(), $row->getCells());
+                }
+            }
+
+            $reader->close();
+
+            return $rows;
+        } finally {
+            unlink($file);
+        }
     }
 }
