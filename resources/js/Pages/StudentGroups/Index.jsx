@@ -5,7 +5,7 @@ import PrimaryButton from "@/Components/PrimaryButton";
 import SecondaryButton from "@/Components/SecondaryButton";
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, router } from "@inertiajs/react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 
 const valueOrEmpty = (value) => value ?? "";
@@ -85,6 +85,8 @@ export default function Index({
     filters = { name: "", faculty: "", course: "", curator_id: "", per_page: "20" },
     options = { faculties: [], courses: [], curators: [] },
 }) {
+    const roleSlug = usePage().props.auth?.user?.role?.slug;
+    const isAdministrator = ["administrator_dit", "administration"].includes(roleSlug);
     const [data, setData] = useState({
         faculty: "",
         name: "",
@@ -225,28 +227,36 @@ export default function Index({
         });
     };
 
+    const createGroupButton = (
+        <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className={`inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2 ${isAdministrator ? "w-full sm:w-auto" : ""}`}
+        >
+            Создать группу
+        </button>
+    );
+
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                    Группы
-                </h2>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-xl font-semibold leading-tight text-gray-800">
+                        Группы
+                    </h2>
+                    {isAdministrator && createGroupButton}
+                </div>
             }
         >
             <Head title="Группы" />
 
             <div className="bg-[#f4f7fc] py-8">
                 <div className="w-full space-y-6 px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-end">
-                        <button
-                            type="button"
-                            onClick={() => setShowCreateModal(true)}
-                            className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192] focus:outline-none focus:ring-2 focus:ring-[#355da8] focus:ring-offset-2"
-                        >
-                            Создать группу
-                        </button>
-                    </div>
-
+                    {!isAdministrator && (
+                        <div className="flex justify-end">
+                            {createGroupButton}
+                        </div>
+                    )}
                     <SectionCard title="Фильтр групп">
                         <form
                             onSubmit={submitFilters}
