@@ -287,66 +287,6 @@ function RecommendationGrid({ items }) {
     );
 }
 
-function NotificationChannels({ channels }) {
-    return (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {channels.map((channel) => (
-                <div
-                    key={channel.name}
-                    className="overflow-hidden rounded-md border border-gray-200"
-                >
-                    <div className="flex items-center justify-between gap-3 border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
-                        <h4 className="text-base font-semibold text-[#274f93]">
-                            {channel.name}
-                        </h4>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#355da8] ring-1 ring-[#dbe5f6]">
-                            Канал
-                        </span>
-                    </div>
-                    <div className="p-4">
-                        <p className="text-sm text-gray-600">
-                            {channel.description}
-                        </p>
-                        <p className="mt-3 text-sm font-medium text-gray-800">
-                            {channel.status}
-                        </p>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-function NotificationEvents({ events }) {
-    return (
-        <div className="grid gap-4 lg:grid-cols-3">
-            {events.map((event) => (
-                <div
-                    key={event.name}
-                    className="overflow-hidden rounded-md border border-gray-200"
-                >
-                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[#426aa8]">
-                            Событие
-                        </p>
-                        <h4 className="mt-1 text-base font-semibold text-[#274f93]">
-                            {event.name}
-                        </h4>
-                    </div>
-                    <div className="p-4">
-                        <p className="text-sm text-gray-600">
-                            {event.description}
-                        </p>
-                        <p className="mt-3 text-sm font-medium text-gray-800">
-                            Получатели: {event.audience}
-                        </p>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-}
-
 function ReportGrid({ reports, testScoresUrl }) {
     return (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -393,41 +333,6 @@ function ReportGrid({ reports, testScoresUrl }) {
     );
 }
 
-function IntegrationGrid({ integrations }) {
-    return (
-        <div className="grid gap-4 lg:grid-cols-2">
-            {integrations.map((integration) => (
-                <div
-                    key={integration.name}
-                    className="overflow-hidden rounded-md border border-gray-200"
-                >
-                    <div className="flex items-start justify-between gap-4 border-b border-[#dbe5f6] bg-[#edf3ff] px-4 py-3">
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-[#426aa8]">
-                                Интеграция
-                            </p>
-                            <h4 className="mt-1 text-base font-semibold text-[#274f93]">
-                                {integration.name}
-                            </h4>
-                        </div>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#355da8] ring-1 ring-[#dbe5f6]">
-                            {integration.status}
-                        </span>
-                    </div>
-                    <div className="p-4">
-                        <p className="text-sm text-gray-600">
-                            {integration.description}
-                        </p>
-                        <p className="mt-3 text-sm font-medium text-gray-800">
-                            Данные: {integration.data}
-                        </p>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-}
-
 function Panel({ title, children }) {
     return (
         <section className="overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
@@ -447,11 +352,8 @@ export default function Index({
     topStudents,
     developmentDynamics,
     recommendations,
-    notificationChannels,
-    notificationEvents,
     reports,
     testScoresUrl,
-    integrations,
 }) {
     return (
         <AuthenticatedLayout
@@ -515,20 +417,8 @@ export default function Index({
                         <RecommendationGrid items={recommendations} />
                     </Panel>
 
-                    <Panel title="Уведомления">
-                        <NotificationChannels channels={notificationChannels} />
-                    </Panel>
-
-                    <Panel title="События уведомлений">
-                        <NotificationEvents events={notificationEvents} />
-                    </Panel>
-
                     <Panel title="Отчетность">
                         <ReportGrid reports={reports} testScoresUrl={testScoresUrl} />
-                    </Panel>
-
-                    <Panel title="Интеграции">
-                        <IntegrationGrid integrations={integrations} />
                     </Panel>
                 </div>
             </div>

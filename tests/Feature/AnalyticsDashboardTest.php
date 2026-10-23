@@ -103,7 +103,7 @@ class AnalyticsDashboardTest extends TestCase
             );
     }
 
-    public function test_analytics_dashboard_has_notification_channels(): void
+    public function test_analytics_dashboard_omits_notification_and_integration_sections(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -118,33 +118,9 @@ class AnalyticsDashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('AnalyticsDashboard/Index')
-                ->has('notificationChannels', 4)
-                ->where('notificationChannels.0.name', 'Web')
-                ->where('notificationChannels.1.name', 'Email')
-                ->where('notificationChannels.2.name', 'Push')
-                ->where('notificationChannels.3.name', 'WhatsApp')
-            );
-    }
-
-    public function test_analytics_dashboard_has_notification_events(): void
-    {
-        $this->seed(RoleSeeder::class);
-
-        $role = Role::query()->where('slug', Role::ADMINISTRATOR_DIT)->firstOrFail();
-        $user = User::factory()->create([
-            'role_id' => $role->id,
-            'position' => 'Администратор ДИТ',
-        ]);
-
-        $this->actingAs($user)
-            ->get(route('analytics-dashboard.index'))
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('AnalyticsDashboard/Index')
-                ->has('notificationEvents', 3)
-                ->where('notificationEvents.0.name', 'Снижение успеваемости')
-                ->where('notificationEvents.1.name', 'Новые достижения')
-                ->where('notificationEvents.2.name', 'Необходимость обновления данных')
+                ->missing('notificationChannels')
+                ->missing('notificationEvents')
+                ->missing('integrations')
             );
     }
 
@@ -172,30 +148,6 @@ class AnalyticsDashboardTest extends TestCase
                 ->where('reports.5.type', 'social-risks')
                 ->where('reports.6.type', 'psychological-risks')
                 ->where('reports.7.type', 'medical-risks')
-            );
-    }
-
-    public function test_analytics_dashboard_has_required_integrations(): void
-    {
-        $this->seed(RoleSeeder::class);
-
-        $role = Role::query()->where('slug', Role::ADMINISTRATOR_DIT)->firstOrFail();
-        $user = User::factory()->create([
-            'role_id' => $role->id,
-            'position' => 'Администратор ДИТ',
-        ]);
-
-        $this->actingAs($user)
-            ->get(route('analytics-dashboard.index'))
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('AnalyticsDashboard/Index')
-                ->has('integrations', 5)
-                ->where('integrations.0.name', 'LMS')
-                ->where('integrations.1.name', 'Электронный журнал')
-                ->where('integrations.2.name', 'Платформа тестирования')
-                ->where('integrations.3.name', 'База студентов')
-                ->where('integrations.4.name', 'Google Workspace / Microsoft 365')
             );
     }
 

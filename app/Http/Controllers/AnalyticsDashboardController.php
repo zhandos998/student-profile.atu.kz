@@ -7,7 +7,6 @@ use App\Models\ExtracurricularAchievement;
 use App\Models\HealthPassport;
 use App\Models\PortfolioItem;
 use App\Models\PsychologicalProfile;
-use App\Models\Role;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Services\StudentRiskService;
@@ -54,13 +53,10 @@ class AnalyticsDashboardController extends Controller
             'topStudents' => $this->topStudents(),
             'developmentDynamics' => $this->developmentDynamics(),
             'recommendations' => $this->recommendations(),
-            'notificationChannels' => $this->notificationChannels(),
-            'notificationEvents' => $this->notificationEvents(),
             'reports' => $this->reports(),
             'testScoresUrl' => $request->user()->canViewPsychologicalProfile()
                 ? route('reports.test-scores.index')
                 : null,
-            'integrations' => $this->integrations(),
         ]);
     }
 
@@ -388,59 +384,6 @@ class AnalyticsDashboardController extends Controller
     }
 
     /**
-     * @return array<int, array{name: string, description: string, status: string}>
-     */
-    private function notificationChannels(): array
-    {
-        return [
-            [
-                'name' => 'Web',
-                'description' => 'Уведомления внутри личного кабинета.',
-                'status' => 'Готово для системных сообщений',
-            ],
-            [
-                'name' => 'Email',
-                'description' => 'Отправка важных уведомлений на электронную почту.',
-                'status' => 'Канал для официальных писем',
-            ],
-            [
-                'name' => 'Push',
-                'description' => 'Быстрые уведомления в браузере или мобильном приложении.',
-                'status' => 'Подключается после настройки устройства',
-            ],
-            [
-                'name' => 'WhatsApp',
-                'description' => 'Оперативные сообщения через WhatsApp.',
-                'status' => 'Нужна интеграция с провайдером',
-            ],
-        ];
-    }
-
-    /**
-     * @return array<int, array{name: string, description: string, audience: string}>
-     */
-    private function notificationEvents(): array
-    {
-        return [
-            [
-                'name' => 'Снижение успеваемости',
-                'description' => 'Фиксируется при падении GPA или появлении академической задолженности.',
-                'audience' => 'Куратор / эдвайзер, администрация',
-            ],
-            [
-                'name' => 'Новые достижения',
-                'description' => 'Фиксируется после добавления олимпиад, конкурсов, публикаций, проектов или файлов портфолио.',
-                'audience' => 'Куратор / эдвайзер, администрация',
-            ],
-            [
-                'name' => 'Необходимость обновления данных',
-                'description' => 'Фиксируется, когда анкета студента или контактные данные требуют актуализации.',
-                'audience' => 'Студент, староста, куратор',
-            ],
-        ];
-    }
-
-    /**
      * @return array<int, array{type: string, title: string, description: string, exportUrl: string}>
      */
     private function reports(): array
@@ -454,45 +397,6 @@ class AnalyticsDashboardController extends Controller
             ])
             ->values()
             ->all();
-    }
-
-    /**
-     * @return array<int, array{name: string, description: string, data: string, status: string}>
-     */
-    private function integrations(): array
-    {
-        return [
-            [
-                'name' => 'LMS',
-                'description' => 'Платонус и другие LMS-системы для синхронизации учебных данных.',
-                'data' => 'Дисциплины, оценки, посещаемость, академическая задолженность',
-                'status' => 'Обязательная интеграция',
-            ],
-            [
-                'name' => 'Электронный журнал',
-                'description' => 'Источник текущей успеваемости и посещаемости студентов.',
-                'data' => 'Текущие оценки, пропуски, динамика успеваемости',
-                'status' => 'Обязательная интеграция',
-            ],
-            [
-                'name' => 'Платформа тестирования',
-                'description' => 'Получение результатов психологических и академических тестирований.',
-                'data' => 'Результаты тестов, индивидуальные особенности, группы риска',
-                'status' => 'Обязательная интеграция',
-            ],
-            [
-                'name' => 'База студентов',
-                'description' => 'Основной источник анкетных, академических и контактных данных.',
-                'data' => 'ФИО, ИИН, факультет, группа, курс, статус обучения',
-                'status' => 'Обязательная интеграция',
-            ],
-            [
-                'name' => 'Google Workspace / Microsoft 365',
-                'description' => 'Интеграция с корпоративными аккаунтами, календарями и почтой.',
-                'data' => 'Email, группы доступа, календарные события, документы',
-                'status' => 'Обязательная интеграция',
-            ],
-        ];
     }
 
     /**
