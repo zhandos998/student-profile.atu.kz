@@ -6,6 +6,8 @@ use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
@@ -28,6 +30,47 @@ class PasswordResetTest extends TestCase
         $this->post('/forgot-password', ['email' => $user->email]);
 
         Notification::assertSentTo($user, ResetPassword::class);
+    }
+
+    public function test_mail_transport_failure_is_retried(): void
+    {
+        $user = User::factory()->create();
+
+        Password::shouldReceive('sendResetLink')
+            ->once()
+            ->andReturnUsing(fn ($credentials, $callback) => $callback($user, 'token') ?? Password::RESET_LINK_SENT);
+
+        Notification::shouldReceive('send')
+            ->twice()
+            ->andReturnUsing(function () {
+                static $attempt = 0;
+
+                if (++$attempt === 1) {
+                    throw new TransportException('SMTP unavailable');
+                }
+            });
+
+        $this->post('/forgot-password', ['email' => $user->email])
+            ->assertSessionHas('status');
+    }
+
+    public function test_mail_transport_failure_returns_a_translated_error(): void
+    {
+        $user = User::factory()->create();
+
+        Password::shouldReceive('sendResetLink')
+            ->once()
+            ->andReturnUsing(fn ($credentials, $callback) => $callback($user, 'token') ?? Password::RESET_LINK_SENT);
+
+        Notification::shouldReceive('send')
+            ->twice()
+            ->andThrow(new TransportException('SMTP unavailable'));
+
+        $this->withSession(['locale' => 'ru'])
+            ->post('/forgot-password', ['email' => $user->email])
+            ->assertSessionHasErrors([
+                'email' => 'Почта временно недоступна. Повторите попытку позже.',
+            ]);
     }
 
     public function test_unknown_email_error_is_translated_in_each_supported_locale(): void
