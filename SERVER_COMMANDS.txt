@@ -1,6 +1,19 @@
 Student Profile server commands
 ===============================
 
+Local PHP upload limits (ID card: photo up to 16 MB + receipt up to 32 MB)
+-----------------------------------------------------------------------
+  php artisan serve --port=8001
+
+After setting PHPRC, open a new terminal. The user php.ini has
+post_max_size=64M and upload_max_filesize=32M. Check with:
+  php --ini
+  php -i | findstr /I "post_max_size upload_max_filesize"
+
+For the Docker app container, check the effective settings with:
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php -i | grep -E 'post_max_size|upload_max_filesize'
+
+
 Server:
 172.20.252.171
 

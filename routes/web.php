@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AnalyticsDashboardController;
+use App\Http\Controllers\ClearanceRequestController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExtracurricularAchievementController;
 use App\Http\Controllers\GroupSocialPassportController;
@@ -10,8 +11,10 @@ use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StudentGroupController;
 use App\Http\Controllers\StudentProfileController;
+use App\Http\Controllers\StudentServiceRequestController;
 use App\Http\Controllers\TestScoreReportController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Middleware\EnsureClearanceRequestsEnabled;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -69,9 +72,28 @@ Route::middleware('auth')->group(function () {
     Route::get('/health-passport', [HealthPassportController::class, 'index'])->name('health-passport.index');
     Route::post('/health-passport', [HealthPassportController::class, 'update'])->name('health-passport.update');
 
+    Route::middleware(EnsureClearanceRequestsEnabled::class)->group(function () {
+        Route::get('/clearance-requests', [ClearanceRequestController::class, 'index'])->name('clearance-requests.index');
+        Route::post('/clearance-requests/lookup', [ClearanceRequestController::class, 'lookup'])->name('clearance-requests.lookup');
+        Route::post('/clearance-requests', [ClearanceRequestController::class, 'store'])->name('clearance-requests.store');
+        Route::post('/clearance-responses/{clearanceResponse}', [ClearanceRequestController::class, 'respond'])->name('clearance-responses.respond');
+    });
+
+    Route::get('/services', [StudentServiceRequestController::class, 'index'])->name('student-services.index');
+    Route::get('/services/id-card', [StudentServiceRequestController::class, 'createIdCard'])->name('student-services.id-card.create');
+    Route::get('/services/face-id', [StudentServiceRequestController::class, 'createFaceId'])->name('student-services.face-id.create');
+    Route::get('/services/requests/{studentServiceRequest}', [StudentServiceRequestController::class, 'show'])->name('student-services.show');
+    Route::post('/services/requests/{studentServiceRequest}/barcode', [StudentServiceRequestController::class, 'registerLibraryBarcode'])->name('student-services.library-barcode.store');
+    Route::get('/services/requests/{studentServiceRequest}/print', [StudentServiceRequestController::class, 'printIdCard'])->name('student-services.id-card.print');
+    Route::get('/services/requests/{studentServiceRequest}/photo', [StudentServiceRequestController::class, 'printPhoto'])->name('student-services.id-card.photo');
+    Route::get('/services/requests/{studentServiceRequest}/files/{type}', [StudentServiceRequestController::class, 'download'])->whereIn('type', ['photo', 'receipt'])->name('student-services.download');
+    Route::post('/services/requests', [StudentServiceRequestController::class, 'store'])->name('student-services.store');
+    Route::patch('/services/requests/{studentServiceRequest}', [StudentServiceRequestController::class, 'update'])->name('student-services.update');
+
     Route::get('/groups', [StudentGroupController::class, 'index'])->name('groups.index');
     Route::post('/groups', [StudentGroupController::class, 'store'])->name('groups.store');
     Route::patch('/groups/{studentGroup}', [StudentGroupController::class, 'update'])->name('groups.update');
+    Route::patch('/groups/{studentGroup}/advisor', [StudentGroupController::class, 'assignAdvisor'])->name('groups.advisor.update');
     Route::delete('/groups/{studentGroup}', [StudentGroupController::class, 'destroy'])->name('groups.destroy');
     Route::get('/groups/{studentGroup}/social-passport', [GroupSocialPassportController::class, 'editGroup'])->name('groups.social-passport.edit');
     Route::post('/groups/{studentGroup}/social-passport', [GroupSocialPassportController::class, 'updateGroup'])->name('groups.social-passport.update');

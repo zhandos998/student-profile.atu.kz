@@ -83,7 +83,8 @@ function GroupPagination({ groups }) {
 export default function Index({
     groups = { data: [], total: 0, last_page: 1, links: [] },
     filters = { name: "", faculty: "", course: "", curator_id: "", per_page: "20" },
-    options = { faculties: [], courses: [], curators: [] },
+    options = { faculties: [], courses: [], curators: [], advisors: [] },
+    canAssignAdvisor = false,
 }) {
     const roleSlug = usePage().props.auth?.user?.role?.slug;
     const isAdministrator = ["administrator_dit", "administration"].includes(roleSlug);
@@ -99,6 +100,10 @@ export default function Index({
     const [renameData, setRenameData] = useState({ name: "" });
     const [renameErrors, setRenameErrors] = useState({});
     const [renameProcessing, setRenameProcessing] = useState(false);
+    const [groupToAssign, setGroupToAssign] = useState(null);
+    const [advisorId, setAdvisorId] = useState("");
+    const [advisorErrors, setAdvisorErrors] = useState({});
+    const [advisorProcessing, setAdvisorProcessing] = useState(false);
     const [groupToDelete, setGroupToDelete] = useState(null);
     const [deleteErrors, setDeleteErrors] = useState({});
     const [deleteProcessing, setDeleteProcessing] = useState(false);
@@ -129,6 +134,21 @@ export default function Index({
 
         setGroupToRename(null);
         setRenameErrors({});
+    };
+
+    const openAdvisorModal = (group) => {
+        setGroupToAssign(group);
+        setAdvisorId(group.curator_id ? String(group.curator_id) : "");
+        setAdvisorErrors({});
+    };
+
+    const closeAdvisorModal = () => {
+        if (advisorProcessing) {
+            return;
+        }
+
+        setGroupToAssign(null);
+        setAdvisorErrors({});
     };
 
     const closeDeleteModal = () => {
@@ -172,6 +192,25 @@ export default function Index({
                 setGroupToRename(null);
             },
             onFinish: () => setRenameProcessing(false),
+        });
+    };
+
+    const assignAdvisor = (event) => {
+        event.preventDefault();
+
+        if (!groupToAssign) {
+            return;
+        }
+
+        router.patch(route("groups.advisor.update", groupToAssign.id), { advisor_id: advisorId }, {
+            preserveScroll: true,
+            onStart: () => setAdvisorProcessing(true),
+            onError: (validationErrors) => setAdvisorErrors(validationErrors),
+            onSuccess: () => {
+                setAdvisorErrors({});
+                setGroupToAssign(null);
+            },
+            onFinish: () => setAdvisorProcessing(false),
         });
     };
 
@@ -450,6 +489,15 @@ export default function Index({
                                                                     Переименовать
                                                                 </button>
                                                             )}
+                                                            {canAssignAdvisor && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openAdvisorModal(group)}
+                                                                    className="font-medium text-[#355da8] hover:underline"
+                                                                >
+                                                                    Сменить эдвайзера
+                                                                </button>
+                                                            )}
                                                             {(group.can_delete || group.delete_blocked_reason) && (
                                                                 <button
                                                                     type="button"
@@ -604,6 +652,50 @@ export default function Index({
                             Отмена
                         </SecondaryButton>
                         <PrimaryButton disabled={renameProcessing}>
+                            Сохранить
+                        </PrimaryButton>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal
+                show={Boolean(groupToAssign)}
+                maxWidth="lg"
+                closeable={!advisorProcessing}
+                onClose={closeAdvisorModal}
+            >
+                <form onSubmit={assignAdvisor}>
+                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                        <h3 className="text-base font-semibold text-[#274f93]">
+                            Сменить куратора / эдвайзера
+                        </h3>
+                        <p className="mt-1 text-sm text-[#426aa8]">{groupToAssign?.name}</p>
+                    </div>
+
+                    <div className="space-y-3 p-6">
+                        <InputLabel htmlFor="group-advisor" value="Новый ответственный" />
+                        <select
+                            id="group-advisor"
+                            value={advisorId}
+                            onChange={(event) => setAdvisorId(event.target.value)}
+                            required
+                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
+                        >
+                            <option value="" disabled>Выберите куратора / эдвайзера</option>
+                            {options.advisors.map((advisor) => (
+                                <option key={advisor.value} value={advisor.value}>
+                                    {advisor.label}
+                                </option>
+                            ))}
+                        </select>
+                        <InputError message={advisorErrors.advisor_id} className="mt-2" />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                        <SecondaryButton type="button" disabled={advisorProcessing} onClick={closeAdvisorModal}>
+                            Отмена
+                        </SecondaryButton>
+                        <PrimaryButton disabled={advisorProcessing || !advisorId || advisorId === String(groupToAssign?.curator_id ?? "")}>
                             Сохранить
                         </PrimaryButton>
                     </div>

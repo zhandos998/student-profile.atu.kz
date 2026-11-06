@@ -179,6 +179,8 @@ class StudentProfileController extends Controller
             'faculty' => $studentGroup?->faculty ?: ($validated['faculty'] ?? null),
             'group_name' => $studentGroup?->name ?: ($validated['group_name'] ?? null),
             'specialty' => $validated['specialty'] ?? null,
+            'education_level' => StudentProfile::inferredEducationLevel($validated['specialty'] ?? null)
+                ?? StudentProfile::EDUCATION_BACHELOR,
             'course' => $validated['course'] ?? null,
         ]);
 
@@ -377,6 +379,8 @@ class StudentProfileController extends Controller
 
         $profile = StudentProfile::query()->firstOrNew(['user_id' => $user->id]);
         $profileData = Arr::only($validated, $this->profileFields($includeServiceFields, $includeLifecycleFields));
+        $profileData['education_level'] = StudentProfile::inferredEducationLevel($profileData['specialty'] ?? null)
+            ?? ($profileData['education_level'] ?? $profile->education_level ?? StudentProfile::EDUCATION_BACHELOR);
         $profileData['student_group_id'] = $studentGroup?->id;
         $profileData['group_name'] = $studentGroup?->name ?: ($profileData['group_name'] ?? null);
         $profileData['faculty'] = $studentGroup?->faculty ?: ($profileData['faculty'] ?? null);
@@ -604,6 +608,7 @@ class StudentProfileController extends Controller
             'student_group_id' => ['nullable', 'integer', Rule::exists('student_groups', 'id')],
             'group_name' => ['nullable', 'string', 'max:100'],
             'specialty' => ['nullable', 'string', 'max:255'],
+            'education_level' => ['nullable', Rule::in(StudentProfile::EDUCATION_LEVELS)],
             'course' => ['nullable', 'integer', 'min:1', 'max:8'],
             'admission_year' => ['nullable', 'integer', 'min:1900', 'max:'.(now()->year + 1)],
             'marital_status' => ['nullable', Rule::in(StudentProfileOptions::values(StudentProfileOptions::MARITAL_STATUSES))],
@@ -678,6 +683,7 @@ class StudentProfileController extends Controller
             'faculty',
             'group_name',
             'specialty',
+            'education_level',
             'course',
             'admission_year',
             'marital_status',
@@ -891,6 +897,7 @@ class StudentProfileController extends Controller
         $payload['is_archived'] = false;
         $payload['archived_at_display'] = null;
         $payload['student_status'] = StudentProfile::STUDENT_STATUS_ACTIVE;
+        $payload['education_level'] = StudentProfile::EDUCATION_BACHELOR;
         $payload['student_status_label'] = StudentProfile::STUDENT_STATUS_LABELS[StudentProfile::STUDENT_STATUS_ACTIVE];
         $payload['departure_reason_label'] = null;
         $payload['profile_status'] = StudentProfile::STATUS_NOT_STARTED;
@@ -1026,6 +1033,8 @@ class StudentProfileController extends Controller
             'student_group_id' => $studentGroup ? (string) $studentGroup->id : '',
             'group_name' => $studentGroup?->name ?? '',
             'specialty' => $this->platonusSpecialty($student),
+            'education_level' => StudentProfile::inferredEducationLevel($this->platonusSpecialty($student))
+                ?? StudentProfile::EDUCATION_BACHELOR,
             'course' => $this->platonusCourse($student),
             'admission_year' => $this->platonusAdmissionYear($student),
             'stay_address' => $this->platonusValue($student, [

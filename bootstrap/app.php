@@ -26,7 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*'),
+            fn (Request $request) => $request->is('api/*') || $request->is('clearance-requests/lookup'),
         );
 
         $exceptions->respond(function (Response $response) {
@@ -35,7 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             if (
                 ! $request->expectsJson()
-                && in_array($status, [403, 404, 419, 500, 503], true)
+                && in_array($status, [403, 404, 413, 419, 500, 503], true)
                 && ($status < 500 || ! config('app.debug'))
             ) {
                 return Inertia::render('Error', ['status' => $status])

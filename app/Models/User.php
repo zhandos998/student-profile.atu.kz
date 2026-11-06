@@ -48,10 +48,61 @@ class User extends Authenticatable
         Role::GROUP_LEADER,
     ];
 
+    public const GROUP_ADVISOR_ASSIGNER_POSITIONS = [
+        'Декан',
+        'Директор ДДМ',
+        'Зам. декана по ВР',
+        'Заместитель декана по ВР',
+        'Офис регистратора',
+        'Проректор ВР',
+    ];
+
     public const STUDENT_DATA_ROLES = [
         Role::STUDENT,
         Role::GROUP_LEADER,
     ];
+
+    public const CLEARANCE_REVIEWER_ROLES = [
+        Role::ADMINISTRATION,
+        Role::ADMINISTRATOR_DIT,
+        Role::CURATOR,
+        Role::ADVISOR,
+    ];
+
+    public const CLEARANCE_DEPUTY_POSITIONS = [
+        'Зам. декана по ВР',
+        'Зам. декана по УР',
+        'Заместитель декана по ВР',
+        'Заместитель декана по УР',
+    ];
+
+    public function canCreateClearanceRequests(): bool
+    {
+        return $this->hasAnyRole([Role::ADMINISTRATOR_DIT])
+            || ($this->hasAnyRole([Role::ADMINISTRATION])
+                && in_array($this->position, self::CLEARANCE_DEPUTY_POSITIONS, true));
+    }
+
+    public function canReviewClearanceRequests(): bool
+    {
+        return $this->hasAnyRole(self::CLEARANCE_REVIEWER_ROLES);
+    }
+
+    public function canViewClearanceRequests(): bool
+    {
+        return config('app.clearance_requests_enabled', false)
+            && ($this->canUseOwnStudentProfile() || $this->canReviewClearanceRequests());
+    }
+
+    public function canManageStudentServiceRequests(): bool
+    {
+        return $this->hasAnyRole([Role::ADMINISTRATOR_DIT]);
+    }
+
+    public function canViewStudentServices(): bool
+    {
+        return $this->canUseOwnStudentProfile() || $this->canManageStudentServiceRequests();
+    }
 
     public function canViewPsychologicalProfile(): bool
     {
@@ -80,6 +131,13 @@ class User extends Authenticatable
             Role::ADMINISTRATION,
             ...self::GROUP_DATA_MANAGER_ROLES,
         ]);
+    }
+
+    public function canAssignGroupAdvisor(): bool
+    {
+        return $this->hasAnyRole([Role::ADMINISTRATOR_DIT])
+            || ($this->hasAnyRole([Role::ADMINISTRATION])
+                && in_array($this->position, self::GROUP_ADVISOR_ASSIGNER_POSITIONS, true));
     }
 
     public function canViewAllStudentData(): bool

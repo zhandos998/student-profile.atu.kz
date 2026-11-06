@@ -278,7 +278,13 @@ class PlatonusAuthClient
         if (is_array($raw)) {
             foreach (['message', 'error', 'detail'] as $field) {
                 if (isset($raw[$field]) && is_string($raw[$field]) && $raw[$field] !== '') {
-                    return $raw[$field];
+                    $message = trim($raw[$field]);
+
+                    return match (rtrim(Str::lower($message), ' .')) {
+                        'user not found' => __('auth.platonus_user_not_found'),
+                        'incorrect password', 'wrong password' => __('auth.platonus_incorrect_password'),
+                        default => $message,
+                    };
                 }
             }
         }

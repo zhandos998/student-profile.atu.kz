@@ -123,4 +123,6 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'clearance_requests_enabled' => env('CLEARANCE_REQUESTS_ENABLED', false),
+
 ];

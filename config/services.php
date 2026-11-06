@@ -44,4 +44,15 @@ return [
         'timeout' => env('PLATONUS_TIMEOUT', 15),
     ],
 
+    'library_barcode' => [
+        'url' => env('LIBRARY_BARCODE_URL', 'https://library.atu.edu.kz/setBarcode.asp'),
+        'timeout' => env('LIBRARY_BARCODE_TIMEOUT', 30),
+        'bookpoints' => env('LIBRARY_BARCODE_BOOKPOINTS', 'аб,чз/1,чз/2,сбо,АТУ(ТЭК),АТУ аб.корпус/3б,АТУ чз корпус/3б,Центр электронных ресурсов 1,Центр электронных ресурсов 2,НБ АТУ,Абонемент 1,Абонемент 2'),
+        'statuses' => [
+            'bachelor' => 'Бакалавр',
+            'master' => env('LIBRARY_BARCODE_STATUS_MASTER', 'Магистратура'),
+            'doctorate' => env('LIBRARY_BARCODE_STATUS_DOCTORATE', 'Докторантура'),
+        ],
+    ],
+
 ];

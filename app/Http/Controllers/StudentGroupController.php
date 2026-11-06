@@ -58,6 +58,7 @@ class StudentGroupController extends Controller
                     'faculty' => $group->faculty,
                     'students_count' => $group->student_profiles_count,
                     'curator_name' => $group->curator?->name,
+                    'curator_id' => $group->curator_id,
                     'passport_url' => route('groups.social-passport.edit', $group),
                     'can_rename' => $this->canRenameGroup($request, $group),
                     'can_delete' => $canRequestDelete && ! $hasStudents,
@@ -84,7 +85,9 @@ class StudentGroupController extends Controller
                 'faculties' => StudentProfileOptions::toSameValueOptions(StudentProfileOptions::facultyNames()),
                 'courses' => range(1, 8),
                 'curators' => $this->curatorOptions($request),
+                'advisors' => $request->user()->canAssignGroupAdvisor() ? $this->advisorOptions() : [],
             ],
+            'canAssignAdvisor' => $request->user()->canAssignGroupAdvisor(),
         ]);
     }
 
@@ -178,6 +181,36 @@ class StudentGroupController extends Controller
             ->with('status', 'group-deleted');
     }
 
+    public function assignAdvisor(Request $request, StudentGroup $studentGroup): RedirectResponse
+    {
+        abort_unless($request->user()?->canAssignGroupAdvisor(), 403);
+
+        $advisorRoleIds = Role::query()
+            ->whereIn('slug', [Role::CURATOR, Role::ADVISOR])
+            ->pluck('id');
+
+        $validated = $request->validate([
+            'advisor_id' => ['required', 'integer', Rule::exists('users', 'id')->whereIn('role_id', $advisorRoleIds)],
+        ]);
+
+        $advisor = User::query()->findOrFail($validated['advisor_id']);
+
+        DB::transaction(function () use ($studentGroup, $advisor): void {
+            $studentGroup->update(['curator_id' => $advisor->id]);
+
+            GroupSocialPassport::query()
+                ->where('student_group_id', $studentGroup->id)
+                ->update([
+                    'user_id' => $advisor->id,
+                    'curator_full_name' => $advisor->name,
+                    'curator_phone' => $advisor->phone,
+                    'curator_email' => $advisor->email,
+                ]);
+        });
+
+        return back()->with('status', 'group-advisor-assigned');
+    }
+
     /**
      * @return Builder<StudentGroup>
      */
@@ -215,6 +248,23 @@ class StudentGroupController extends Controller
             ->map(fn (User $curator): array => [
                 'value' => (string) $curator->id,
                 'label' => $curator->name ?: $curator->email,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function advisorOptions(): array
+    {
+        return User::query()
+            ->whereHas('role', fn (Builder $query) => $query->whereIn('slug', [Role::CURATOR, Role::ADVISOR]))
+            ->orderBy('name')
+            ->get(['id', 'name', 'email'])
+            ->map(fn (User $advisor): array => [
+                'value' => (string) $advisor->id,
+                'label' => trim($advisor->name.' · '.$advisor->email),
             ])
             ->values()
             ->all();

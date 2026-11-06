@@ -52,6 +52,8 @@ class HandleInertiaRequests extends Middleware
                 'canManageStudentProfiles' => $user?->canManageStudentProfiles() ?? false,
                 'canUseOwnStudentProfile' => $user?->canUseOwnStudentProfile() ?? false,
                 'canManageUsers' => $user?->canManageUsers() ?? false,
+                'canViewClearanceRequests' => $user?->canViewClearanceRequests() ?? false,
+                'canViewStudentServices' => $user?->canViewStudentServices() ?? false,
             ],
             'impersonation' => [
                 'active' => $request->session()->has('impersonator_id'),

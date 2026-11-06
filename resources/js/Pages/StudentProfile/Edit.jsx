@@ -23,6 +23,20 @@ const optionLabels = (options, values = []) =>
 
 const yesNo = (value) => (value ? "Да" : "Нет");
 
+const educationLevelOptions = [
+    { value: "bachelor", label: "Бакалавриат" },
+    { value: "master", label: "Магистратура" },
+    { value: "doctorate", label: "Докторантура" },
+];
+
+const inferredEducationLevel = (specialty) => {
+    const code = String(specialty ?? "").match(/^\s*\d?([mмdд])(?=\d)/iu)?.[1];
+
+    if (!code) return null;
+
+    return /^[mм]$/iu.test(code) ? "master" : "doctorate";
+};
+
 const primaryActionClass =
     "inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f5192] disabled:opacity-50";
 
@@ -47,6 +61,7 @@ const platonusProfileFields = [
     "student_group_id",
     "group_name",
     "specialty",
+    "education_level",
     "course",
     "admission_year",
     "stay_address",
@@ -461,6 +476,7 @@ export default function Edit({
         student_group_id: valueOrEmpty(profile.student_group_id),
         group_name: valueOrEmpty(profile.group_name),
         specialty: valueOrEmpty(profile.specialty),
+        education_level: profile.education_level || "bachelor",
         course: valueOrEmpty(profile.course),
         admission_year: valueOrEmpty(profile.admission_year),
         marital_status: valueOrEmpty(profile.marital_status),
@@ -1306,6 +1322,13 @@ export default function Edit({
                                     value={profile.specialty}
                                 />
                                 <DisplayField
+                                    label="Уровень образования"
+                                    value={optionLabel(
+                                        educationLevelOptions,
+                                        profile.education_level || "bachelor",
+                                    )}
+                                />
+                                <DisplayField
                                     label="Курс"
                                     value={profile.course}
                                 />
@@ -1842,13 +1865,33 @@ export default function Edit({
                                     >
                                         <TextInput
                                             value={profileForm.data.specialty}
+                                            onChange={(event) => {
+                                                const specialty = event.target.value;
+                                                profileForm.setData((current) => ({
+                                                    ...current,
+                                                    specialty,
+                                                    education_level:
+                                                        inferredEducationLevel(specialty) ||
+                                                        "bachelor",
+                                                }));
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Уровень образования"
+                                        error={profileForm.errors.education_level}
+                                    >
+                                        <SelectInput
+                                            value={profileForm.data.education_level}
+                                            options={educationLevelOptions}
                                             onChange={(event) =>
                                                 profileForm.setData(
-                                                    "specialty",
+                                                    "education_level",
                                                     event.target.value,
                                                 )
                                             }
-                                            className="w-full"
                                         />
                                     </Field>
 

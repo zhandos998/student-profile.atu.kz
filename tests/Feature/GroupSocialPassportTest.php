@@ -229,6 +229,119 @@ class GroupSocialPassportTest extends TestCase
         ]);
     }
 
+    public function test_authorized_staff_can_reassign_group_advisor(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $original = $this->userWithRole(Role::CURATOR, 'Куратор');
+        $advisor = $this->userWithRole(Role::ADVISOR, 'Эдвайзер', [
+            'phone' => '+7 700 123 45 67',
+        ]);
+        $group = $this->studentGroup($original, 'IS-ADVISOR');
+
+        GroupSocialPassport::query()->create([
+            'user_id' => $original->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+            'curator_full_name' => $original->name,
+            'curator_email' => $original->email,
+        ]);
+        $student = $this->userWithRole(Role::STUDENT, 'Студент');
+        StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'student_group_id' => $group->id,
+            'faculty' => $group->faculty,
+            'group_name' => $group->name,
+        ]);
+
+        foreach (['Декан', 'Директор ДДМ', 'Зам. декана по ВР', 'Заместитель декана по ВР', 'Офис регистратора', 'Проректор ВР'] as $position) {
+            $staff = $this->userWithRole(Role::ADMINISTRATION, $position);
+
+            $this->actingAs($staff)
+                ->patch(route('groups.advisor.update', $group), ['advisor_id' => $advisor->id])
+                ->assertRedirect()
+                ->assertSessionHasNoErrors();
+        }
+
+        $administrator = $this->userWithRole(Role::ADMINISTRATOR_DIT, 'Администратор ДИТ');
+
+        $this->actingAs($administrator)
+            ->get(route('groups.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('canAssignAdvisor', true)
+                ->where('groups.data.0.curator_id', $advisor->id)
+                ->has('options.advisors', 2)
+            );
+
+        $this->actingAs($administrator)
+            ->patch(route('groups.advisor.update', $group), ['advisor_id' => $advisor->id])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('student_groups', [
+            'id' => $group->id,
+            'curator_id' => $advisor->id,
+        ]);
+        $this->assertDatabaseHas('group_social_passports', [
+            'student_group_id' => $group->id,
+            'user_id' => $advisor->id,
+            'curator_full_name' => $advisor->name,
+            'curator_phone' => $advisor->phone,
+            'curator_email' => $advisor->email,
+        ]);
+
+        $this->actingAs($original)->get(route('groups.social-passport.edit', $group))->assertForbidden();
+        $this->actingAs($original)->get(route('student-profiles.edit', $student))->assertForbidden();
+        $this->actingAs($advisor)->get(route('groups.social-passport.edit', $group))
+            ->assertInertia(fn (Assert $page) => $page->where('passport.curator_full_name', $advisor->name));
+        $this->actingAs($advisor)->get(route('student-profiles.edit', $student))->assertOk();
+    }
+
+    public function test_other_roles_and_administration_positions_cannot_reassign_advisor(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $original = $this->userWithRole(Role::CURATOR, 'Куратор');
+        $advisor = $this->userWithRole(Role::ADVISOR, 'Эдвайзер');
+        $group = $this->studentGroup($original, 'IS-RESTRICTED');
+
+        foreach ([
+            [Role::STUDENT, 'Студент'],
+            [Role::GROUP_LEADER, 'Староста'],
+            [Role::CURATOR, 'Куратор'],
+            [Role::ADVISOR, 'Эдвайзер'],
+            [Role::ADMINISTRATION, 'Психолог'],
+            [Role::ADMINISTRATION, 'Здравпункт'],
+        ] as [$role, $position]) {
+            $user = $this->userWithRole($role, $position);
+
+            $this->actingAs($user)
+                ->patch(route('groups.advisor.update', $group), ['advisor_id' => $advisor->id])
+                ->assertForbidden();
+        }
+
+        $this->assertSame($original->id, $group->fresh()->curator_id);
+    }
+
+    public function test_group_advisor_must_have_curator_or_advisor_role(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = $this->userWithRole(Role::ADMINISTRATOR_DIT, 'Администратор ДИТ');
+        $original = $this->userWithRole(Role::CURATOR, 'Куратор');
+        $student = $this->userWithRole(Role::STUDENT, 'Студент');
+        $group = $this->studentGroup($original, 'IS-VALIDATION');
+
+        foreach ([$student->id, 999999] as $advisorId) {
+            $this->actingAs($administrator)
+                ->patch(route('groups.advisor.update', $group), ['advisor_id' => $advisorId])
+                ->assertSessionHasErrors('advisor_id');
+        }
+
+        $this->assertSame($original->id, $group->fresh()->curator_id);
+    }
+
     public function test_curator_can_delete_empty_group(): void
     {
         $this->seed(RoleSeeder::class);

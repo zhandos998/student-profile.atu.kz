@@ -731,6 +731,8 @@ export default function Dashboard({
         canManageStudentProfiles,
         canUseOwnStudentProfile,
         canManageUsers,
+        canViewClearanceRequests,
+        canViewStudentServices,
     } = usePage().props.auth;
     const hero = dashboardHeroData({
         studentHome,
@@ -785,6 +787,20 @@ export default function Dashboard({
                                     title="Социальный паспорт группы"
                                     description="Сведения о группе, студентах и количественный социальный статус."
                                     href={route('groups.index')}
+                                />
+                            )}
+                            {canViewClearanceRequests && (
+                                <ModuleCard
+                                    title="Обходной лист"
+                                    description="Заявки и решения сотрудников."
+                                    href={route('clearance-requests.index')}
+                                />
+                            )}
+                            {canViewStudentServices && (
+                                <ModuleCard
+                                    title="Услуги"
+                                    description="Заявки на ID-карту и Face ID."
+                                    href={route('student-services.index')}
                                 />
                             )}
                             {canViewAnalyticsDashboard && (

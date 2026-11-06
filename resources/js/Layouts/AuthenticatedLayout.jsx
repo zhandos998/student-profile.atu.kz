@@ -16,6 +16,8 @@ export default function AuthenticatedLayout({ header, children }) {
         canManageStudentProfiles,
         canUseOwnStudentProfile,
         canManageUsers,
+        canViewClearanceRequests,
+        canViewStudentServices,
     } = page.props.auth;
     const impersonation = page.props.impersonation || { active: false };
     const roleSlug = user?.role?.slug;
@@ -27,6 +29,8 @@ export default function AuthenticatedLayout({ header, children }) {
         canUseOwnStudentProfile,
         canViewAnalyticsDashboard,
         canViewGroupSocialPassport,
+        canViewClearanceRequests,
+        canViewStudentServices,
     });
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
@@ -87,6 +91,8 @@ function buildNavItems({
     canUseOwnStudentProfile,
     canViewAnalyticsDashboard,
     canViewGroupSocialPassport,
+    canViewClearanceRequests,
+    canViewStudentServices,
 }) {
     const items = [
         {
@@ -103,6 +109,15 @@ function buildNavItems({
             href: route("student-profile.edit"),
             active: route().current("student-profile.*"),
             label: "Портрет студента",
+        });
+    }
+
+    if (canViewStudentServices) {
+        items.push({
+            key: "student-services",
+            href: route("student-services.index"),
+            active: route().current("student-services.*"),
+            label: "Услуги",
         });
     }
 
@@ -123,6 +138,15 @@ function buildNavItems({
                 route().current("groups.*") ||
                 route().current("group-social-passport.*"),
             label: "Социальный паспорт группы",
+        });
+    }
+
+    if (canViewClearanceRequests) {
+        items.push({
+            key: "clearance-requests",
+            href: route("clearance-requests.index"),
+            active: route().current("clearance-requests.*"),
+            label: "Обходной лист",
         });
     }
 

@@ -23,6 +23,54 @@ class StudentProfileTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_education_level_is_inferred_from_program_code_and_can_be_set_for_uncoded_specialty(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+
+        foreach ([
+            ['7M06101 - Информационные системы', StudentProfile::EDUCATION_MASTER],
+            ['7М06101 - Информационные системы', StudentProfile::EDUCATION_MASTER],
+            ['M06101', StudentProfile::EDUCATION_MASTER],
+            ['М06101', StudentProfile::EDUCATION_MASTER],
+            ['8D06101', StudentProfile::EDUCATION_DOCTORATE],
+            ['8Д06101', StudentProfile::EDUCATION_DOCTORATE],
+            ['D06101', StudentProfile::EDUCATION_DOCTORATE],
+            ['Д06101', StudentProfile::EDUCATION_DOCTORATE],
+            ['Менеджмент', StudentProfile::EDUCATION_BACHELOR],
+            ['B057 - Информационные технологии', StudentProfile::EDUCATION_BACHELOR],
+        ] as [$specialty, $expected]) {
+            $this->actingAs($student)->post(route('student-profile.update'), [
+                'specialty' => $specialty,
+                'education_level' => StudentProfile::EDUCATION_BACHELOR,
+            ])->assertSessionHasNoErrors();
+
+            $this->assertSame($expected, $student->studentProfile()->firstOrFail()->education_level);
+        }
+
+        $this->actingAs($student)->post(route('student-profile.update'), [
+            'specialty' => 'Менеджмент',
+            'education_level' => StudentProfile::EDUCATION_MASTER,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(StudentProfile::EDUCATION_MASTER, $student->studentProfile()->firstOrFail()->education_level);
+    }
+
+    public function test_education_level_migration_backfills_existing_profiles(): void
+    {
+        $student = User::factory()->create();
+        $profile = StudentProfile::query()->create([
+            'user_id' => $student->id,
+            'specialty' => '8Д06101 - Информационные системы',
+        ]);
+
+        $migration = require database_path('migrations/2026_11_05_000001_add_education_level_to_student_profiles.php');
+        $migration->down();
+        $migration->up();
+
+        $this->assertSame(StudentProfile::EDUCATION_DOCTORATE, $profile->fresh()->education_level);
+    }
+
     public function test_student_profile_page_can_be_rendered_for_authenticated_user(): void
     {
         $this->seed(RoleSeeder::class);
@@ -160,6 +208,7 @@ class StudentProfileTest extends TestCase
             ->assertJsonPath('profile.student_group_id', (string) $group->id)
             ->assertJsonPath('profile.group_name', 'ИС-101')
             ->assertJsonPath('profile.specialty', 'B057 - Информационные технологии')
+            ->assertJsonPath('profile.education_level', StudentProfile::EDUCATION_BACHELOR)
             ->assertJsonPath('profile.course', 2)
             ->assertJsonPath('profile.admission_year', 2023)
             ->assertJsonPath('profile.stay_address', 'Общежитие АТУ')

@@ -466,15 +466,59 @@ class AuthenticationTest extends TestCase
             ]),
         ]);
 
-        $response = $this->from('/login/platonus')->post('/login', [
-            'auth_type' => 'platonus',
-            'login' => 'wrong_login',
-            'password' => 'wrong-password',
+        foreach ([
+            'ru' => 'Пользователь не найден',
+            'kk' => 'Пайдаланушы табылмады',
+            'en' => 'User not found',
+        ] as $locale => $message) {
+            $response = $this->withSession(['locale' => $locale])
+                ->from('/login/platonus')
+                ->post('/login', [
+                    'auth_type' => 'platonus',
+                    'login' => 'wrong_login_'.$locale,
+                    'password' => 'wrong-password',
+                ]);
+
+            $this->assertGuest();
+            $response->assertRedirect('/login/platonus');
+            $response->assertSessionHasErrors(['login' => $message]);
+        }
+    }
+
+    public function test_platonus_password_error_is_translated_in_each_supported_locale(): void
+    {
+        config([
+            'services.platonus.verify_url' => 'https://hub.atu.kz/api/v1/students/verify',
+            'services.platonus.tutor_verify_url' => 'https://hub.atu.kz/api/v1/tutors/verify',
+            'services.platonus.api_key' => 'test-key',
         ]);
 
-        $this->assertGuest();
-        $response->assertRedirect('/login/platonus');
-        $response->assertSessionHasErrors(['login' => 'User not found']);
+        Http::fake([
+            'https://hub.atu.kz/api/v1/students/verify' => Http::response([
+                'authenticated' => false,
+                'detail' => 'User not found',
+            ]),
+            'https://hub.atu.kz/api/v1/tutors/verify' => Http::response([
+                'authenticated' => false,
+                'detail' => 'Incorrect password',
+            ]),
+        ]);
+
+        foreach ([
+            'ru' => 'Неверный пароль',
+            'kk' => 'Құпиясөз қате',
+            'en' => 'Incorrect password',
+        ] as $locale => $message) {
+            $this->withSession(['locale' => $locale])
+                ->from('/login')
+                ->post('/login', [
+                    'auth_type' => 'auto',
+                    'email' => 'wrong_login_'.$locale,
+                    'password' => 'wrong-password',
+                ])
+                ->assertRedirect('/login')
+                ->assertSessionHasErrors(['email' => $message]);
+        }
     }
 
     public function test_combined_login_page_keeps_identifier_after_failed_login(): void

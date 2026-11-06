@@ -41,6 +41,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'faculty',
     'group_name',
     'specialty',
+    'education_level',
     'course',
     'admission_year',
     'marital_status',
@@ -71,6 +72,29 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class StudentProfile extends Model
 {
+    public const EDUCATION_BACHELOR = 'bachelor';
+
+    public const EDUCATION_MASTER = 'master';
+
+    public const EDUCATION_DOCTORATE = 'doctorate';
+
+    public const EDUCATION_LEVELS = [
+        self::EDUCATION_BACHELOR,
+        self::EDUCATION_MASTER,
+        self::EDUCATION_DOCTORATE,
+    ];
+
+    public static function inferredEducationLevel(?string $specialty): ?string
+    {
+        if (! preg_match('/^\s*\d?([mмdд])(?=\d)/iu', $specialty ?? '', $matches)) {
+            return null;
+        }
+
+        return in_array(mb_strtolower($matches[1]), ['m', 'м'], true)
+            ? self::EDUCATION_MASTER
+            : self::EDUCATION_DOCTORATE;
+    }
+
     /** @return HasMany<StudentSurveyResultSnapshot, StudentProfile> */
     public function surveyResultSnapshots(): HasMany
     {
