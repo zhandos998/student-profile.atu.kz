@@ -48,6 +48,20 @@ class SyncStudentSpecialtiesTest extends TestCase
         $this->assertSame('B057 - Информационные технологии', $profile->fresh()->specialty);
     }
 
+    public function test_through_id_limits_the_profiles_checked(): void
+    {
+        $first = $this->profile('060515500608', 'B057 - Информационные технологии');
+        $second = $this->profile('060515500609', 'B057 - Информационные технологии');
+        $this->fakeStudent('060515500608', '6B06102', 'Вычислительная техника и программное обеспечение');
+
+        $this->artisan('student-specialties:sync', ['--through-id' => $first->id, '--delay-ms' => 0])
+            ->expectsOutputToContain('Checked: 1')
+            ->assertSuccessful();
+
+        $this->assertSame('6B06102 - Вычислительная техника и программное обеспечение', $first->fresh()->specialty);
+        $this->assertSame('B057 - Информационные технологии', $second->fresh()->specialty);
+    }
+
     private function profile(string $iin, string $specialty): StudentProfile
     {
         config()->set('services.platonus.api_key', 'test-key');

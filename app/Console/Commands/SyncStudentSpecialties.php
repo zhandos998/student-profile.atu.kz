@@ -14,6 +14,7 @@ class SyncStudentSpecialties extends Command
         {--dry-run : Check API values without changing profiles}
         {--limit=0 : Maximum number of profiles to check (0 = all)}
         {--after-id=0 : Continue after this student profile ID}
+        {--through-id=0 : Stop at this student profile ID (0 = no upper bound)}
         {--delay-ms=100 : Delay between API requests in milliseconds}';
 
     protected $description = 'Replace student profile GOP specialties with Russian education program codes and names from the Hub API';
@@ -28,10 +29,11 @@ class SyncStudentSpecialties extends Command
 
         $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
         $afterId = filter_var($this->option('after-id'), FILTER_VALIDATE_INT);
+        $throughId = filter_var($this->option('through-id'), FILTER_VALIDATE_INT);
         $delayMs = filter_var($this->option('delay-ms'), FILTER_VALIDATE_INT);
 
-        if ($limit === false || $limit < 0 || $afterId === false || $afterId < 0 || $delayMs === false || $delayMs < 0 || $delayMs > 5000) {
-            $this->error('Invalid --limit, --after-id, or --delay-ms value.');
+        if ($limit === false || $limit < 0 || $afterId === false || $afterId < 0 || $throughId === false || $throughId < 0 || $throughId > 0 && $throughId <= $afterId || $delayMs === false || $delayMs < 0 || $delayMs > 5000) {
+            $this->error('Invalid --limit, --after-id, --through-id, or --delay-ms value.');
 
             return self::FAILURE;
         }
@@ -43,6 +45,7 @@ class SyncStudentSpecialties extends Command
         StudentProfile::query()
             ->select(['id', 'iin', 'specialty'])
             ->where('id', '>', $afterId)
+            ->when($throughId > 0, fn ($query) => $query->where('id', '<=', $throughId))
             ->whereNotNull('iin')
             ->where('iin', '<>', '')
             ->chunkById(100, function ($profiles) use ($client, $limit, $delayMs, $dryRun, &$counts, &$lastId): bool {
