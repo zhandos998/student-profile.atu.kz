@@ -62,6 +62,8 @@ class UserManagementController extends Controller
                 'createdAt' => $user->created_at?->format('d.m.Y H:i'),
                 'canImpersonate' => ! $request->session()->has('impersonator_id')
                     && ! $request->user()?->is($user),
+                'canChangeServiceOperator' => ! $request->session()->has('impersonator_id')
+                    && in_array($user->role?->slug, [Role::STUDENT, Role::SERVICE_OPERATOR], true),
                 'canDelete' => $this->canDeleteUser($request, $user),
                 'deleteBlockedReason' => $this->deleteBlockedReason($request, $user),
             ]);
@@ -97,6 +99,26 @@ class UserManagementController extends Controller
             ->with('status', "Вы вошли как {$user->name}.");
     }
 
+    public function updateServiceOperator(Request $request, User $user): RedirectResponse
+    {
+        abort_unless($request->user()?->canManageUsers(), 403);
+        abort_if($request->session()->has('impersonator_id'), 403);
+
+        $validated = $request->validate(['enabled' => ['required', 'boolean']]);
+        $currentRole = $user->role?->slug;
+        $expectedRole = $validated['enabled'] ? Role::STUDENT : Role::SERVICE_OPERATOR;
+        abort_unless($currentRole === $expectedRole, 422);
+
+        $targetRole = $validated['enabled'] ? Role::SERVICE_OPERATOR : Role::STUDENT;
+        $role = Role::query()->where('slug', $targetRole)->firstOrFail();
+        $user->update([
+            'role_id' => $role->id,
+            'position' => $role->name,
+        ]);
+
+        return back()->with('status', $validated['enabled'] ? 'Специалист ДИТ назначен.' : 'Роль специалиста ДИТ снята.');
+    }
+
     public function stopImpersonating(Request $request): RedirectResponse
     {
         $impersonatorId = $request->session()->get('impersonator_id');
@@ -118,6 +140,7 @@ class UserManagementController extends Controller
             ->route('users.index')
             ->with('status', 'Вы вернулись в аккаунт администратора ДИТ.');
     }
+
     public function destroy(Request $request, User $user): RedirectResponse
     {
         abort_unless($request->user()?->canManageUsers(), 403);

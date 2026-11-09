@@ -96,7 +96,7 @@ class User extends Authenticatable
 
     public function canManageStudentServiceRequests(): bool
     {
-        return $this->hasAnyRole([Role::ADMINISTRATOR_DIT]);
+        return $this->hasAnyRole([Role::ADMINISTRATOR_DIT, Role::SERVICE_OPERATOR]);
     }
 
     public function canViewStudentServices(): bool

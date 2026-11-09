@@ -24,6 +24,7 @@ export default function AuthenticatedLayout({ header, children }) {
     const roleName = user?.role?.name || user?.position || "Пользователь";
     const useSidebar = Boolean(user && roleSlug !== "student");
     const navItems = buildNavItems({
+        roleSlug,
         canManageStudentProfiles,
         canManageUsers,
         canUseOwnStudentProfile,
@@ -86,6 +87,7 @@ export default function AuthenticatedLayout({ header, children }) {
 }
 
 function buildNavItems({
+    roleSlug,
     canManageStudentProfiles,
     canManageUsers,
     canUseOwnStudentProfile,
@@ -94,6 +96,15 @@ function buildNavItems({
     canViewClearanceRequests,
     canViewStudentServices,
 }) {
+    if (roleSlug === "service_operator") {
+        return [{
+            key: "student-services",
+            href: route("student-services.index"),
+            active: route().current("student-services.*"),
+            label: "Услуги",
+        }];
+    }
+
     const items = [
         {
             key: "dashboard",

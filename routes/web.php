@@ -86,6 +86,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/services/requests/{studentServiceRequest}/barcode', [StudentServiceRequestController::class, 'registerLibraryBarcode'])->name('student-services.library-barcode.store');
     Route::get('/services/requests/{studentServiceRequest}/print', [StudentServiceRequestController::class, 'printIdCard'])->name('student-services.id-card.print');
     Route::get('/services/requests/{studentServiceRequest}/photo', [StudentServiceRequestController::class, 'printPhoto'])->name('student-services.id-card.photo');
+    Route::get('/services/requests/{studentServiceRequest}/files/{type}/preview', [StudentServiceRequestController::class, 'preview'])->whereIn('type', ['photo', 'receipt'])->name('student-services.preview');
     Route::get('/services/requests/{studentServiceRequest}/files/{type}', [StudentServiceRequestController::class, 'download'])->whereIn('type', ['photo', 'receipt'])->name('student-services.download');
     Route::post('/services/requests', [StudentServiceRequestController::class, 'store'])->name('student-services.store');
     Route::patch('/services/requests/{studentServiceRequest}', [StudentServiceRequestController::class, 'update'])->name('student-services.update');
@@ -110,6 +111,7 @@ Route::middleware('auth')->group(function () {
         ->name('analytics-dashboard.reports.export');
 
     Route::get('/users', [UserManagementController::class, 'index'])->name('users.index');
+    Route::patch('/users/{user}/service-operator', [UserManagementController::class, 'updateServiceOperator'])->name('users.service-operator.update');
     Route::post('/users/{user}/impersonate', [UserManagementController::class, 'impersonate'])->name('users.impersonate');
     Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
     Route::post('/impersonation/stop', [UserManagementController::class, 'stopImpersonating'])->name('impersonation.stop');

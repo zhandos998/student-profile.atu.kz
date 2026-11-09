@@ -19,6 +19,8 @@ class Role extends Model
 
     public const GROUP_LEADER = 'group_leader';
 
+    public const SERVICE_OPERATOR = 'service_operator';
+
     public const STUDENT = 'student';
 
     public const DEFINITIONS = [
@@ -41,6 +43,10 @@ class Role extends Model
         self::GROUP_LEADER => [
             'name' => 'Староста',
             'description' => 'Представитель студенческой группы.',
+        ],
+        self::SERVICE_OPERATOR => [
+            'name' => 'Специалист Департамента информационных технологий',
+            'description' => 'Обработка заявок на ID-карту и Face ID.',
         ],
         self::STUDENT => [
             'name' => 'Студент',

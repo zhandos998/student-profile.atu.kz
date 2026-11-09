@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\AcademicProfile;
 use App\Models\ExtracurricularAchievement;
 use App\Models\PortfolioItem;
+use App\Models\Role;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Services\StudentRiskService;
 use App\Support\StudentProfileAccess;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -16,13 +18,15 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __construct(private readonly StudentRiskService $riskService)
-    {
-    }
+    public function __construct(private readonly StudentRiskService $riskService) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
+
+        if ($user?->hasAnyRole([Role::SERVICE_OPERATOR])) {
+            return to_route('student-services.index');
+        }
 
         $user?->loadMissing([
             'role',
@@ -580,5 +584,4 @@ class DashboardController extends Controller
             ],
         ];
     }
-
 }

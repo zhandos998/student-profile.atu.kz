@@ -20,7 +20,7 @@ class UserRolesTest extends TestCase
             UserSeeder::class,
         ]);
 
-        $this->assertDatabaseCount('roles', 6);
+        $this->assertDatabaseCount('roles', 7);
 
         $this->assertDatabaseHas('roles', [
             'slug' => Role::ADMINISTRATOR_DIT,
@@ -33,6 +33,10 @@ class UserRolesTest extends TestCase
         $this->assertDatabaseHas('roles', [
             'slug' => Role::ADVISOR,
             'name' => 'Куратор / эдвайзер',
+        ]);
+        $this->assertDatabaseHas('roles', [
+            'slug' => Role::SERVICE_OPERATOR,
+            'name' => 'Специалист Департамента информационных технологий',
         ]);
 
         $this->assertDatabaseHas('users', [

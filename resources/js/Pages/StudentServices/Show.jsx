@@ -45,6 +45,55 @@ const displayValue = (request, key) => {
     return value;
 };
 
+function DecisionForm({ request }) {
+    const form = useForm({
+        status: request.status === 'pending' ? 'in_progress' : 'completed',
+        staff_comment: request.staff_comment || '',
+    });
+
+    const submit = (event) => {
+        event.preventDefault();
+        form.patch(route('student-services.update', request.id), {
+            preserveScroll: true,
+            onSuccess: () => form.setData('status', 'completed'),
+        });
+    };
+
+    return (
+        <form onSubmit={submit} className="grid gap-3 border-t border-gray-100 pt-5 sm:grid-cols-2">
+            <label className="block text-sm font-medium text-gray-800">
+                Статус
+                <select
+                    value={form.data.status}
+                    onChange={(event) => form.setData('status', event.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
+                >
+                    {request.status === 'pending' && <option value="in_progress">В работе</option>}
+                    <option value="completed">Выполнено</option>
+                    <option value="rejected">Отказано</option>
+                </select>
+            </label>
+            <label className="block text-sm font-medium text-gray-800 sm:col-span-2">
+                Комментарий сотрудника
+                <textarea
+                    value={form.data.staff_comment}
+                    onChange={(event) => form.setData('staff_comment', event.target.value)}
+                    required={form.data.status === 'rejected'}
+                    maxLength={2000}
+                    rows={3}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
+                />
+            </label>
+            {Object.values(form.errors).map((error) => (
+                <p key={error} role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>
+            ))}
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+                <button type="submit" disabled={form.processing} className="rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2f5192] disabled:opacity-50">Сохранить</button>
+            </div>
+        </form>
+    );
+}
+
 export default function Show({ serviceRequest, canManage, canPrint, canRequestLibraryBarcode, libraryDates }) {
     const isIdCard = serviceRequest.service_type === 'id_card';
     const visibleFaceIdLabels = serviceRequest.last_name || serviceRequest.first_name ? faceIdLabels : legacyFaceIdLabels;
@@ -81,6 +130,40 @@ export default function Show({ serviceRequest, canManage, canPrint, canRequestLi
                                             </div>
                                         ))}
                                     </dl>
+                                    {(serviceRequest.has_photo || serviceRequest.has_receipt) && (
+                                        <div className={`grid gap-6 border-t border-gray-100 pt-5 ${serviceRequest.has_photo && serviceRequest.has_receipt ? 'sm:grid-cols-2' : 'max-w-2xl'}`}>
+                                            {serviceRequest.has_photo && (
+                                                <div className="flex min-w-0 flex-col gap-3">
+                                                    <h4 className="text-sm font-semibold text-gray-900">Фото 3×4</h4>
+                                                    <img
+                                                        src={route('student-services.preview', [serviceRequest.id, 'photo'])}
+                                                        alt="Фото студента для ID-карты"
+                                                        className="h-80 w-full border border-gray-200 bg-gray-50 object-contain"
+                                                    />
+                                                    <a href={route('student-services.download', [serviceRequest.id, 'photo'])} className="self-start rounded-md border border-[#c9d8f0] px-3 py-2 text-sm font-semibold text-[#274f93] hover:bg-[#edf3ff]">Скачать фото 3×4</a>
+                                                </div>
+                                            )}
+                                            {serviceRequest.has_receipt && (
+                                                <div className="flex min-w-0 flex-col gap-3">
+                                                    <h4 className="text-sm font-semibold text-gray-900">Квитанция об оплате</h4>
+                                                    {serviceRequest.receipt_is_pdf ? (
+                                                        <iframe
+                                                            src={route('student-services.preview', [serviceRequest.id, 'receipt'])}
+                                                            title="Квитанция об оплате"
+                                                            className="h-80 w-full border border-gray-200 bg-gray-50"
+                                                        />
+                                                    ) : (
+                                                        <img
+                                                            src={route('student-services.preview', [serviceRequest.id, 'receipt'])}
+                                                            alt="Квитанция об оплате"
+                                                            className="h-80 w-full border border-gray-200 bg-gray-50 object-contain"
+                                                        />
+                                                    )}
+                                                    <a href={route('student-services.download', [serviceRequest.id, 'receipt'])} className="self-start rounded-md border border-[#c9d8f0] px-3 py-2 text-sm font-semibold text-[#274f93] hover:bg-[#edf3ff]">Скачать квитанцию</a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                     {serviceRequest.library_rdr_id && (
                                         <div className="border-t border-gray-100 pt-5">
                                             <p className="mb-3 text-sm font-semibold text-gray-900">Штрихкод библиотеки</p>
@@ -107,9 +190,9 @@ export default function Show({ serviceRequest, canManage, canPrint, canRequestLi
                                         </form>
                                     )}
                                     <div className="flex flex-wrap gap-3 border-t border-gray-100 pt-5">
-                                        {canPrint && <a href={route('student-services.id-card.print', serviceRequest.id)} target="_blank" rel="noopener noreferrer" className="rounded-md bg-[#355da8] px-3 py-2 text-sm font-semibold text-white hover:bg-[#2f5192]">Печать ID-карты</a>}
-                                        {serviceRequest.has_photo && <a href={route('student-services.download', [serviceRequest.id, 'photo'])} className="rounded-md border border-[#c9d8f0] px-3 py-2 text-sm font-semibold text-[#274f93] hover:bg-[#edf3ff]">Скачать фото 3×4</a>}
-                                        {serviceRequest.has_receipt && <a href={route('student-services.download', [serviceRequest.id, 'receipt'])} className="rounded-md border border-[#c9d8f0] px-3 py-2 text-sm font-semibold text-[#274f93] hover:bg-[#edf3ff]">Скачать квитанцию</a>}
+                                        {canManage && (canPrint
+                                            ? <a href={route('student-services.id-card.print', serviceRequest.id)} target="_blank" rel="noopener noreferrer" className="rounded-md bg-[#355da8] px-3 py-2 text-sm font-semibold text-white hover:bg-[#2f5192]">Печать ID-карты</a>
+                                            : <button type="button" disabled title={serviceRequest.library_rdr_id ? 'Для печати требуются фото и ФИО студента' : 'Сначала получите штрихкод библиотеки'} className="cursor-not-allowed rounded-md bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-500">Печать ID-карты</button>)}
                                     </div>
                                 </>
                             )}
@@ -137,6 +220,7 @@ export default function Show({ serviceRequest, canManage, canPrint, canRequestLi
                             )}
                             {serviceRequest.student_comment && <p className="whitespace-pre-wrap text-sm text-gray-700">{serviceRequest.student_comment}</p>}
                             {serviceRequest.staff_comment && <p className="whitespace-pre-wrap border-l-2 border-[#c9d8f0] pl-3 text-sm text-gray-700">{serviceRequest.staff_comment}</p>}
+                            {canManage && ['pending', 'in_progress'].includes(serviceRequest.status) && <DecisionForm request={serviceRequest} />}
                         </div>
                     </section>
                 </div>

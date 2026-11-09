@@ -80,9 +80,14 @@ export default function FaceId({ initial, faculties = [], hasOpenRequest, integr
                         </section>
                     ) : (
                         <form onSubmit={submit} className="space-y-6">
-                            {(!integrationReady || form.errors.service_type) && (
+                            {!integrationReady && (
+                                <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+                                    Автоматическая отправка в Hikvision недоступна. Заявка сохранится со статусом «Ожидает».
+                                </p>
+                            )}
+                            {form.errors.service_type && (
                                 <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
-                                    {form.errors.service_type || "Отправка Face ID недоступна: подключение к Hikvision не настроено. Обратитесь к администратору."}
+                                    {form.errors.service_type}
                                 </p>
                             )}
                             <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
@@ -328,7 +333,7 @@ export default function FaceId({ initial, faculties = [], hasOpenRequest, integr
                             <div className="flex justify-end">
                                 <button
                                     type="submit"
-                                    disabled={form.processing || !integrationReady}
+                                    disabled={form.processing}
                                     className="rounded-md bg-[#355da8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#2f5192] disabled:opacity-50"
                                 >
                                     Отправить заявку

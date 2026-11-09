@@ -256,7 +256,7 @@ class StudentServiceRequestTest extends TestCase
         $this->assertSame(StudentServiceRequest::COMPLETED, StudentServiceRequest::query()->firstOrFail()->status);
     }
 
-    public function test_face_id_api_failure_keeps_no_request_or_photo(): void
+    public function test_face_id_api_failure_queues_request_and_keeps_photo(): void
     {
         Storage::fake('local');
         Http::preventStrayRequests();
@@ -265,13 +265,39 @@ class StudentServiceRequestTest extends TestCase
         $student = $this->user(Role::STUDENT);
         $this->ownFaceIdProfile($student);
         $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
-            ->assertSessionHasErrors('service_type');
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'face-id-pending');
 
-        $this->assertDatabaseCount('student_service_requests', 0);
-        $this->assertSame([], Storage::disk('local')->allFiles('student-services/face-ids/photos'));
+        $serviceRequest = StudentServiceRequest::query()->firstOrFail();
+        $this->assertSame(StudentServiceRequest::PENDING, $serviceRequest->status);
+        $this->assertNull($serviceRequest->hikvision_synced_at);
+        Storage::disk('local')->assertExists($serviceRequest->photo_path);
+
+        $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
+            ->assertSessionHasErrors('service_type');
+        $this->assertDatabaseCount('student_service_requests', 1);
+        Http::assertSentCount(1);
     }
 
-    public function test_face_id_rejects_unmapped_admission_year_before_calling_hikvision(): void
+    public function test_face_id_connection_failure_queues_request(): void
+    {
+        Storage::fake('local');
+        Http::preventStrayRequests();
+        $this->hikvisionResponses = [Http::failedConnection()];
+
+        $student = $this->user(Role::STUDENT);
+        $this->ownFaceIdProfile($student);
+
+        $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'face-id-pending');
+
+        $serviceRequest = StudentServiceRequest::query()->firstOrFail();
+        $this->assertSame(StudentServiceRequest::PENDING, $serviceRequest->status);
+        Storage::disk('local')->assertExists($serviceRequest->photo_path);
+    }
+
+    public function test_face_id_queues_unmapped_admission_year_for_manual_processing(): void
     {
         Storage::fake('local');
         Http::preventStrayRequests();
@@ -282,10 +308,11 @@ class StudentServiceRequestTest extends TestCase
         $this->actingAs($student)->post(route('student-services.store'), [
             ...$this->faceIdData(),
             'course' => 1,
-        ])->assertSessionHasErrors('service_type');
+        ])->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'face-id-pending');
 
         Http::assertNothingSent();
-        $this->assertDatabaseCount('student_service_requests', 0);
+        $this->assertSame(StudentServiceRequest::PENDING, StudentServiceRequest::query()->firstOrFail()->status);
     }
 
     public function test_face_id_keeps_previous_academic_year_until_september(): void
@@ -322,7 +349,7 @@ class StudentServiceRequestTest extends TestCase
         $this->assertSame('178', StudentServiceRequest::query()->firstOrFail()->hikvision_org_index_code);
     }
 
-    public function test_face_id_requires_hikvision_configuration(): void
+    public function test_face_id_is_queued_when_hikvision_is_not_configured(): void
     {
         Storage::fake('local');
         Http::preventStrayRequests();
@@ -334,11 +361,13 @@ class StudentServiceRequestTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('integrationReady', false));
 
         $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
-            ->assertSessionHasErrors('service_type');
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'face-id-pending');
 
         Http::assertNothingSent();
-        $this->assertDatabaseCount('student_service_requests', 0);
-        $this->assertSame([], Storage::disk('local')->allFiles('student-services/face-ids/photos'));
+        $serviceRequest = StudentServiceRequest::query()->firstOrFail();
+        $this->assertSame(StudentServiceRequest::PENDING, $serviceRequest->status);
+        Storage::disk('local')->assertExists($serviceRequest->photo_path);
     }
 
     public function test_id_card_form_prefills_profile_and_saves_private_attachments(): void
@@ -385,26 +414,52 @@ class StudentServiceRequestTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('serviceRequest.has_photo', true)
                 ->where('serviceRequest.has_receipt', true)
+                ->where('serviceRequest.receipt_is_pdf', false)
                 ->where('serviceRequest.education_level', StudentProfile::EDUCATION_BACHELOR)
             );
         $this->actingAs($student)->get(route('student-services.download', [$serviceRequest, 'receipt']))->assertOk();
+        $photoPreview = $this->actingAs($student)->get(route('student-services.preview', [$serviceRequest, 'photo']))->assertOk();
+        $receiptPreview = $this->actingAs($student)->get(route('student-services.preview', [$serviceRequest, 'receipt']))->assertOk();
+        $this->assertStringStartsWith('inline', $photoPreview->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('inline', $receiptPreview->headers->get('Content-Disposition'));
+        $receiptPreview->assertHeader('X-Content-Type-Options', 'nosniff');
 
         $admin = $this->user(Role::ADMINISTRATOR_DIT);
         $curator = $this->user(Role::CURATOR);
 
         $this->actingAs($admin)->get(route('student-services.show', $serviceRequest))
-            ->assertInertia(fn (Assert $page) => $page->where('canPrint', true));
+            ->assertInertia(fn (Assert $page) => $page->where('canPrint', false));
         $this->actingAs($admin)->get(route('student-services.id-card.print', $serviceRequest))
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('StudentServices/PrintIdCard')
-                ->where('card.full_name', 'Иванов Иван Иванович')
-                ->where('card.education_language', 'ru')
-            );
+            ->assertNotFound();
         $this->actingAs($admin)->get(route('student-services.id-card.photo', $serviceRequest))->assertOk();
+        $this->actingAs($admin)->get(route('student-services.preview', [$serviceRequest, 'receipt']))->assertOk();
         $this->actingAs($student)->get(route('student-services.id-card.print', $serviceRequest))->assertForbidden();
         $this->actingAs($student)->get(route('student-services.id-card.photo', $serviceRequest))->assertForbidden();
         $this->actingAs($curator)->get(route('student-services.id-card.print', $serviceRequest))->assertForbidden();
+        $this->actingAs($curator)->get(route('student-services.preview', [$serviceRequest, 'receipt']))->assertForbidden();
+    }
+
+    public function test_id_card_pdf_receipt_can_be_previewed_only_by_owner_or_staff(): void
+    {
+        Storage::fake('local');
+        $student = $this->user(Role::STUDENT);
+        $other = $this->user(Role::STUDENT);
+        $path = 'student-services/id-cards/receipts/receipt.pdf';
+        Storage::disk('local')->put($path, "%PDF-1.4\n");
+        $serviceRequest = StudentServiceRequest::query()->create([
+            'student_id' => $student->id,
+            'service_type' => StudentServiceRequest::ID_CARD,
+            'status' => StudentServiceRequest::PENDING,
+            'receipt_path' => $path,
+        ]);
+
+        $this->actingAs($student)->get(route('student-services.show', $serviceRequest))
+            ->assertInertia(fn (Assert $page) => $page->where('serviceRequest.receipt_is_pdf', true));
+        $this->actingAs($student)->get(route('student-services.preview', [$serviceRequest, 'receipt']))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+        $this->actingAs($other)->get(route('student-services.preview', [$serviceRequest, 'receipt']))->assertForbidden();
+        $this->actingAs($student)->get(route('student-services.preview', [$serviceRequest, 'unknown']))->assertNotFound();
     }
 
     public function test_id_card_request_keeps_selected_education_level_at_submission(): void
@@ -528,6 +583,9 @@ class StudentServiceRequestTest extends TestCase
         $this->actingAs($admin)
             ->get(route('student-services.id-card.print', $serviceRequest))
             ->assertInertia(fn (Assert $page) => $page->where('card.library_rdr_id', 'B50834'));
+        $this->actingAs($admin)
+            ->get(route('student-services.show', $serviceRequest))
+            ->assertInertia(fn (Assert $page) => $page->where('canPrint', true));
 
         $this->actingAs($admin)
             ->post(route('student-services.library-barcode.store', $serviceRequest), [
@@ -691,6 +749,33 @@ class StudentServiceRequestTest extends TestCase
         $this->assertSame(2, StudentServiceRequest::query()->count());
     }
 
+    public function test_staff_sees_pending_requests_by_default_and_can_select_all(): void
+    {
+        $student = $this->user(Role::STUDENT);
+        $admin = $this->user(Role::ADMINISTRATOR_DIT);
+
+        foreach ([StudentServiceRequest::PENDING, StudentServiceRequest::COMPLETED] as $status) {
+            StudentServiceRequest::query()->create([
+                'student_id' => $student->id,
+                'service_type' => StudentServiceRequest::FACE_ID,
+                'status' => $status,
+            ]);
+        }
+
+        $this->actingAs($admin)->get(route('student-services.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.status', StudentServiceRequest::PENDING)
+                ->has('requests.data', 1)
+                ->where('requests.data.0.status', StudentServiceRequest::PENDING)
+            );
+
+        $this->actingAs($admin)->get(route('student-services.index').'?status=')
+            ->assertInertia(fn (Assert $page) => $page->has('requests.data', 2));
+
+        $this->actingAs($student)->get(route('student-services.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('requests.data', 2));
+    }
+
     public function test_administrator_can_process_requests_and_student_sees_response(): void
     {
         Storage::fake('local');
@@ -801,6 +886,35 @@ class StudentServiceRequestTest extends TestCase
         $this->actingAs($curator)->post(route('student-services.store'), ['service_type' => StudentServiceRequest::ID_CARD])->assertForbidden();
         $this->actingAs($student)->patch(route('student-services.update', $serviceRequest), ['status' => StudentServiceRequest::COMPLETED])->assertForbidden();
         $this->actingAs($curator)->patch(route('student-services.update', $serviceRequest), ['status' => StudentServiceRequest::COMPLETED])->assertForbidden();
+    }
+
+    public function test_service_operator_can_process_requests_but_cannot_access_other_staff_sections(): void
+    {
+        $operator = $this->user(Role::SERVICE_OPERATOR);
+        $student = $this->user(Role::STUDENT);
+        $serviceRequest = StudentServiceRequest::query()->create([
+            'student_id' => $student->id,
+            'service_type' => StudentServiceRequest::ID_CARD,
+            'status' => StudentServiceRequest::PENDING,
+        ]);
+
+        $this->actingAs($operator)->get(route('dashboard'))->assertRedirect(route('student-services.index'));
+        $this->get(route('student-services.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('canManage', true)
+            ->where('canSubmit', false)
+            ->has('requests.data', 1)
+        );
+        $this->get(route('student-services.show', $serviceRequest))->assertOk();
+        $this->patch(route('student-services.update', $serviceRequest), [
+            'status' => StudentServiceRequest::IN_PROGRESS,
+        ])->assertSessionHasNoErrors();
+        $this->assertSame($operator->id, $serviceRequest->fresh()->handled_by_id);
+
+        $this->get(route('users.index'))->assertForbidden();
+        $this->get(route('student-profiles.index'))->assertForbidden();
+        $this->get(route('analytics-dashboard.index'))->assertForbidden();
+        $this->get(route('groups.index'))->assertForbidden();
+        $this->get(route('student-profile.edit'))->assertForbidden();
     }
 
     private function user(string $roleSlug): User

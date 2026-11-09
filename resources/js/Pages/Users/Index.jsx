@@ -32,6 +32,8 @@ export default function Index({
     const [userToDelete, setUserToDelete] = useState(null);
     const [deleteErrors, setDeleteErrors] = useState({});
     const [deleteProcessing, setDeleteProcessing] = useState(false);
+    const [operatorUser, setOperatorUser] = useState(null);
+    const [operatorProcessing, setOperatorProcessing] = useState(false);
 
     const submitFilters = (event) => {
         event.preventDefault();
@@ -88,6 +90,21 @@ export default function Index({
                 setUserToDelete(null);
             },
             onFinish: () => setDeleteProcessing(false),
+        });
+    };
+
+    const changeServiceOperator = () => {
+        if (!operatorUser || operatorProcessing) {
+            return;
+        }
+
+        router.patch(route('users.service-operator.update', operatorUser.id), {
+            enabled: operatorUser.roleSlug === 'student',
+        }, {
+            preserveScroll: true,
+            onStart: () => setOperatorProcessing(true),
+            onSuccess: () => setOperatorUser(null),
+            onFinish: () => setOperatorProcessing(false),
         });
     };
 
@@ -248,6 +265,15 @@ export default function Index({
                                         </div>
 
                                         <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
+                                        {user.canChangeServiceOperator && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setOperatorUser(user)}
+                                                className="inline-flex items-center justify-center rounded-md border border-[#c9d8f0] bg-white px-4 py-2 text-sm font-semibold text-[#274f93] transition hover:bg-[#edf3ff]"
+                                            >
+                                                {user.roleSlug === 'student' ? 'Назначить специалистом ДИТ' : 'Снять роль специалиста ДИТ'}
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => impersonate(user)}
@@ -348,6 +374,33 @@ export default function Index({
                         className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
                     >
                         Удалить
+                    </button>
+                </div>
+            </Modal>
+
+            <Modal
+                show={Boolean(operatorUser)}
+                maxWidth="lg"
+                closeable={!operatorProcessing}
+                onClose={() => setOperatorUser(null)}
+            >
+                <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                    <h3 className="text-base font-semibold text-[#274f93]">
+                        {operatorUser?.roleSlug === 'student' ? 'Назначить специалистом ДИТ' : 'Снять роль специалиста ДИТ'}
+                    </h3>
+                </div>
+                <p className="px-6 py-5 text-sm text-gray-700">{operatorUser?.name}</p>
+                <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                    <SecondaryButton type="button" disabled={operatorProcessing} onClick={() => setOperatorUser(null)}>
+                        Отмена
+                    </SecondaryButton>
+                    <button
+                        type="button"
+                        disabled={operatorProcessing}
+                        onClick={changeServiceOperator}
+                        className="rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2f5192] disabled:opacity-50"
+                    >
+                        Подтвердить
                     </button>
                 </div>
             </Modal>

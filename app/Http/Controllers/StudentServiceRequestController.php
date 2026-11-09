@@ -12,6 +12,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -37,6 +38,10 @@ class StudentServiceRequestController extends Controller
                 StudentServiceRequest::REJECTED,
             ])],
         ]) : [];
+
+        if ($canManage && ! $request->exists('status')) {
+            $filters['status'] = StudentServiceRequest::PENDING;
+        }
 
         $requests = StudentServiceRequest::query()
             ->with(['student.studentProfile', 'handler'])
@@ -145,6 +150,7 @@ class StudentServiceRequestController extends Controller
             'canManage' => $user->canManageStudentServiceRequests(),
             'canPrint' => $user->canManageStudentServiceRequests()
                 && $studentServiceRequest->service_type === StudentServiceRequest::ID_CARD
+                && filled($studentServiceRequest->library_rdr_id)
                 && filled($studentServiceRequest->full_name)
                 && filled($studentServiceRequest->photo_path)
                 && Storage::disk('local')->exists($studentServiceRequest->photo_path),
@@ -166,6 +172,7 @@ class StudentServiceRequestController extends Controller
                 'handled_by' => $studentServiceRequest->handler?->name,
                 'has_photo' => filled($studentServiceRequest->photo_path),
                 'has_receipt' => filled($studentServiceRequest->receipt_path),
+                'receipt_is_pdf' => strtolower(pathinfo($studentServiceRequest->receipt_path ?? '', PATHINFO_EXTENSION)) === 'pdf',
             ],
         ]);
     }
@@ -175,6 +182,7 @@ class StudentServiceRequestController extends Controller
         abort_unless($request->user()->canManageStudentServiceRequests(), 403);
         abort_unless(
             $studentServiceRequest->service_type === StudentServiceRequest::ID_CARD
+                && filled($studentServiceRequest->library_rdr_id)
                 && filled($studentServiceRequest->full_name)
                 && filled($studentServiceRequest->photo_path)
                 && Storage::disk('local')->exists($studentServiceRequest->photo_path),
@@ -265,6 +273,26 @@ class StudentServiceRequestController extends Controller
         return Storage::disk('local')->download($path, $type.'-request-'.$studentServiceRequest->id.'.'.pathinfo($path, PATHINFO_EXTENSION));
     }
 
+    public function preview(Request $request, StudentServiceRequest $studentServiceRequest, string $type): StreamedResponse
+    {
+        $user = $request->user();
+        abort_unless($user->canManageStudentServiceRequests() || $studentServiceRequest->student_id === $user->id, 403);
+        abort_unless($studentServiceRequest->service_type === StudentServiceRequest::ID_CARD, 404);
+
+        $path = $type === 'photo' ? $studentServiceRequest->photo_path : $studentServiceRequest->receipt_path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        $mime = Storage::disk('local')->mimeType($path);
+        $allowedMimes = $type === 'photo' ? ['image/jpeg', 'image/png'] : ['image/jpeg', 'image/png', 'application/pdf'];
+        abort_unless(in_array($mime, $allowedMimes, true), 404);
+
+        return Storage::disk('local')->response($path, null, [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function store(Request $request, HikvisionFaceIdClient $hikvision): RedirectResponse
     {
         $user = $request->user();
@@ -329,7 +357,7 @@ class StudentServiceRequestController extends Controller
             ]));
         }
 
-        DB::transaction(function () use ($user, $validated, $request, $hikvision): void {
+        $synced = DB::transaction(function () use ($user, $validated, $request, $hikvision): bool {
             User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
             $hasOpenRequest = StudentServiceRequest::query()
@@ -364,7 +392,10 @@ class StudentServiceRequestController extends Controller
                     try {
                         $hikvisionOrgCode = $hikvision->submit($validated, $request->file('photo'));
                     } catch (RuntimeException $exception) {
-                        throw ValidationException::withMessages(['service_type' => $exception->getMessage()]);
+                        Log::warning('Face ID request queued after Hikvision error', [
+                            'student_id' => $user->id,
+                            'error' => $exception->getMessage(),
+                        ]);
                     }
                 }
 
@@ -372,23 +403,25 @@ class StudentServiceRequestController extends Controller
                     collect($validated)->except(['photo', 'receipt'])->all(),
                     [
                         'student_id' => $user->id,
-                        'status' => $hikvisionOrgCode ? StudentServiceRequest::COMPLETED : StudentServiceRequest::PENDING,
+                        'status' => $hikvisionOrgCode !== null ? StudentServiceRequest::COMPLETED : StudentServiceRequest::PENDING,
                         'photo_path' => $photoPath,
                         'receipt_path' => $receiptPath,
                         'hikvision_org_index_code' => $hikvisionOrgCode,
-                        'hikvision_synced_at' => $hikvisionOrgCode ? now() : null,
+                        'hikvision_synced_at' => $hikvisionOrgCode !== null ? now() : null,
                     ],
                 ));
             } catch (\Throwable $exception) {
                 Storage::disk('local')->delete(array_filter([$photoPath, $receiptPath]));
                 throw $exception;
             }
+
+            return $hikvisionOrgCode !== null;
         });
 
         return to_route('student-services.index')->with(
             'status',
             $validated['service_type'] === StudentServiceRequest::FACE_ID
-                ? 'face-id-synced'
+                ? ($synced ? 'face-id-synced' : 'face-id-pending')
                 : 'student-service-request-created',
         );
     }

@@ -36,7 +36,7 @@ class UserManagementTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Users/Index')
                 ->where('users.total', 3)
-                ->has('roleOptions', 6)
+                ->has('roleOptions', 7)
                 ->where('filters.search', '')
                 ->where('filters.role', '')
             );
@@ -74,6 +74,35 @@ class UserManagementTest extends TestCase
         $this->actingAs($student)
             ->get(route('users.index'))
             ->assertForbidden();
+    }
+
+    public function test_dit_administrator_can_assign_and_remove_service_operator_role(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $dit = $this->userWithRole(Role::ADMINISTRATOR_DIT);
+        $student = $this->userWithRole(Role::STUDENT);
+
+        $this->actingAs($dit)->patch(route('users.service-operator.update', $student), ['enabled' => true])
+            ->assertRedirect();
+        $this->assertSame(Role::SERVICE_OPERATOR, $student->fresh()->role->slug);
+
+        $this->patch(route('users.service-operator.update', $student), ['enabled' => false])
+            ->assertRedirect();
+        $this->assertSame(Role::STUDENT, $student->fresh()->role->slug);
+    }
+
+    public function test_service_operator_assignment_cannot_change_other_roles_or_be_used_by_non_admin(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $dit = $this->userWithRole(Role::ADMINISTRATOR_DIT);
+        $curator = $this->userWithRole(Role::CURATOR);
+        $student = $this->userWithRole(Role::STUDENT);
+
+        $this->actingAs($curator)->patch(route('users.service-operator.update', $student), ['enabled' => true])
+            ->assertForbidden();
+        $this->actingAs($dit)->patch(route('users.service-operator.update', $curator), ['enabled' => true])
+            ->assertStatus(422);
+        $this->assertSame(Role::CURATOR, $curator->fresh()->role->slug);
     }
 
     public function test_non_dit_user_cannot_impersonate(): void
