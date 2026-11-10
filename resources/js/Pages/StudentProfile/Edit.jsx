@@ -1733,27 +1733,6 @@ export default function Edit({
                                     </Field>
 
                                     <Field
-                                        label="Фото"
-                                        error={profileForm.errors.photo}
-                                    >
-                                        <input
-                                            type="file"
-                                            accept="image/jpeg,image/png"
-                                            onChange={(event) =>
-                                                profileForm.setData(
-                                                    "photo",
-                                                    event.target.files[0],
-                                                )
-                                            }
-                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
-                                        />
-                                        <FileLink
-                                            href={profile.photo_url}
-                                            label="Открыть текущий файл"
-                                        />
-                                    </Field>
-
-                                    <Field
                                         label="№ удостоверения личности"
                                         error={
                                             profileForm.errors
@@ -1772,27 +1751,6 @@ export default function Edit({
                                                 )
                                             }
                                             className="w-full"
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="ID карта"
-                                        error={profileForm.errors.identity_card}
-                                    >
-                                        <input
-                                            type="file"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            onChange={(event) =>
-                                                profileForm.setData(
-                                                    "identity_card",
-                                                    event.target.files[0],
-                                                )
-                                            }
-                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
-                                        />
-                                        <FileLink
-                                            href={profile.identity_card_url}
-                                            label="Открыть текущий файл"
                                         />
                                     </Field>
 
@@ -1953,6 +1911,49 @@ export default function Edit({
                                                     event.target.value,
                                                 )
                                             }
+                                        />
+                                    </Field>
+                                </div>
+                                <div className="mt-5 grid gap-5 border-t border-gray-100 pt-5 md:grid-cols-2">
+                                    <Field
+                                        label="Фото студента"
+                                        error={profileForm.errors.photo}
+                                    >
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png"
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "photo",
+                                                    event.target.files[0],
+                                                )
+                                            }
+                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                                        />
+                                        <FileLink
+                                            href={profile.photo_url}
+                                            label="Открыть текущий файл"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Фото или скан удостоверения личности"
+                                        error={profileForm.errors.identity_card}
+                                    >
+                                        <input
+                                            type="file"
+                                            accept=".pdf,.jpg,.jpeg,.png"
+                                            onChange={(event) =>
+                                                profileForm.setData(
+                                                    "identity_card",
+                                                    event.target.files[0],
+                                                )
+                                            }
+                                            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                                        />
+                                        <FileLink
+                                            href={profile.identity_card_url}
+                                            label="Открыть текущий файл"
                                         />
                                     </Field>
                                 </div>

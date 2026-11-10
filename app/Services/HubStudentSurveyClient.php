@@ -34,6 +34,10 @@ class HubStudentSurveyClient
             return $this->result(true, false, 'Ошибка при загрузке анкет студентов.');
         }
 
+        if ($response->status() === 404) {
+            return $this->result(true, false, 'По указанному ИИН анкеты не найдены.');
+        }
+
         if (! $response->successful()) {
             return $this->result(true, false, 'API анкет студентов вернул ошибку '.$response->status().'.');
         }

@@ -334,6 +334,27 @@ class PsychologicalProfileTest extends TestCase
             );
     }
 
+    public function test_missing_hub_surveys_show_clear_message_without_claiming_student_is_missing(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $this->configureSurveyApi();
+        Http::fake([
+            'https://hub.test/api/v1/students/surveys*' => Http::response([], 404),
+        ]);
+
+        $psychologist = $this->userWithRole(Role::ADMINISTRATION, 'Психолог');
+        $student = $this->studentWithIin();
+
+        $this->actingAs($psychologist)
+            ->get(route('student-profiles.show', $student))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('surveyResults.ok', false)
+                ->where('surveyResults.message', 'По указанному ИИН анкеты не найдены.')
+                ->where('surveyResults.results', [])
+            );
+    }
+
     private function configureSurveyApi(): void
     {
         config([
