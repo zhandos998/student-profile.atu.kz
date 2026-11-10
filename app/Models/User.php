@@ -13,8 +13,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'phone', 'phone_normalized', 'platonus_login', 'password', 'role_id', 'position'])]
-#[Hidden(['password', 'remember_token'])]
+#[Fillable(['name', 'email', 'phone', 'phone_normalized', 'platonus_login', 'google_sub', 'password', 'role_id', 'position'])]
+#[Hidden(['password', 'remember_token', 'google_sub'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */

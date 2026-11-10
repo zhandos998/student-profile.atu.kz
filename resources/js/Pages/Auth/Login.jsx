@@ -1,4 +1,5 @@
 import Checkbox from '@/Components/Checkbox';
+import GoogleSignIn from '@/Components/GoogleSignIn';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
@@ -94,6 +95,7 @@ export default function Login({
                     <PrimaryButton type="submit">Войти</PrimaryButton>
                 </div>
             </form>
+            <GoogleSignIn />
         </GuestLayout>
     );
 }

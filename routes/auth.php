@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\GoogleLoginController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -24,6 +25,14 @@ Route::middleware('guest')->group(function () {
         ->name('login.platonus');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
+
+    Route::get('login/google/challenge', [GoogleLoginController::class, 'challenge'])
+        ->middleware('throttle:30,1')
+        ->name('login.google.challenge');
+
+    Route::post('login/google', [GoogleLoginController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('login.google');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
