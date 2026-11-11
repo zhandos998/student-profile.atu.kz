@@ -144,6 +144,13 @@ class UserManagementController extends Controller
             'position' => ['nullable', 'string', 'max:255'],
         ]);
         $role = Role::query()->where('slug', $validated['role'])->firstOrFail();
+
+        if (! in_array($role->slug, [Role::CURATOR, Role::ADVISOR], true) && $user->studentGroups()->exists()) {
+            throw ValidationException::withMessages([
+                'role' => 'Сначала назначьте другого куратора/эдвайзера для групп этого пользователя.',
+            ]);
+        }
+
         $user->update([
             'role_id' => $role->id,
             'position' => trim($validated['position'] ?? '') ?: $role->name,

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Role;
+use App\Models\StudentGroup;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -118,6 +119,26 @@ class UserManagementTest extends TestCase
         $this->patch(route('users.blocked.update', $dit), ['blocked' => true])->assertStatus(422);
         $this->patch(route('users.role.update', $student), ['role' => Role::GROUP_LEADER])->assertSessionHasErrors('role');
         $this->assertFalse($dit->fresh()->is_blocked);
+    }
+
+    public function test_assigned_curator_must_transfer_groups_before_role_change(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $dit = $this->userWithRole(Role::ADMINISTRATOR_DIT);
+        $curator = $this->userWithRole(Role::CURATOR);
+        StudentGroup::query()->create([
+            'name' => 'ИС-101',
+            'faculty' => 'Факультет информационных технологий',
+            'curator_id' => $curator->id,
+        ]);
+
+        $this->actingAs($dit)->patch(route('users.role.update', $curator), ['role' => Role::STUDENT])
+            ->assertSessionHasErrors('role');
+        $this->assertSame(Role::CURATOR, $curator->fresh()->role->slug);
+
+        $this->patch(route('users.role.update', $curator), ['role' => Role::ADVISOR])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(Role::ADVISOR, $curator->fresh()->role->slug);
     }
 
     public function test_blocking_user_rejects_login_and_existing_session(): void
