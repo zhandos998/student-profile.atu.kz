@@ -111,6 +111,9 @@ Route::middleware('auth')->group(function () {
         ->name('analytics-dashboard.reports.export');
 
     Route::get('/users', [UserManagementController::class, 'index'])->name('users.index');
+    Route::post('/users', [UserManagementController::class, 'store'])->name('users.store');
+    Route::patch('/users/{user}/role', [UserManagementController::class, 'updateRole'])->name('users.role.update');
+    Route::patch('/users/{user}/blocked', [UserManagementController::class, 'updateBlocked'])->name('users.blocked.update');
     Route::patch('/users/{user}/service-operator', [UserManagementController::class, 'updateServiceOperator'])->name('users.service-operator.update');
     Route::post('/users/{user}/impersonate', [UserManagementController::class, 'impersonate'])->name('users.impersonate');
     Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');

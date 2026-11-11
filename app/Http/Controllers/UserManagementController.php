@@ -4,9 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Phone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,6 +24,7 @@ class UserManagementController extends Controller
         $filters = [
             'search' => (string) $request->query('search', ''),
             'role' => (string) $request->query('role', ''),
+            'blocked' => (string) $request->query('blocked', ''),
         ];
 
         $users = User::query()
@@ -26,6 +32,7 @@ class UserManagementController extends Controller
             ->when($filters['role'] !== '', function ($query) use ($filters): void {
                 $query->whereHas('role', fn ($roleQuery) => $roleQuery->where('slug', $filters['role']));
             })
+            ->when($filters['blocked'] !== '', fn ($query) => $query->where('is_blocked', $filters['blocked'] === '1'))
             ->when($filters['search'] !== '', function ($query) use ($filters): void {
                 $search = '%'.$filters['search'].'%';
 
@@ -59,11 +66,16 @@ class UserManagementController extends Controller
                 'position' => $user->position,
                 'roleSlug' => $user->role?->slug,
                 'roleName' => $user->role?->name ?? 'Без роли',
+                'isBlocked' => $user->is_blocked,
                 'createdAt' => $user->created_at?->format('d.m.Y H:i'),
                 'canImpersonate' => ! $request->session()->has('impersonator_id')
+                    && ! $request->user()?->is($user)
+                    && ! $user->is_blocked,
+                'canChangeRole' => ! $request->session()->has('impersonator_id')
+                    && ! $request->user()?->is($user)
+                    && $user->role?->slug !== Role::GROUP_LEADER,
+                'canBlock' => ! $request->session()->has('impersonator_id')
                     && ! $request->user()?->is($user),
-                'canChangeServiceOperator' => ! $request->session()->has('impersonator_id')
-                    && in_array($user->role?->slug, [Role::STUDENT, Role::SERVICE_OPERATOR], true),
                 'canDelete' => $this->canDeleteUser($request, $user),
                 'deleteBlockedReason' => $this->deleteBlockedReason($request, $user),
             ]);
@@ -79,7 +91,76 @@ class UserManagementController extends Controller
                     'label' => $role->name,
                 ])
                 ->values(),
+            'assignableRoleOptions' => Role::query()
+                ->where('slug', '!=', Role::GROUP_LEADER)
+                ->orderBy('name')
+                ->get(['slug', 'name'])
+                ->map(fn (Role $role): array => ['value' => $role->slug, 'label' => $role->name])
+                ->values(),
         ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $this->authorizeManagement($request);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+            'role' => ['required', Rule::in($this->assignableRoles())],
+            'position' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $phone = trim($validated['phone'] ?? '');
+        $phoneNormalized = $phone !== '' ? Phone::normalize($phone) : null;
+
+        if ($phoneNormalized !== null && (strlen($phoneNormalized) < 10 || User::query()->where('phone_normalized', $phoneNormalized)->exists())) {
+            throw ValidationException::withMessages(['phone' => 'Укажите другой корректный номер телефона.']);
+        }
+
+        $role = Role::query()->where('slug', $validated['role'])->firstOrFail();
+        User::query()->create([
+            'name' => trim($validated['name']),
+            'email' => mb_strtolower(trim($validated['email'])),
+            'phone' => $phone !== '' ? $phone : null,
+            'phone_normalized' => $phoneNormalized,
+            'password' => Hash::make($validated['password']),
+            'role_id' => $role->id,
+            'position' => trim($validated['position'] ?? '') ?: $role->name,
+        ]);
+
+        return redirect()->route('users.index')->with('status', 'Пользователь создан.');
+    }
+
+    public function updateRole(Request $request, User $user): RedirectResponse
+    {
+        $this->authorizeManagement($request);
+        abort_if($request->user()->is($user) || $user->role?->slug === Role::GROUP_LEADER, 422);
+
+        $validated = $request->validate([
+            'role' => ['required', Rule::in($this->assignableRoles())],
+            'position' => ['nullable', 'string', 'max:255'],
+        ]);
+        $role = Role::query()->where('slug', $validated['role'])->firstOrFail();
+        $user->update([
+            'role_id' => $role->id,
+            'position' => trim($validated['position'] ?? '') ?: $role->name,
+        ]);
+
+        return back()->with('status', 'Роль пользователя изменена.');
+    }
+
+    public function updateBlocked(Request $request, User $user): RedirectResponse
+    {
+        $this->authorizeManagement($request);
+        abort_if($request->user()->is($user), 422);
+
+        $validated = $request->validate(['blocked' => ['required', 'boolean']]);
+        $user->update(['is_blocked' => $validated['blocked']]);
+
+        return back()->with('status', $validated['blocked'] ? 'Пользователь заблокирован.' : 'Пользователь разблокирован.');
     }
 
     public function impersonate(Request $request, User $user): RedirectResponse
@@ -87,6 +168,7 @@ class UserManagementController extends Controller
         abort_unless($request->user()?->canImpersonateUsers(), 403);
         abort_if($request->session()->has('impersonator_id'), 403);
         abort_if($request->user()->is($user), 422);
+        abort_if($user->is_blocked, 422);
 
         $impersonatorId = $request->user()->id;
 
@@ -206,5 +288,16 @@ class UserManagementController extends Controller
             ->whereKeyNot($user->id)
             ->whereHas('role', fn ($query) => $query->where('slug', Role::ADMINISTRATOR_DIT))
             ->doesntExist();
+    }
+
+    private function authorizeManagement(Request $request): void
+    {
+        abort_unless($request->user()?->canManageUsers(), 403);
+        abort_if($request->session()->has('impersonator_id'), 403);
+    }
+
+    private function assignableRoles(): array
+    {
+        return Role::query()->where('slug', '!=', Role::GROUP_LEADER)->pluck('slug')->all();
     }
 }

@@ -64,6 +64,7 @@ class LoginRequest extends FormRequest
 
         $login = (string) $this->input('email');
         if ($this->attemptLocalLogin($login)) {
+            $this->rejectBlockedAccount();
             RateLimiter::clear($this->throttleKey());
 
             return;
@@ -75,6 +76,7 @@ class LoginRequest extends FormRequest
             $platonusError = $this->attemptPlatonusLogin($login);
 
             if ($platonusError === null) {
+                $this->rejectBlockedAccount();
                 RateLimiter::clear($this->throttleKey());
 
                 return;
@@ -97,6 +99,7 @@ class LoginRequest extends FormRequest
         $error = $this->attemptPlatonusLogin($login);
 
         if ($error === null) {
+            $this->rejectBlockedAccount();
             RateLimiter::clear($this->throttleKey());
 
             return;
@@ -107,6 +110,17 @@ class LoginRequest extends FormRequest
         throw ValidationException::withMessages([
             'login' => $error,
         ]);
+    }
+
+    private function rejectBlockedAccount(): void
+    {
+        if (Auth::user()?->is_blocked) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                $this->authType() === 'platonus' ? 'login' : 'email' => 'Ваш аккаунт заблокирован. Обратитесь к администратору.',
+            ]);
+        }
     }
 
     private function attemptLocalLogin(string $login): bool
@@ -201,7 +215,7 @@ class LoginRequest extends FormRequest
             }
 
             if (! $user) {
-                $user = new User();
+                $user = new User;
                 $user->password = Hash::make(Str::random(48));
                 $user->email = $this->availableEmail($email, null, $platonusLogin);
             }
@@ -265,7 +279,7 @@ class LoginRequest extends FormRequest
             }
 
             if (! $user) {
-                $user = new User();
+                $user = new User;
                 $user->password = Hash::make(Str::random(48));
                 $user->email = $this->availableEmail($email, null, $platonusLogin);
             }

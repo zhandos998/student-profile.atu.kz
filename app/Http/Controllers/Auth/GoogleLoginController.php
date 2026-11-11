@@ -102,6 +102,10 @@ class GoogleLoginController extends Controller
                 $user->save();
             }
 
+            if ($user->is_blocked) {
+                $this->invalid('Ваш аккаунт заблокирован. Обратитесь к администратору.');
+            }
+
             if (mb_strtolower($user->email) !== $identity['email']) {
                 $this->invalid('Адрес аккаунта изменился. Войдите по паролю.');
             }

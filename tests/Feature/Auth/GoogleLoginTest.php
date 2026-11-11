@@ -77,6 +77,20 @@ class GoogleLoginTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
+    public function test_blocked_account_cannot_sign_in_with_google(): void
+    {
+        $user = User::factory()->create(['email' => 'student@gmail.com', 'is_blocked' => true]);
+        $nonce = $this->challenge();
+
+        $this->post(route('login.google'), [
+            'credential' => $this->token($nonce),
+            'nonce' => $nonce,
+        ])->assertSessionHasErrors('google');
+
+        $this->assertGuest();
+        $this->assertNull($user->fresh()->google_sub);
+    }
+
     public function test_google_login_rejects_invalid_audience_and_replayed_challenge(): void
     {
         $user = User::factory()->create(['email' => 'student@gmail.com']);

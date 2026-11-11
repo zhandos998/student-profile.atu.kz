@@ -25,15 +25,24 @@ function roleBadgeClass(roleSlug) {
 
 export default function Index({
     users,
-    filters = { search: '', role: '' },
+    filters = { search: '', role: '', blocked: '' },
     roleOptions = [],
+    assignableRoleOptions = [],
 }) {
     const [filterData, setFilterData] = useState(filters);
     const [userToDelete, setUserToDelete] = useState(null);
     const [deleteErrors, setDeleteErrors] = useState({});
     const [deleteProcessing, setDeleteProcessing] = useState(false);
-    const [operatorUser, setOperatorUser] = useState(null);
-    const [operatorProcessing, setOperatorProcessing] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [createProcessing, setCreateProcessing] = useState(false);
+    const [createErrors, setCreateErrors] = useState({});
+    const [newUser, setNewUser] = useState({ name: '', email: '', phone: '', password: '', password_confirmation: '', role: 'student', position: '' });
+    const [roleUser, setRoleUser] = useState(null);
+    const [roleForm, setRoleForm] = useState({ role: '', position: '' });
+    const [roleErrors, setRoleErrors] = useState({});
+    const [roleProcessing, setRoleProcessing] = useState(false);
+    const [blockUser, setBlockUser] = useState(null);
+    const [blockProcessing, setBlockProcessing] = useState(false);
 
     const submitFilters = (event) => {
         event.preventDefault();
@@ -48,6 +57,7 @@ export default function Index({
         const emptyFilters = {
             search: '',
             role: '',
+            blocked: '',
         };
 
         setFilterData(emptyFilters);
@@ -93,25 +103,48 @@ export default function Index({
         });
     };
 
-    const changeServiceOperator = () => {
-        if (!operatorUser || operatorProcessing) {
-            return;
-        }
-
-        router.patch(route('users.service-operator.update', operatorUser.id), {
-            enabled: operatorUser.roleSlug === 'student',
-        }, {
+    const createUser = (event) => {
+        event.preventDefault();
+        router.post(route('users.store'), newUser, {
             preserveScroll: true,
-            onStart: () => setOperatorProcessing(true),
-            onSuccess: () => setOperatorUser(null),
-            onFinish: () => setOperatorProcessing(false),
+            onStart: () => setCreateProcessing(true),
+            onError: setCreateErrors,
+            onSuccess: () => {
+                setCreating(false);
+                setCreateErrors({});
+                setNewUser({ name: '', email: '', phone: '', password: '', password_confirmation: '', role: 'student', position: '' });
+            },
+            onFinish: () => setCreateProcessing(false),
+        });
+    };
+
+    const saveRole = (event) => {
+        event.preventDefault();
+        if (!roleUser) return;
+        router.patch(route('users.role.update', roleUser.id), roleForm, {
+            preserveScroll: true,
+            onStart: () => setRoleProcessing(true),
+            onError: setRoleErrors,
+            onSuccess: () => { setRoleUser(null); setRoleErrors({}); },
+            onFinish: () => setRoleProcessing(false),
+        });
+    };
+
+    const saveBlocked = () => {
+        if (!blockUser) return;
+        router.patch(route('users.blocked.update', blockUser.id), { blocked: !blockUser.isBlocked }, {
+            preserveScroll: true,
+            onStart: () => setBlockProcessing(true),
+            onSuccess: () => setBlockUser(null),
+            onFinish: () => setBlockProcessing(false),
         });
     };
 
     return (
         <AuthenticatedLayout
             header={
-                <div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">
                         Пользователи
                     </h2>
@@ -119,6 +152,10 @@ export default function Index({
                         Просмотр всех аккаунтов и вход от имени пользователя для
                         проверки доступа.
                     </p>
+                    </div>
+                    <button type="button" onClick={() => setCreating(true)} className="rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2f5192]">
+                        Создать пользователя
+                    </button>
                 </div>
             }
         >
@@ -134,7 +171,7 @@ export default function Index({
                         </div>
                         <form
                             onSubmit={submitFilters}
-                            className="grid gap-4 p-5 md:grid-cols-[1fr_260px_auto]"
+                            className="grid gap-4 p-5 md:grid-cols-[1fr_220px_180px_auto]"
                         >
                             <div>
                                 <label className="text-sm font-medium text-gray-700">
@@ -151,6 +188,15 @@ export default function Index({
                                     placeholder="ФИО, email, телефон, логин Платонуса"
                                     className={`${inputClass} mt-1`}
                                 />
+                            </div>
+
+                            <div>
+                                <label className="text-sm font-medium text-gray-700">Статус</label>
+                                <select value={filterData.blocked} onChange={(event) => setFilterData((current) => ({ ...current, blocked: event.target.value }))} className={`${inputClass} mt-1`}>
+                                    <option value="">Все</option>
+                                    <option value="0">Активные</option>
+                                    <option value="1">Заблокированные</option>
+                                </select>
                             </div>
 
                             <div>
@@ -240,6 +286,7 @@ export default function Index({
                                                     {user.position}
                                                 </span>
                                             )}
+                                            {user.isBlocked && <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">Заблокирован</span>}
                                         </div>
 
                                         <div className="text-sm text-gray-700">
@@ -265,13 +312,14 @@ export default function Index({
                                         </div>
 
                                         <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
-                                        {user.canChangeServiceOperator && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setOperatorUser(user)}
-                                                className="inline-flex items-center justify-center rounded-md border border-[#c9d8f0] bg-white px-4 py-2 text-sm font-semibold text-[#274f93] transition hover:bg-[#edf3ff]"
-                                            >
-                                                {user.roleSlug === 'student' ? 'Назначить специалистом ДИТ' : 'Снять роль специалиста ДИТ'}
+                                        {user.canChangeRole && (
+                                            <button type="button" onClick={() => { setRoleUser(user); setRoleForm({ role: user.roleSlug || 'student', position: user.position || '' }); setRoleErrors({}); }} className="rounded-md border border-[#c9d8f0] px-3 py-2 text-sm font-semibold text-[#274f93] hover:bg-[#edf3ff]">
+                                                Роль
+                                            </button>
+                                        )}
+                                        {user.canBlock && (
+                                            <button type="button" onClick={() => setBlockUser(user)} className={`rounded-md border px-3 py-2 text-sm font-semibold ${user.isBlocked ? 'border-[#c9d8f0] text-[#274f93] hover:bg-[#edf3ff]' : 'border-red-200 text-red-700 hover:bg-red-50'}`}>
+                                                {user.isBlocked ? 'Разблокировать' : 'Заблокировать'}
                                             </button>
                                         )}
                                         <button
@@ -378,30 +426,76 @@ export default function Index({
                 </div>
             </Modal>
 
-            <Modal
-                show={Boolean(operatorUser)}
-                maxWidth="lg"
-                closeable={!operatorProcessing}
-                onClose={() => setOperatorUser(null)}
-            >
+
+            <Modal show={creating} maxWidth="lg" closeable={!createProcessing} onClose={() => { setCreating(false); setCreateErrors({}); }}>
+                <form onSubmit={createUser}>
+                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                        <h3 className="text-base font-semibold text-[#274f93]">Создать пользователя</h3>
+                    </div>
+                    <div className="grid gap-4 p-6 sm:grid-cols-2">
+                        {[
+                            ['name', 'ФИО', 'text'],
+                            ['email', 'Email', 'email'],
+                            ['phone', 'Телефон (необязательно)', 'tel'],
+                            ['position', 'Должность (необязательно)', 'text'],
+                            ['password', 'Пароль', 'password'],
+                            ['password_confirmation', 'Повторите пароль', 'password'],
+                        ].map(([field, label, type]) => (
+                            <label key={field} className="block text-sm font-medium text-gray-700">
+                                {label}
+                                <input type={type} value={newUser[field]} onChange={(event) => setNewUser((current) => ({ ...current, [field]: event.target.value }))} className={`${inputClass} mt-1`} required={['name', 'email', 'password', 'password_confirmation'].includes(field)} />
+                                {createErrors[field] && <span className="mt-1 block text-xs text-red-700">{createErrors[field]}</span>}
+                            </label>
+                        ))}
+                        <label className="block text-sm font-medium text-gray-700 sm:col-span-2">
+                            Роль
+                            <select value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value }))} className={`${inputClass} mt-1`}>
+                                {assignableRoleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                            </select>
+                            {createErrors.role && <span className="mt-1 block text-xs text-red-700">{createErrors.role}</span>}
+                        </label>
+                    </div>
+                    <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                        <SecondaryButton type="button" disabled={createProcessing} onClick={() => setCreating(false)}>Отмена</SecondaryButton>
+                        <button type="submit" disabled={createProcessing} className="rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2f5192] disabled:opacity-50">Создать</button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal show={Boolean(roleUser)} maxWidth="lg" closeable={!roleProcessing} onClose={() => setRoleUser(null)}>
+                <form onSubmit={saveRole}>
+                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
+                        <h3 className="text-base font-semibold text-[#274f93]">Изменить роль</h3>
+                        <p className="mt-1 text-sm text-gray-600">{roleUser?.name}</p>
+                    </div>
+                    <div className="space-y-4 p-6">
+                        <label className="block text-sm font-medium text-gray-700">Роль
+                            <select value={roleForm.role} onChange={(event) => setRoleForm({ role: event.target.value, position: '' })} className={`${inputClass} mt-1`}>
+                                {assignableRoleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                            </select>
+                            {roleErrors.role && <span className="mt-1 block text-xs text-red-700">{roleErrors.role}</span>}
+                        </label>
+                        <label className="block text-sm font-medium text-gray-700">Должность (необязательно)
+                            <input value={roleForm.position} onChange={(event) => setRoleForm((current) => ({ ...current, position: event.target.value }))} className={`${inputClass} mt-1`} placeholder="По умолчанию — название роли" />
+                            {roleErrors.position && <span className="mt-1 block text-xs text-red-700">{roleErrors.position}</span>}
+                        </label>
+                        <p className="text-xs text-gray-500">Староста назначается в социальном паспорте группы.</p>
+                    </div>
+                    <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                        <SecondaryButton type="button" disabled={roleProcessing} onClick={() => setRoleUser(null)}>Отмена</SecondaryButton>
+                        <button type="submit" disabled={roleProcessing} className="rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2f5192] disabled:opacity-50">Сохранить</button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal show={Boolean(blockUser)} maxWidth="lg" closeable={!blockProcessing} onClose={() => setBlockUser(null)}>
                 <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-6 py-4">
-                    <h3 className="text-base font-semibold text-[#274f93]">
-                        {operatorUser?.roleSlug === 'student' ? 'Назначить специалистом ДИТ' : 'Снять роль специалиста ДИТ'}
-                    </h3>
+                    <h3 className="text-base font-semibold text-[#274f93]">{blockUser?.isBlocked ? 'Разблокировать пользователя' : 'Заблокировать пользователя'}</h3>
                 </div>
-                <p className="px-6 py-5 text-sm text-gray-700">{operatorUser?.name}</p>
+                <p className="p-6 text-sm text-gray-700">{blockUser?.name}. {blockUser?.isBlocked ? 'После разблокировки вход снова будет доступен.' : 'Пользователь потеряет доступ к системе, включая открытые сеансы.'}</p>
                 <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
-                    <SecondaryButton type="button" disabled={operatorProcessing} onClick={() => setOperatorUser(null)}>
-                        Отмена
-                    </SecondaryButton>
-                    <button
-                        type="button"
-                        disabled={operatorProcessing}
-                        onClick={changeServiceOperator}
-                        className="rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2f5192] disabled:opacity-50"
-                    >
-                        Подтвердить
-                    </button>
+                    <SecondaryButton type="button" disabled={blockProcessing} onClick={() => setBlockUser(null)}>Отмена</SecondaryButton>
+                    <button type="button" disabled={blockProcessing} onClick={saveBlocked} className={`rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50 ${blockUser?.isBlocked ? 'bg-[#355da8] text-white hover:bg-[#2f5192]' : 'bg-red-700 text-white hover:bg-red-800'}`}>{blockUser?.isBlocked ? 'Разблокировать' : 'Заблокировать'}</button>
                 </div>
             </Modal>
         </AuthenticatedLayout>
