@@ -197,6 +197,7 @@ Update project after code changes
 On server:
 
 cd /opt/apps/student_profile
+umask 022
 git pull origin main
 docker compose --env-file .env.docker -f docker-compose.prod.yml up -d --build
 docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan migrate --force

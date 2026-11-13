@@ -63,6 +63,7 @@ COPY docker/supervisord.conf /etc/supervisord.conf
 COPY docker/entrypoint.sh /usr/local/bin/student-profile-entrypoint
 
 RUN chmod +x /usr/local/bin/student-profile-entrypoint \
+    && chmod -R a+rX app bootstrap config database/migrations public resources routes \
     && mkdir -p \
         storage/app/public \
         storage/framework/cache/data \
