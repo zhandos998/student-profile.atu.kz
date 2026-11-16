@@ -21,6 +21,7 @@ const faceIdLabels = {
     first_name: 'Имя',
     middle_name: 'Отчество',
     faculty: 'Факультет',
+    specialty: 'Специальность',
     course: 'Курс',
     education_level: 'Уровень образования',
 };
@@ -29,6 +30,7 @@ const legacyFaceIdLabels = {
     iin: 'ИИН',
     full_name: 'ФИО',
     faculty: 'Факультет',
+    specialty: 'Специальность',
     course: 'Курс',
     education_level: 'Уровень образования',
 };
@@ -94,11 +96,11 @@ function DecisionForm({ request }) {
     );
 }
 
-export default function Show({ serviceRequest, canManage, canPrint, canRequestLibraryBarcode, libraryDates }) {
+export default function Show({ serviceRequest, canManage, canPrint, canRequestLibraryBarcode, barcodeMissingStudyStart, barcodeMissingStudyStartMessage, libraryDates }) {
     const isIdCard = serviceRequest.service_type === 'id_card';
     const visibleFaceIdLabels = serviceRequest.last_name || serviceRequest.first_name ? faceIdLabels : legacyFaceIdLabels;
     const title = isIdCard ? 'Заявка на ID-карту' : 'Заявка на Face ID';
-    const barcodeForm = useForm({ regdate: libraryDates.regdate, reregdate: libraryDates.reregdate });
+    const barcodeForm = useForm({});
 
     const requestBarcode = (event) => {
         event.preventDefault();
@@ -173,22 +175,15 @@ export default function Show({ serviceRequest, canManage, canPrint, canRequestLi
                                     {canRequestLibraryBarcode && (
                                         <form onSubmit={requestBarcode} className="space-y-4 border-t border-gray-100 pt-5">
                                             <h4 className="text-sm font-semibold text-gray-900">Получить штрихкод библиотеки</h4>
-                                            <div className="grid gap-4 sm:grid-cols-2">
-                                                <label className="text-sm font-medium text-gray-800">
-                                                    Дата регистрации
-                                                    <input type="date" required value={barcodeForm.data.regdate} onChange={(event) => barcodeForm.setData('regdate', event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8]" />
-                                                    {barcodeForm.errors.regdate && <span className="mt-1 block text-xs text-red-700">{barcodeForm.errors.regdate}</span>}
-                                                </label>
-                                                <label className="text-sm font-medium text-gray-800">
-                                                    Дата перерегистрации
-                                                    <input type="date" required value={barcodeForm.data.reregdate} onChange={(event) => barcodeForm.setData('reregdate', event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8]" />
-                                                    {barcodeForm.errors.reregdate && <span className="mt-1 block text-xs text-red-700">{barcodeForm.errors.reregdate}</span>}
-                                                </label>
-                                            </div>
+                                            <dl className="grid gap-4 sm:grid-cols-2">
+                                                <div><dt className="text-xs text-gray-500">Дата регистрации</dt><dd className="mt-1 text-sm font-medium text-gray-900">{libraryDates.regdate.split('-').reverse().join('.')}</dd></div>
+                                                <div><dt className="text-xs text-gray-500">Дата перерегистрации</dt><dd className="mt-1 text-sm font-medium text-gray-900">{libraryDates.reregdate.split('-').reverse().join('.')}</dd></div>
+                                            </dl>
                                             {barcodeForm.errors.library_barcode && <p role="alert" className="text-sm text-red-700">{barcodeForm.errors.library_barcode}</p>}
                                             <button type="submit" disabled={barcodeForm.processing} className="rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2f5192] disabled:opacity-50">Получить штрихкод</button>
                                         </form>
                                     )}
+                                    {barcodeMissingStudyStart && <p className="border-t border-gray-100 pt-5 text-sm text-red-700">{barcodeMissingStudyStartMessage}</p>}
                                     <div className="flex flex-wrap gap-3 border-t border-gray-100 pt-5">
                                         {canManage && (canPrint
                                             ? <a href={route('student-services.id-card.print', serviceRequest.id)} target="_blank" rel="noopener noreferrer" className="rounded-md bg-[#355da8] px-3 py-2 text-sm font-semibold text-white hover:bg-[#2f5192]">Печать ID-карты</a>

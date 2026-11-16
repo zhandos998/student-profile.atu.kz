@@ -2,7 +2,10 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Modal from '@/Components/Modal';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useState } from 'react';
+import Cropper from 'react-easy-crop';
+import { useEffect, useRef, useState } from 'react';
+import { specialtiesForFaculty, withCurrentOption } from '@/Components/AcademicSelectOptions';
+import { cropIdCardPhoto } from '@/Components/cropIdCardPhoto';
 
 const kaspiPaymentUrl = 'https://kaspi.kz/pay/ATU?amount=2100';
 
@@ -20,7 +23,7 @@ const fields = [
     { name: 'phone', label: 'Номер телефона', type: 'tel' },
     { name: 'study_start_date', label: 'Начало обучения', type: 'month' },
     { name: 'study_end_date', label: 'Конец обучения', type: 'month' },
-    { name: 'course', label: 'Курс', type: 'number', min: 1, max: 8 },
+    { name: 'course', label: 'Курс', type: 'number', min: 1, max: 5 },
     { name: 'faculty', label: 'Факультет' },
     { name: 'specialty', label: 'Специальность' },
 ];
@@ -34,12 +37,68 @@ const paymentSteps = [
     'Оплатите 2 100 тенге и прикрепите квитанцию ниже.',
 ];
 
-export default function IdCard({ initial, hasOpenRequest }) {
+export default function IdCard({ initial, hasOpenRequest, academicOptions = {} }) {
     const form = useForm({ ...initial, service_type: 'id_card', photo: null, receipt: null });
     const [showPaymentQr, setShowPaymentQr] = useState(false);
+    const [sourceUrl, setSourceUrl] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [cropReady, setCropReady] = useState(false);
+    const [cropping, setCropping] = useState(false);
+    const cropArea = useRef(null);
+    const faculties = withCurrentOption(academicOptions.faculties, form.data.faculty);
+    const specialties = specialtiesForFaculty(academicOptions.specialties, form.data.faculty, form.data.specialty);
+
+    useEffect(() => () => { if (sourceUrl) URL.revokeObjectURL(sourceUrl); }, [sourceUrl]);
+    useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+
+    const selectPhoto = (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!['image/jpeg', 'image/png'].includes(file.type)) {
+            form.setError('photo', 'Выберите фото JPG или PNG.');
+            return;
+        }
+        if (file.size > 16 * 1024 * 1024) {
+            form.setError('photo', 'Фото должно быть не больше 16 МБ.');
+            return;
+        }
+
+        form.clearErrors('photo');
+        setCrop({ x: 0, y: 0 });
+        setZoom(1);
+        setCropReady(false);
+        cropArea.current = null;
+        setSourceUrl(URL.createObjectURL(file));
+    };
+
+    const confirmCrop = async () => {
+        if (!sourceUrl || !cropArea.current || cropping) return;
+
+        setCropping(true);
+        try {
+            const photo = await cropIdCardPhoto(sourceUrl, cropArea.current);
+            form.setData('photo', photo);
+            setPreviewUrl(URL.createObjectURL(photo));
+            form.clearErrors('photo');
+            setSourceUrl(null);
+        } catch {
+            form.setError('photo', 'Не удалось обрезать фото. Выберите файл ещё раз.');
+        } finally {
+            setCropping(false);
+        }
+    };
 
     const submit = (event) => {
         event.preventDefault();
+
+        if (!form.data.photo) {
+            form.setError('photo', 'Обрежьте фото 3×4 перед отправкой заявки.');
+            return;
+        }
 
         if (form.data.photo?.size > 16 * 1024 * 1024) {
             form.setError('photo', 'Фото должно быть не больше 16 МБ.');
@@ -74,28 +133,38 @@ export default function IdCard({ initial, hasOpenRequest }) {
                                     {fields.map((field) => (
                                         <label key={field.name} className="block text-sm font-medium text-gray-800">
                                             {field.label}
-                                            <input
-                                                type={field.type || 'text'}
-                                                value={form.data[field.name] ?? ''}
-                                                onChange={(event) => {
-                                                    if (field.name === 'specialty') {
-                                                        const specialty = event.target.value;
-                                                        form.setData({
-                                                            ...form.data,
-                                                            specialty,
-                                                            education_level: educationLevelForSpecialty(specialty),
-                                                        });
-                                                    } else {
-                                                        form.setData(field.name, event.target.value);
-                                                    }
-                                                }}
-                                                required={field.required !== false}
-                                                maxLength={field.maxLength}
-                                                inputMode={field.inputMode}
-                                                min={field.min}
-                                                max={field.max}
-                                                className={inputClass}
-                                            />
+                                            {['faculty', 'specialty'].includes(field.name) ? (
+                                                <select
+                                                    value={form.data[field.name] ?? ''}
+                                                    onChange={(event) => {
+                                                        if (field.name === 'faculty') {
+                                                            form.setData({ ...form.data, faculty: event.target.value, specialty: '' });
+                                                        } else {
+                                                            const specialty = event.target.value;
+                                                            form.setData({ ...form.data, specialty, education_level: educationLevelForSpecialty(specialty) });
+                                                        }
+                                                    }}
+                                                    required
+                                                    className={inputClass}
+                                                >
+                                                    <option value="">{field.name === 'faculty' ? 'Выберите факультет' : 'Выберите специальность'}</option>
+                                                    {(field.name === 'faculty' ? faculties : specialties).map((option) => (
+                                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <input
+                                                    type={field.type || 'text'}
+                                                    value={form.data[field.name] ?? ''}
+                                                    onChange={(event) => form.setData(field.name, event.target.value)}
+                                                    required={field.required !== false}
+                                                    maxLength={field.maxLength}
+                                                    inputMode={field.inputMode}
+                                                    min={field.min}
+                                                    max={field.max}
+                                                    className={inputClass}
+                                                />
+                                            )}
                                             {form.errors[field.name] && <span className="mt-1 block text-xs text-red-700">{form.errors[field.name]}</span>}
                                         </label>
                                     ))}
@@ -123,12 +192,17 @@ export default function IdCard({ initial, hasOpenRequest }) {
                             <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
                                 <h3 className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4 text-base font-semibold text-[#274f93]">Фото и оплата</h3>
                                 <div className="space-y-5 p-5 sm:p-6">
-                                    <label className="block text-sm font-medium text-gray-800">
-                                        Фото студента для ID-карты (3×4)
-                                        <input type="file" accept="image/jpeg,image/png" required onChange={(event) => { form.setData('photo', event.target.files[0] || null); form.clearErrors('photo'); }} className="mt-2 block w-full text-sm text-gray-700" />
+                                    <div className="text-sm font-medium text-gray-800">
+                                        <p>Фото студента для ID-карты (3×4)</p>
+                                        <input id="id-card-photo" type="file" accept="image/jpeg,image/png" onChange={selectPhoto} className="sr-only" />
+                                        <div className="mt-2 flex flex-wrap items-center gap-4">
+                                            {previewUrl && <img src={previewUrl} alt="Обрезанное фото 3×4" className="aspect-[3/4] w-28 border border-gray-200 object-cover" />}
+                                            <label htmlFor="id-card-photo" className="inline-flex cursor-pointer rounded border border-[#c9d8f0] bg-white px-4 py-2 font-semibold text-[#274f93] hover:bg-[#edf3ff]">{previewUrl ? 'Изменить фото' : 'Выбрать фото'}</label>
+                                            {form.data.photo && <span className="text-emerald-700">Фото 3×4 готово</span>}
+                                        </div>
                                         <span className="mt-1 block text-xs text-gray-500">JPG или PNG, до 16 МБ.</span>
-                                        {form.errors.photo && <span className="mt-1 block text-xs text-red-700">{form.errors.photo}</span>}
-                                    </label>
+                                        {form.errors.photo && <span role="alert" className="mt-1 block text-xs text-red-700">{form.errors.photo}</span>}
+                                    </div>
                                     <div className="border-t border-gray-100 pt-5">
                                         <h4 className="text-sm font-semibold text-gray-900">Оплата через Kaspi.kz</h4>
                                         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-700">
@@ -160,6 +234,19 @@ export default function IdCard({ initial, hasOpenRequest }) {
                                         Открыть Kaspi.kz
                                     </a>
                                     <button type="button" onClick={() => setShowPaymentQr(false)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Закрыть</button>
+                                </div>
+                            </Modal>
+                            <Modal show={Boolean(sourceUrl)} onClose={() => { if (!cropping) setSourceUrl(null); }} maxWidth="lg" closeable={!cropping} scaleOnOpen={false}>
+                                <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4"><h3 className="text-base font-semibold text-[#274f93]">Обрезать фото 3×4</h3></div>
+                                <div className="space-y-4 p-5">
+                                    <div className="relative h-[min(50vh,420px)] w-full bg-gray-900 sm:h-[min(55vh,460px)]">
+                                        {sourceUrl && <Cropper image={sourceUrl} crop={crop} zoom={zoom} aspect={3 / 4} objectFit="cover" onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, area) => { cropArea.current = area; setCropReady(true); }} />}
+                                    </div>
+                                    <label className="block text-sm font-medium text-gray-800">Масштаб<input type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="mt-2 w-full accent-[#355da8]" /></label>
+                                    <div className="flex justify-end gap-2">
+                                        <button type="button" onClick={() => setSourceUrl(null)} disabled={cropping} className="rounded border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50">Отмена</button>
+                                        <button type="button" onClick={confirmCrop} disabled={!cropReady || cropping} className="rounded bg-[#355da8] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{cropping ? 'Сохранение...' : 'Применить'}</button>
+                                    </div>
                                 </div>
                             </Modal>
                             {form.errors.service_type && <p role="alert" className="text-sm text-red-700">{form.errors.service_type}</p>}

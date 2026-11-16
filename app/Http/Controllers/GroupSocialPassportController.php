@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Faculty;
 use App\Models\GroupSocialPassport;
 use App\Models\Role;
 use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\FacultyDeputyDeanContacts;
-use App\Support\StudentProfileOptions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -160,8 +160,7 @@ class GroupSocialPassportController extends Controller
         ?GroupSocialPassport $passport,
         ?StudentGroup $studentGroup = null,
         bool $canOpenStudentProfiles = false,
-    ): array
-    {
+    ): array {
         $leaderProfile = $this->currentLeaderProfile($studentGroup);
         $leaderContact = $this->leaderContact($leaderProfile, $passport);
         $creatorContact = $this->creatorContact($studentGroup, [], $passport);
@@ -193,8 +192,7 @@ class GroupSocialPassportController extends Controller
         ?GroupSocialPassport $passport,
         ?StudentGroup $studentGroup = null,
         bool $canOpenStudentProfiles = false,
-    ): array
-    {
+    ): array {
         return $this->studentProfilesForGroup($studentGroup, $passport, StudentProfile::STUDENT_STATUS_ACTIVE)
             ->get()
             ->map(fn (StudentProfile $profile): array => [
@@ -277,8 +275,7 @@ class GroupSocialPassportController extends Controller
         ?StudentGroup $studentGroup = null,
         ?GroupSocialPassport $passport = null,
         ?string $studentStatus = null,
-    ): Builder
-    {
+    ): Builder {
         $groupId = $studentGroup?->id ?? $passport?->student_group_id;
 
         return StudentProfile::query()
@@ -321,7 +318,7 @@ class GroupSocialPassportController extends Controller
         $isNewGroup = ! $group->exists;
         $isFacultyChange = filled($faculty) && $faculty !== $group->faculty;
 
-        if (($isNewGroup || $isFacultyChange) && ! in_array($faculty, StudentProfileOptions::facultyNames(), true)) {
+        if (($isNewGroup || $isFacultyChange) && ! Faculty::query()->where('name_ru', $faculty)->exists()) {
             throw ValidationException::withMessages(['faculty' => 'Выберите факультет из списка.']);
         }
 

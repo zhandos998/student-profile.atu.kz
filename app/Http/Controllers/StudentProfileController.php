@@ -8,13 +8,14 @@ use App\Models\Role;
 use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\AcademicDirectory;
 use App\Services\PlatonusAuthClient;
 use App\Services\StudentRiskService;
 use App\Services\StudentSurveySynchronizer;
 use App\Support\StudentProfileAccess;
 use App\Support\StudentProfileOptions;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
@@ -30,6 +31,7 @@ class StudentProfileController extends Controller
         private readonly StudentRiskService $riskService,
         private readonly StudentSurveySynchronizer $surveySynchronizer,
         private readonly PlatonusAuthClient $platonusApi,
+        private readonly AcademicDirectory $directory,
     )
     {
     }
@@ -43,7 +45,7 @@ class StudentProfileController extends Controller
             'faculty' => ['nullable', 'string', 'max:255'],
             'student_group_id' => ['nullable', 'integer', Rule::exists('student_groups', 'id')],
             'group_name' => ['nullable', 'string', 'max:100'],
-            'course' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'course' => ['nullable', 'integer', 'min:1', 'max:5'],
             'archive_status' => ['nullable', Rule::in(['active', 'archived', 'all'])],
             'profile_status' => ['nullable', Rule::in([
                 'with_profile',
@@ -123,7 +125,7 @@ class StudentProfileController extends Controller
                 'archive_status' => $archiveStatus,
                 'profile_status' => $filters['profile_status'] ?? '',
             ],
-            'options' => StudentProfileOptions::forInertia(),
+            'options' => array_replace(StudentProfileOptions::forInertia(), $this->directory->options()),
             'availableGroups' => $this->availableGroupOptions($request->user()),
             'profileStatusOptions' => $this->profileStatusOptions(),
             'canCreateStudentProfiles' => $request->user()?->canEditStudentProfileData() ?? false,
@@ -137,7 +139,7 @@ class StudentProfileController extends Controller
         abort_unless($request->user()?->canEditStudentProfileData(), 403);
 
         return Inertia::render('StudentProfile/Create', [
-            'options' => StudentProfileOptions::forInertia(),
+            'options' => array_replace(StudentProfileOptions::forInertia(), $this->directory->options()),
             'availableGroups' => $this->availableGroupOptions($request->user()),
         ]);
     }
@@ -155,7 +157,7 @@ class StudentProfileController extends Controller
             'student_group_id' => ['nullable', 'integer', Rule::exists('student_groups', 'id')],
             'group_name' => ['nullable', 'string', 'max:100'],
             'specialty' => ['nullable', 'string', 'max:255'],
-            'course' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'course' => ['nullable', 'integer', 'min:1', 'max:5'],
         ]);
         $studentGroup = $this->selectedStudentGroup($validated);
         $this->ensureGroupNameIsKnown($validated, $studentGroup);
@@ -370,6 +372,21 @@ class StudentProfileController extends Controller
             $includeLifecycleFields,
             $existingProfileId,
         ));
+        $newIin = $validated['iin'] ?? null;
+        $existingIin = $user->studentProfile?->iin;
+
+        if ($submitAfterSave && filled($newIin) && $newIin !== $existingIin) {
+            $verified = $request->session()->get('verified_student_profile_iin');
+
+            if (! is_array($verified)
+                || ($verified['user_id'] ?? null) !== $user->id
+                || ($verified['iin'] ?? null) !== $newIin) {
+                throw ValidationException::withMessages([
+                    'iin' => __('auth.student_iin_verification_required'),
+                ]);
+            }
+        }
+
         $studentGroup = $this->selectedStudentGroup($validated);
         $this->ensureGroupNameIsKnown($validated, $studentGroup);
 
@@ -542,6 +559,8 @@ class StudentProfileController extends Controller
             'iin' => ['required', 'digits:12'],
         ]);
 
+        $request->session()->forget('verified_student_profile_iin');
+
         $result = $this->platonusApi->studentFull($validated['iin']);
 
         if (! $result['configured']) {
@@ -552,27 +571,40 @@ class StudentProfileController extends Controller
 
         if (! $result['ok']) {
             return response()->json([
-                'message' => $result['message'] ?: 'Не удалось загрузить данные из API Платонуса.',
-            ], 422);
+                'message' => $result['status'] === 404
+                    ? __('auth.student_iin_not_found')
+                    : ($result['message'] ?: __('auth.platonus_student_full_request_failed')),
+            ], $result['status'] === 404 ? 404 : 422);
         }
 
         if ($this->platonusPayloadSaysFailure($result['raw'])) {
             return response()->json([
-                'message' => $this->platonusPayloadMessage($result['raw']) ?: 'Студент с указанным ИИН не найден.',
+                'message' => __('auth.student_iin_not_found'),
             ], 404);
         }
 
         $profile = $this->platonusProfilePayload($result['student'], $validated['iin']);
+        $specialty = $this->directory->syncFromPlatonus($result['student'], $profile['faculty'] ?? null);
+
+        if ($specialty) {
+            $profile['specialty'] = $specialty->value;
+        }
 
         if (! collect($profile)->except(['iin'])->filter(fn ($value): bool => filled($value))->isNotEmpty()) {
             return response()->json([
-                'message' => 'API Платонуса не вернул данные студента по этому ИИН.',
+                'message' => __('auth.student_iin_not_found'),
             ], 404);
         }
+
+        $request->session()->put('verified_student_profile_iin', [
+            'user_id' => $viewer->id,
+            'iin' => $validated['iin'],
+        ]);
 
         return response()->json([
             'message' => $profile['group_warning'] ?? 'Данные из Платонуса загружены. Проверьте поля и нажмите “Сохранить”.',
             'profile' => Arr::except($profile, ['group_warning']),
+            'specialtyOption' => $specialty?->is_active ? $this->directory->specialtyOption($specialty) : null,
         ]);
     }
 
@@ -609,7 +641,7 @@ class StudentProfileController extends Controller
             'group_name' => ['nullable', 'string', 'max:100'],
             'specialty' => ['nullable', 'string', 'max:255'],
             'education_level' => ['nullable', Rule::in(StudentProfile::EDUCATION_LEVELS)],
-            'course' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'course' => ['nullable', 'integer', 'min:1', 'max:5'],
             'admission_year' => ['nullable', 'integer', 'min:1900', 'max:'.(now()->year + 1)],
             'marital_status' => ['nullable', Rule::in(StudentProfileOptions::values(StudentProfileOptions::MARITAL_STATUSES))],
             'special_educational_needs' => ['nullable', 'string', 'max:2000'],
@@ -786,7 +818,7 @@ class StudentProfileController extends Controller
                 ...$item->toArray(),
                 'file_url' => Storage::disk('public')->url($item->file_path),
             ]),
-            'options' => StudentProfileOptions::forInertia(),
+            'options' => array_replace(StudentProfileOptions::forInertia(), $this->directory->options()),
             'availableGroups' => $this->availableGroupOptions($managed ? $viewer : null),
             'profileStatusOptions' => $this->profileStatusOptions(),
             'isManagedProfile' => $managed,
@@ -1251,7 +1283,7 @@ class StudentProfileController extends Controller
 
         $course = (int) $course;
 
-        return $course > 0 && $course <= 10 ? $course : null;
+        return $course > 0 && $course <= 5 ? $course : null;
     }
 
     /**

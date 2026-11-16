@@ -172,6 +172,12 @@ function buildNavItems({
 
     if (canManageUsers) {
         items.push({
+            key: "academic-directory",
+            href: route("academic-directory.index"),
+            active: route().current("academic-directory.*"),
+            label: "Справочник",
+        });
+        items.push({
             key: "users",
             href: route("users.index"),
             active: route().current("users.*"),

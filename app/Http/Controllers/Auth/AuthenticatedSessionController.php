@@ -21,6 +21,11 @@ class AuthenticatedSessionController extends Controller
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
+            'platonusPasswordHelp' => session('platonus_password_incorrect') ? [
+                'message' => trans('auth.platonus_password_recovery_hint'),
+                'linkLabel' => trans('auth.platonus_password_recovery_link'),
+                'url' => 'https://platonus.atu.kz/',
+            ] : null,
             'oldInput' => [
                 'email' => old('email', ''),
             ],

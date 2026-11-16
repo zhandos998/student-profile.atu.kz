@@ -518,7 +518,31 @@ class AuthenticationTest extends TestCase
                 ])
                 ->assertRedirect('/login')
                 ->assertSessionHasErrors(['email' => $message]);
+
+            $help = match ($locale) {
+                'ru' => 'Если вы забыли пароль Платонуса, восстановите его там и введите новый пароль здесь.',
+                'kk' => 'Егер Платонус құпиясөзін ұмытсаңыз, оны сол жерде қалпына келтіріп, жаңа құпиясөзді осында енгізіңіз.',
+                'en' => 'If you forgot your Platonus password, reset it there and enter the new password here.',
+            };
+
+            $this->get('/login')->assertInertia(fn (Assert $page) => $page
+                ->component('Auth/Login')
+                ->where('platonusPasswordHelp.message', $help)
+                ->where('platonusPasswordHelp.url', 'https://platonus.atu.kz/'));
         }
+    }
+
+    public function test_local_password_error_does_not_show_platonus_recovery_help(): void
+    {
+        $this->from('/login')->post('/login', [
+            'auth_type' => 'local',
+            'email' => 'unknown@example.com',
+            'password' => 'wrong-password',
+        ])->assertRedirect('/login')->assertSessionHasErrors('email');
+
+        $this->get('/login')->assertInertia(fn (Assert $page) => $page
+            ->component('Auth/Login')
+            ->where('platonusPasswordHelp', null));
     }
 
     public function test_combined_login_page_keeps_identifier_after_failed_login(): void

@@ -10,6 +10,7 @@ export default function Modal({
     show = false,
     maxWidth = '2xl',
     closeable = true,
+    scaleOnOpen = true,
     onClose = () => {},
 }) {
     const close = () => {
@@ -47,14 +48,14 @@ export default function Modal({
 
                 <TransitionChild
                     enter="ease-out duration-300"
-                    enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                    enterFrom={scaleOnOpen ? 'opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95' : 'opacity-0 translate-y-4 sm:translate-y-0'}
                     enterTo="opacity-100 translate-y-0 sm:scale-100"
                     leave="ease-in duration-200"
                     leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-                    leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                    leaveTo={scaleOnOpen ? 'opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95' : 'opacity-0 translate-y-4 sm:translate-y-0'}
                 >
                     <DialogPanel
-                        className={`mb-6 transform overflow-hidden rounded-lg bg-white shadow-xl transition-all sm:mx-auto sm:w-full ${maxWidthClass}`}
+                        className={`mx-auto mb-6 w-full transform overflow-hidden rounded-lg bg-white shadow-xl transition-all ${maxWidthClass}`}
                     >
                         {children}
                     </DialogPanel>

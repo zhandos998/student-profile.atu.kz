@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\StudentProfile;
+use App\Services\AcademicDirectory;
 use App\Services\PlatonusAuthClient;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -112,6 +113,10 @@ class SyncStudentSpecialties extends Command
             || mb_strlen($specialty) > 255
         ) {
             return 'invalid_data';
+        }
+
+        if (! $dryRun) {
+            app(AcademicDirectory::class)->syncFromPlatonus($student, $profile->faculty);
         }
 
         if ($profile->specialty === $specialty) {

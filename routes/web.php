@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcademicDirectoryController;
 use App\Http\Controllers\AnalyticsDashboardController;
 use App\Http\Controllers\ClearanceRequestController;
 use App\Http\Controllers\DashboardController;
@@ -111,6 +112,11 @@ Route::middleware('auth')->group(function () {
         ->name('analytics-dashboard.reports.export');
 
     Route::get('/users', [UserManagementController::class, 'index'])->name('users.index');
+    Route::get('/academic-directory', [AcademicDirectoryController::class, 'index'])->name('academic-directory.index');
+    Route::patch('/academic-directory/faculties/{faculty}', [AcademicDirectoryController::class, 'updateFaculty'])->name('academic-directory.faculties.update');
+    Route::post('/academic-directory/specialties', [AcademicDirectoryController::class, 'storeSpecialty'])->name('academic-directory.specialties.store');
+    Route::patch('/academic-directory/specialties/{specialty}', [AcademicDirectoryController::class, 'updateSpecialty'])->name('academic-directory.specialties.update');
+    Route::patch('/academic-directory/specialties/{specialty}/visibility', [AcademicDirectoryController::class, 'toggleSpecialty'])->name('academic-directory.specialties.visibility');
     Route::post('/users', [UserManagementController::class, 'store'])->name('users.store');
     Route::patch('/users/{user}/role', [UserManagementController::class, 'updateRole'])->name('users.role.update');
     Route::patch('/users/{user}/blocked', [UserManagementController::class, 'updateBlocked'])->name('users.blocked.update');

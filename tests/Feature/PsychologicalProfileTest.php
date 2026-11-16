@@ -298,6 +298,10 @@ class PsychologicalProfileTest extends TestCase
             );
 
         $this->actingAs($student)
+            ->withSession(['verified_student_profile_iin' => [
+                'user_id' => $student->id,
+                'iin' => '999999999999',
+            ]])
             ->post(route('student-profile.update'), ['iin' => '999999999999'])
             ->assertRedirect();
         $this->assertSame(0, StudentSurveyResultSnapshot::query()->count());

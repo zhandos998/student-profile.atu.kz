@@ -2,6 +2,7 @@ import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
 import PrimaryButton from "@/Components/PrimaryButton";
 import TextInput from "@/Components/TextInput";
+import { specialtiesForFaculty } from "@/Components/AcademicSelectOptions";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, useForm } from "@inertiajs/react";
 
@@ -36,6 +37,7 @@ export default function Create({ options, availableGroups = [] }) {
             !group.faculty ||
             group.faculty === form.data.faculty,
     );
+    const visibleSpecialtyOptions = specialtiesForFaculty(options.specialties, form.data.faculty);
 
     const setFaculty = (faculty) => {
         const selectedGroup = availableGroups.find(
@@ -46,6 +48,7 @@ export default function Create({ options, availableGroups = [] }) {
         form.setData({
             ...form.data,
             faculty,
+            specialty: form.data.faculty === faculty ? form.data.specialty : "",
             student_group_id:
                 selectedGroup?.faculty && selectedGroup.faculty !== faculty
                     ? ""
@@ -67,6 +70,7 @@ export default function Create({ options, availableGroups = [] }) {
             student_group_id: studentGroupId,
             group_name: selectedGroup?.name || selectedGroup?.label || "",
             faculty: selectedGroup?.faculty || form.data.faculty,
+            specialty: selectedGroup?.faculty && selectedGroup.faculty !== form.data.faculty ? "" : form.data.specialty,
         });
     };
 
@@ -235,7 +239,7 @@ export default function Create({ options, availableGroups = [] }) {
                                 <TextInput
                                     type="number"
                                     min="1"
-                                    max="8"
+                                    max="5"
                                     value={form.data.course}
                                     onChange={(event) =>
                                         form.setData(
@@ -252,16 +256,16 @@ export default function Create({ options, availableGroups = [] }) {
                                 error={form.errors.specialty}
                                 className="md:col-span-2"
                             >
-                                <TextInput
+                                <select
                                     value={form.data.specialty}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            "specialty",
-                                            event.target.value,
-                                        )
-                                    }
-                                    className="w-full"
-                                />
+                                    onChange={(event) => form.setData("specialty", event.target.value)}
+                                    className={inputClass}
+                                >
+                                    <option value="">Выберите специальность</option>
+                                    {visibleSpecialtyOptions.map((specialty) => (
+                                        <option key={specialty.value} value={specialty.value}>{specialty.label}</option>
+                                    ))}
+                                </select>
                             </Field>
                         </div>
 

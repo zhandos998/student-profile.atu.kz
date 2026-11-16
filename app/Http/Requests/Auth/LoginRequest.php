@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\AcademicDirectory;
 use App\Services\PlatonusAuthClient;
 use App\Support\Phone;
 use App\Support\StudentProfileOptions;
@@ -81,6 +82,10 @@ class LoginRequest extends FormRequest
 
                 return;
             }
+
+            if ($platonusError === trans('auth.platonus_incorrect_password')) {
+                $this->session()->flash('platonus_password_incorrect', true);
+            }
         }
 
         RateLimiter::hit($this->throttleKey());
@@ -106,6 +111,10 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::hit($this->throttleKey());
+
+        if ($error === trans('auth.platonus_incorrect_password')) {
+            $this->session()->flash('platonus_password_incorrect', true);
+        }
 
         throw ValidationException::withMessages([
             'login' => $error,
@@ -340,6 +349,7 @@ class LoginRequest extends FormRequest
             'education.faculty_name_ru',
             'education.faculty_name_kz',
         ]));
+        $specialty = app(AcademicDirectory::class)->syncFromPlatonus($student, $faculty);
         $studentGroup = $this->studentGroup($groupName, $faculty);
         $facultyChanged = filled($faculty) && $faculty !== $profile->faculty;
 
@@ -365,7 +375,7 @@ class LoginRequest extends FormRequest
             'gender' => $this->studentGender($student),
             'faculty' => $faculty,
             'group_name' => $groupName,
-            'specialty' => $this->studentSpecialty($student),
+            'specialty' => $specialty?->value ?? $this->studentSpecialty($student),
             'course' => $this->studentCourse($student),
             'stay_address' => $this->studentValue($student, ['stay_address', 'living_address', 'address.living_address']),
             'residence_address' => $this->studentValue($student, ['residence_address', 'registration_address', 'address.registration_address']),
@@ -498,7 +508,7 @@ class LoginRequest extends FormRequest
 
         $course = (int) $course;
 
-        return $course > 0 && $course <= 10 ? $course : null;
+        return $course > 0 && $course <= 5 ? $course : null;
     }
 
     /**

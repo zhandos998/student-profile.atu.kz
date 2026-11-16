@@ -8,7 +8,7 @@ import { createRoot } from 'react-dom/client';
 const appName = import.meta.env.VITE_APP_NAME || 'ATU Student Profile';
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => /^\d{12}$/.test(title) ? title : `${title} - ${appName}`,
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.jsx`,

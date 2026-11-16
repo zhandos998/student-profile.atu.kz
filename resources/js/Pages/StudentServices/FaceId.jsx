@@ -1,4 +1,5 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import { specialtiesForFaculty, withCurrentOption } from "@/Components/AcademicSelectOptions";
 import { Head, Link, useForm } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 
@@ -25,9 +26,11 @@ const unsuitablePhotoRules = [
     "Размытое фото.",
 ];
 
-export default function FaceId({ initial, faculties = [], hasOpenRequest, integrationReady = true }) {
+export default function FaceId({ initial, academicOptions = {}, hasOpenRequest, integrationReady = true }) {
     const form = useForm({ ...initial, service_type: "face_id", photo: null });
     const [previewUrl, setPreviewUrl] = useState(null);
+    const faculties = withCurrentOption(academicOptions.faculties, form.data.faculty);
+    const specialties = specialtiesForFaculty(academicOptions.specialties, form.data.faculty, form.data.specialty);
 
     useEffect(() => {
         if (!form.data.photo) {
@@ -186,12 +189,7 @@ export default function FaceId({ initial, faculties = [], hasOpenRequest, integr
                                         <select
                                             required
                                             value={form.data.faculty ?? ""}
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    "faculty",
-                                                    event.target.value,
-                                                )
-                                            }
+                                            onChange={(event) => form.setData({ ...form.data, faculty: event.target.value, specialty: "" })}
                                             className={inputClass}
                                         >
                                             <option value="">
@@ -212,6 +210,21 @@ export default function FaceId({ initial, faculties = [], hasOpenRequest, integr
                                             </span>
                                         )}
                                     </label>
+                                    <label className="block text-sm font-medium text-gray-800 sm:col-span-2">
+                                        Специальность
+                                        <select
+                                            required
+                                            value={form.data.specialty ?? ""}
+                                            onChange={(event) => form.setData("specialty", event.target.value)}
+                                            className={inputClass}
+                                        >
+                                            <option value="">Выберите специальность</option>
+                                            {specialties.map((specialty) => (
+                                                <option key={specialty.value} value={specialty.value}>{specialty.label}</option>
+                                            ))}
+                                        </select>
+                                        {form.errors.specialty && <span className="mt-1 block text-xs text-red-700">{form.errors.specialty}</span>}
+                                    </label>
                                     <label className="block text-sm font-medium text-gray-800">
                                         Курс
                                         <select
@@ -229,7 +242,7 @@ export default function FaceId({ initial, faculties = [], hasOpenRequest, integr
                                                 Выберите курс
                                             </option>
                                             {Array.from(
-                                                { length: 8 },
+                                                { length: 5 },
                                                 (_, index) => (
                                                     <option
                                                         key={index + 1}

@@ -7,8 +7,8 @@ use App\Models\Role;
 use App\Models\StudentGroup;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\AcademicDirectory;
 use App\Support\FacultyDeputyDeanContacts;
-use App\Support\StudentProfileOptions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,14 +19,16 @@ use Inertia\Response;
 
 class StudentGroupController extends Controller
 {
+    public function __construct(private readonly AcademicDirectory $directory) {}
+
     public function index(Request $request): Response|RedirectResponse
     {
         abort_unless($request->user()?->canViewGroupSocialPassport(), 403);
 
         $filters = $request->validate([
             'name' => ['nullable', 'string', 'max:100'],
-            'faculty' => ['nullable', 'string', Rule::in(StudentProfileOptions::facultyNames())],
-            'course' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'faculty' => ['nullable', 'string', Rule::exists('faculties', 'name_ru')],
+            'course' => ['nullable', 'integer', 'min:1', 'max:5'],
             'curator_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'per_page' => ['nullable', 'integer', Rule::in([10, 20, 50, 100])],
         ]);
@@ -82,8 +84,8 @@ class StudentGroupController extends Controller
                 'per_page' => (string) $perPage,
             ],
             'options' => [
-                'faculties' => StudentProfileOptions::toSameValueOptions(StudentProfileOptions::facultyNames()),
-                'courses' => range(1, 8),
+                'faculties' => $this->directory->facultyOptions(),
+                'courses' => range(1, 5),
                 'curators' => $this->curatorOptions($request),
                 'advisors' => $request->user()->canAssignGroupAdvisor() ? $this->advisorOptions() : [],
             ],
@@ -96,7 +98,7 @@ class StudentGroupController extends Controller
         abort_unless($request->user()?->canViewGroupSocialPassport(), 403);
 
         $validated = $request->validate([
-            'faculty' => ['required', 'string', Rule::in(StudentProfileOptions::facultyNames())],
+            'faculty' => ['required', 'string', Rule::exists('faculties', 'name_ru')],
             'name' => ['required', 'string', 'max:100', 'unique:student_groups,name'],
         ]);
 

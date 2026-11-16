@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\StudentProfile;
 use App\Models\StudentServiceRequest;
 use App\Models\User;
+use App\Services\AcademicDirectory;
 use App\Services\HikvisionFaceIdClient;
 use App\Services\LibraryBarcodeClient;
 use App\Support\StudentProfileOptions;
@@ -23,6 +24,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StudentServiceRequestController extends Controller
 {
+    public function __construct(private readonly AcademicDirectory $directory) {}
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -74,6 +77,8 @@ class StudentServiceRequestController extends Controller
                     ->where('student_id', $user->id)
                     ->whereIn('status', [StudentServiceRequest::PENDING, StudentServiceRequest::IN_PROGRESS])
                     ->pluck('service_type')
+                    ->reject(fn (string $type): bool => $type === StudentServiceRequest::ID_CARD && config('student_services.allow_repeat_id_card_requests'))
+                    ->values()
                     ->all()
                 : [],
         ]);
@@ -88,6 +93,7 @@ class StudentServiceRequestController extends Controller
         $profile = $user->studentProfile;
 
         return Inertia::render('StudentServices/IdCard', [
+            'academicOptions' => $this->directory->options(),
             'initial' => [
                 'full_name' => $profile?->full_name ?? '',
                 'iin' => $profile?->iin ?? '',
@@ -100,7 +106,7 @@ class StudentServiceRequestController extends Controller
                 'faculty' => $profile?->studentGroup?->faculty ?: ($profile?->faculty ?? ''),
                 'specialty' => $profile?->specialty ?? '',
             ],
-            'hasOpenRequest' => StudentServiceRequest::query()
+            'hasOpenRequest' => ! config('student_services.allow_repeat_id_card_requests') && StudentServiceRequest::query()
                 ->where('student_id', $user->id)
                 ->where('service_type', StudentServiceRequest::ID_CARD)
                 ->whereIn('status', [StudentServiceRequest::PENDING, StudentServiceRequest::IN_PROGRESS])
@@ -118,12 +124,14 @@ class StudentServiceRequestController extends Controller
         $nameParts = preg_split('/\s+/u', trim($profile?->full_name ?? '')) ?: [];
 
         return Inertia::render('StudentServices/FaceId', [
+            'academicOptions' => $this->directory->options(),
             'initial' => [
                 'iin' => $profile?->iin ?? '',
                 'last_name' => $nameParts[0] ?? '',
                 'first_name' => $nameParts[1] ?? '',
                 'middle_name' => implode(' ', array_slice($nameParts, 2)),
                 'faculty' => $profile?->studentGroup?->faculty ?: ($profile?->faculty ?? ''),
+                'specialty' => $profile?->specialty ?? '',
                 'course' => $profile?->course ?? '',
                 'education_level' => $profile?->education_level ?? StudentProfile::EDUCATION_BACHELOR,
             ],
@@ -135,7 +143,6 @@ class StudentServiceRequestController extends Controller
             'integrationReady' => str_starts_with((string) config('hikvision.base_url'), 'https://')
                 && filled(config('hikvision.app_key'))
                 && filled(config('hikvision.app_secret')),
-            'faculties' => StudentProfileOptions::toSameValueOptions(StudentProfileOptions::facultyNames()),
         ]);
     }
 
@@ -145,6 +152,7 @@ class StudentServiceRequestController extends Controller
         abort_unless($user->canManageStudentServiceRequests() || $studentServiceRequest->student_id === $user->id, 403);
 
         $studentServiceRequest->load(['student', 'handler']);
+        $libraryDates = $this->libraryRegistrationDates($studentServiceRequest);
 
         return Inertia::render('StudentServices/Show', [
             'canManage' => $user->canManageStudentServiceRequests(),
@@ -156,10 +164,16 @@ class StudentServiceRequestController extends Controller
                 && Storage::disk('local')->exists($studentServiceRequest->photo_path),
             'canRequestLibraryBarcode' => $user->canManageStudentServiceRequests()
                 && $studentServiceRequest->service_type === StudentServiceRequest::ID_CARD
-                && blank($studentServiceRequest->library_rdr_id),
+                && blank($studentServiceRequest->library_rdr_id)
+                && $libraryDates !== null,
+            'barcodeMissingStudyStart' => $user->canManageStudentServiceRequests()
+                && $studentServiceRequest->service_type === StudentServiceRequest::ID_CARD
+                && blank($studentServiceRequest->library_rdr_id)
+                && $libraryDates === null,
+            'barcodeMissingStudyStartMessage' => __('student_services.library_study_start_missing'),
             'libraryDates' => [
-                'regdate' => ($studentServiceRequest->study_start_date ?? now())->format('Y-m-d'),
-                'reregdate' => ($studentServiceRequest->study_start_date ?? now())->copy()->addYear()->format('Y-m-d'),
+                'regdate' => $libraryDates ? $libraryDates['regdate']->format('Y-m-d') : null,
+                'reregdate' => $libraryDates ? $libraryDates['reregdate']->format('Y-m-d') : null,
             ],
             'serviceRequest' => $studentServiceRequest->only([
                 'id', 'service_type', 'status', 'full_name', 'last_name', 'first_name', 'middle_name', 'iin', 'phone',
@@ -195,6 +209,10 @@ class StudentServiceRequestController extends Controller
                 'full_name' => $studentServiceRequest->full_name,
                 'faculty' => $studentServiceRequest->faculty,
                 'specialty' => $studentServiceRequest->specialty,
+                'faculty_ru' => $this->directory->facultyName($studentServiceRequest->faculty, 'ru'),
+                'faculty_kk' => $this->directory->facultyName($studentServiceRequest->faculty, 'kk'),
+                'specialty_ru' => $this->directory->specialtyLabel($studentServiceRequest->specialty, 'ru'),
+                'specialty_kk' => $this->directory->specialtyLabel($studentServiceRequest->specialty, 'kk'),
                 'study_start_date' => $studentServiceRequest->study_start_date?->format('Y-m-d'),
                 'study_end_date' => $studentServiceRequest->study_end_date?->format('Y-m-d'),
                 'education_language' => $studentServiceRequest->education_language,
@@ -216,10 +234,13 @@ class StudentServiceRequestController extends Controller
             throw ValidationException::withMessages(['library_barcode' => 'Штрихкод для этой заявки уже получен.']);
         }
 
-        $validated = $request->validate([
-            'regdate' => ['required', 'date_format:Y-m-d'],
-            'reregdate' => ['required', 'date_format:Y-m-d', 'after:regdate'],
-        ]);
+        $libraryDates = $this->libraryRegistrationDates($studentServiceRequest);
+
+        if ($libraryDates === null) {
+            throw ValidationException::withMessages([
+                'library_barcode' => __('student_services.library_study_start_missing'),
+            ]);
+        }
 
         $studentServiceRequest->loadMissing('student.studentProfile');
         $birthDate = $studentServiceRequest->student?->studentProfile?->birth_date;
@@ -234,8 +255,8 @@ class StudentServiceRequestController extends Controller
             $rdrId = $client->register(
                 $studentServiceRequest,
                 $birthDate,
-                CarbonImmutable::parse($validated['regdate']),
-                CarbonImmutable::parse($validated['reregdate']),
+                $libraryDates['regdate'],
+                $libraryDates['reregdate'],
             );
         } catch (RuntimeException $exception) {
             throw ValidationException::withMessages(['library_barcode' => $exception->getMessage()]);
@@ -243,12 +264,29 @@ class StudentServiceRequestController extends Controller
 
         $studentServiceRequest->update([
             'library_rdr_id' => $rdrId,
-            'library_regdate' => $validated['regdate'],
-            'library_reregdate' => $validated['reregdate'],
+            'library_regdate' => $libraryDates['regdate']->toDateString(),
+            'library_reregdate' => $libraryDates['reregdate']->toDateString(),
             'library_registered_at' => now(),
         ]);
 
         return back()->with('status', 'library-barcode-created');
+    }
+
+    /**
+     * @return array{regdate: CarbonImmutable, reregdate: CarbonImmutable}|null
+     */
+    private function libraryRegistrationDates(StudentServiceRequest $studentServiceRequest): ?array
+    {
+        if (! $studentServiceRequest->study_start_date) {
+            return null;
+        }
+
+        $registrationDate = CarbonImmutable::parse($studentServiceRequest->study_start_date)->startOfMonth();
+
+        return [
+            'regdate' => $registrationDate,
+            'reregdate' => $registrationDate->addYear(),
+        ];
     }
 
     public function printPhoto(Request $request, StudentServiceRequest $studentServiceRequest): StreamedResponse
@@ -310,10 +348,10 @@ class StudentServiceRequestController extends Controller
                 'phone' => ['required', 'string', 'min:9', 'max:32'],
                 'study_start_date' => ['required', 'date_format:Y-m'],
                 'study_end_date' => ['required', 'date_format:Y-m', 'after:study_start_date'],
-                'course' => ['required', 'integer', 'between:1,8'],
+                'course' => ['required', 'integer', 'between:1,5'],
                 'education_language' => ['required', Rule::in(array_keys(StudentProfileOptions::EDUCATION_LANGUAGES))],
                 'education_level' => ['nullable', Rule::in(StudentProfile::EDUCATION_LEVELS)],
-                'faculty' => ['required', 'string', 'max:255'],
+                'faculty' => ['required', 'string', Rule::exists('faculties', 'name_ru')],
                 'specialty' => ['required', 'string', 'max:255'],
                 'photo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:16384'],
                 'receipt' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:32768'],
@@ -331,8 +369,9 @@ class StudentServiceRequestController extends Controller
                 'last_name' => ['required', 'string', 'max:100'],
                 'first_name' => ['required', 'string', 'max:100'],
                 'middle_name' => ['nullable', 'string', 'max:50'],
-                'faculty' => ['required', 'string', Rule::in(StudentProfileOptions::facultyNames())],
-                'course' => ['required', 'integer', 'between:1,8'],
+                'faculty' => ['required', 'string', Rule::exists('faculties', 'name_ru')],
+                'specialty' => ['required', 'string', 'max:255'],
+                'course' => ['required', 'integer', 'between:1,5'],
                 'education_level' => ['required', Rule::in(StudentProfile::EDUCATION_LEVELS)],
                 'photo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:16384'],
             ]);
@@ -366,7 +405,7 @@ class StudentServiceRequestController extends Controller
                 ->whereIn('status', [StudentServiceRequest::PENDING, StudentServiceRequest::IN_PROGRESS])
                 ->exists();
 
-            if ($hasOpenRequest) {
+            if ($hasOpenRequest && ! ($validated['service_type'] === StudentServiceRequest::ID_CARD && config('student_services.allow_repeat_id_card_requests'))) {
                 throw ValidationException::withMessages([
                     'service_type' => __('student_services.already_open'),
                 ]);

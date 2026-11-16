@@ -22,6 +22,7 @@ class SyncStudentSpecialtiesTest extends TestCase
             ->assertSuccessful();
 
         $this->assertSame('B057 - Информационные технологии', $profile->fresh()->specialty);
+        $this->assertDatabaseCount('specialties', 0);
     }
 
     public function test_updates_specialty_to_russian_program_code_and_name(): void
@@ -34,6 +35,7 @@ class SyncStudentSpecialtiesTest extends TestCase
             ->assertSuccessful();
 
         $this->assertSame('6B06102 - Вычислительная техника и программное обеспечение', $profile->fresh()->specialty);
+        $this->assertDatabaseHas('specialties', ['code' => '6B06102', 'name_ru' => 'Вычислительная техника и программное обеспечение']);
     }
 
     public function test_rejects_mismatched_iin_and_legacy_group_code(): void

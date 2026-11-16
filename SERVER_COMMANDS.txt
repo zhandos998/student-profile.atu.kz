@@ -272,6 +272,15 @@ phpMyAdmin login:
   Database: student_profile
 
 
+Academic specialty directory (91 programs)
+-----------------------------------------
+After pulling code and the three op-*.txt files, back up the database first.
+Preview file validation without changing data:
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan academic-specialties:import
+
+Replace only the specialties directory table (student profiles and requests are not deleted):
+  docker compose --env-file .env.docker -f docker-compose.prod.yml exec app php artisan academic-specialties:import --replace
+
 Health checks
 -------------
 Check local app from server:

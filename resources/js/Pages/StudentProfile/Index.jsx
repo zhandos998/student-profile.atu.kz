@@ -336,7 +336,7 @@ export default function Index({
                                 <input
                                     type="number"
                                     min="1"
-                                    max="8"
+                                    max="5"
                                     value={filterData.course}
                                     onChange={(event) =>
                                         setFilter("course", event.target.value)

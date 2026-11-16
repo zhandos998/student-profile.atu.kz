@@ -13,6 +13,7 @@ export default function Login({
     csrfToken,
     errors = {},
     oldInput = {},
+    platonusPasswordHelp = null,
 }) {
     return (
         <GuestLayout>
@@ -70,6 +71,15 @@ export default function Login({
 
                     <InputError message={errors.password} className="mt-2" />
                 </div>
+
+                {platonusPasswordHelp && (
+                    <div className="mt-4 rounded-md border border-[#c9d8f0] bg-[#edf3ff] px-3 py-3 text-sm text-[#274f93]" role="status">
+                        <p>{platonusPasswordHelp.message}</p>
+                        <a href={platonusPasswordHelp.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-semibold underline underline-offset-2 hover:text-[#1b3b70]">
+                            {platonusPasswordHelp.linkLabel}
+                        </a>
+                    </div>
+                )}
 
                 <div className="mt-4 block">
                     <label className="flex items-center">

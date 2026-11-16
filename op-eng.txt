@@ -1,0 +1,91 @@
+6B06101 Information Systems	B057 Information technology	Information Systems 2026
+6B07105 Technological Machine and Equipment	B064 Mechanics and metal working	Machines and devices of production processes 2026
+6B06102 Computer Hardware and Software	B057 Information technology	Computer Engineering 2026
+6B07205 Technology and Design of Textile Materials	B070 Textiles: clothing, shoes and leather products	Department of Textile Production Technology 2026
+6B06103 Software Engineering	B057 Information technology	Computer Engineering 2026
+6B07501 Standardization, Certification and Metrology (of food branches)	B076 Standardization, certification and Metrology (of food branches)	Department of Food Safety and Quality 2026
+6B04103 State and Local Government	B044 Management and administration	Department of Economics and Management 2026
+6B07106 Refrigeration and Air Conditioning Systems	B064 Mechanics and metal working	Machines and devices of production processes 2026
+6B02101 Design	B031 Fashion design	Department of Design 2026
+6B07204 Technology and Design of Light Industry Products	B070 Textiles: clothing, shoes and leather products	Department of “Technology and design of products and goods” 2026
+7M07501 Standardization and Certification (of Food Branches)	M130 Standardization, certification and metrology (by industry)	Department of Food Safety and Quality 2026
+6B04102 Managеment	B044 Management and administration	Department of Economics and Management 2026
+6B07103 Automation and Control	B063 Electrical engineering and automation	Department of Automation and Robotics 2026
+6B07104 Robots and Robotic Systems	B063 Electrical engineering and automation	Department of Automation and Robotics 2026
+6B04101 Economics	B044 Management and administration	Department of Economics and Management 2026
+7M06131 Information Systems	M094 Information technology	Information Systems 2026
+7M06101 Information Systems	M094 Information technology	Information Systems 2026
+7M07205 Technology and Design of Textile Materials	M114 Textiles: clothing, shoes and leather products	Department of Textile Production Technology 2026
+7M06103 Software Engineering	M094 Information technology	Computer Engineering 2026
+7M07204 Technology and design of light industry products	M114 Textiles: clothing, shoes and leather products	Department of “Technology and design of products and goods” 2026
+7M07502 Metrology	M130 Standardization, certification and metrology (by industry)	Department of Food Safety and Quality 2026
+7M06133 Software Engineering	M094 Information technology	Computer Engineering 2026
+7M07133 Automation and Сontrol	M100 Automation and control	Department of Automation and Robotics 2026
+7M07264 Technology and Design of Light Industry Products	M114 Textiles: clothing, shoes and leather products	Department of “Technology and design of products and goods” 2026
+7M07206 Safety of Non-Food Goods and Products	M114 Textiles: clothing, shoes and leather products	Department of Textile Production Technology 2026
+7M07103 Automation and control	M100 Automation and control	Department of Automation and Robotics 2026
+8D07203 Food Safety	D111 Food production	Department of Food Safety and Quality 2026
+7M04102 Managеment	M072 Management and administration	Department of Economics and Management 2026
+7M07105 Technological machine and equipment	M103 Mechanics and metal working	Machines and devices of production processes 2026
+7M07203 Food Safety	M111 Food production	Department of Food Safety and Quality 2026
+8D07205 Technology and Design of Textile Materials	D114 Textiles: clothing, shoes and leather products	Department of Textile Production Technology 2026
+8D07204 Technology and Design of Light Industry Products	D114 Textiles: clothing, shoes and leather products	Department of “Technology and design of products and goods” 2026
+7M07106 7М07106-Refrigeration and air conditioning systems	M103 Mechanics and metal working	Machines and devices of production processes 2026
+7M07531 Standardization and certification	M130 Standardization, certification and metrology (by industry)	Department of Food Safety and Quality 2026
+8D07206 Safety of Non-Food Goods and Products	D114 Textiles: clothing, shoes and leather products	Department of Textile Production Technology 2026
+8D04102 Managеment	D072 Management and administration	Department of Economics and Management 2026
+6B07107 Machines and Devices of Light Industry	B064 Mechanics and metal working	Department of “Technology and design of products and goods” 2026
+8D07105 Technological Machine and Equipment	D103 Mechanics and metal working	Machines and devices of production processes 2026
+7M04162 Managеment	M072 Management and administration	Department of Economics and Management 2026
+8D04101 Economics	D070 Economy	Department of Economics and Management 2026
+7M04161 7М04161-Economics	M070 Economics	Department of Economics and Management 2026
+7M04101 Economics	M070 Economics	Department of Economics and Management 2026
+6B05101 Biotechnology	B050 Biological and related sciences	Department of Applied Biotechnology 2026
+7M05161 Biotechnology	M082 Biotechnology	Department of Applied Biotechnology 2026
+6B05201 Ecology	B051 Environment	Department of Chemistry and ecology 2026
+7M05101 Biotechnology	M082 Biotechnology	Department of Applied Biotechnology 2026
+7M04106 Finance	M074 Finance, economics, banking and insurance	Department of Accounting and Finance 2026
+8D05101 Biotechnology	D082 Biotechnology	Department of Applied Biotechnology 2026
+7M04105 Accounting and Auditing	M073 Audit and taxation	Department of Accounting and Finance 2026
+6B11102 Restaurant Business and Hotel Business	B093 Restaurant business and hotel management	Department of Tourism and Service 2026
+7M11102 Restaurant Business and Hotel Business	M149 Restaurant and hotel business	Department of Tourism and Service 2026
+6B04105 Accounting and Audit	B045 Audit and taxation	Department of Accounting and Finance 2026
+7M11101 Tourism	M147 Tourism	Department of Tourism and Service 2026
+6B11101 Tourism	B091 Tourism	Department of Tourism and Service 2026
+6B07101 Chemical Technology of Organic Substances	B060 Chemical engineering and processes	Department of Chemistry and ecology 2026
+7M07101 Chemical Technology of Organic Substances	M097 Chemical engineering and processes	Department of Chemical and Pharmaceutical Production Technology 2026
+7M07102 Environmental Protection Technology	M097 Chemical engineering and processes	Department of Chemical and Pharmaceutical Production Technology 2026
+8D07101 Chemical Technology of Organic Substances	D097 Chemical engineering and processes	Department of Chemical and Pharmaceutical Production Technology 2026
+6B07201 Technology of Food Products	B068 Food production	Department of Food Technology 2026
+6B08201 Technology of Production of Animal Breeding Products	B078 Animal breeding	Department of Food Technology 2026
+8D07201 Technology of Food Products	D111 Food production	Department of Food Technology 2026
+7M07201 Technology of Food Products	M111 Food production	Department of Food Technology 2026
+6B07202 Crop Processing Technology (of food branches)	B068 Food production	Technology of bread products and processing industries 2026
+7M07261 Technology of food products	M111 Food production	Department of Food Technology 2026
+7M07202 Crop Processing Technology (of Food Branches)	M111 Food production	Technology of bread products and processing industries 2026
+7M11161 Tourism	M153 Tourism	Department of Tourism and Service 2026
+6B04106 Finance	B046 Finance, economics, banking and insurance	Department of Accounting and Finance 2026
+8D07202 Crop Processing Technology (of food branches)	D111 Food production	Technology of bread products and processing industries 2026
+7M04166 Finance	М074 Finance, economics, banking and insurance	Department of Accounting and Finance 2026
+7M07266 Safety of Non-Food Goods and Products	M114 Textiles: clothing, shoes and leather products	Department of Textile Production Technology 2026
+8D11102 Restaurant and Hotel Business	D145 Restaurant and hotel business	Department of Tourism and Service 2026
+7M04103 State and local government	M071 State and local government	Department of Tourism and Service 2026
+7M04163 State and Local Government	M071 State and local government	Department of Economics and Management 2026
+8D07102 Тechnology of Environmental Protection	D097 Chemical engineering and processes	Department of Chemical and Pharmaceutical Production Technology 2026
+6B07210 Technique and Technology of Food Production	B068 Food production	Department of Automation and Robotics 2026
+6B07108 Industrial Robotics	B064 Mechanics and metal working	Department of Automation and Robotics 2026
+6D072600 Technology and design of light industry	6D072600 Technology and design of light industry	Department of “Technology and design of products and goods” 2026
+6D072700 Technology of Food Products	6D072700 Technology of Food Products	Department of Food Safety and Quality 2026
+6B07203 Pharmaceutical production technology	B072 Pharmaceutical production technology	Department of Chemical and Pharmaceutical Production Technology 2026
+6B07209 Innovative technologies of catering products	B068 Food production	Department of Food Technology 2026
+8D07209 Innovative Technologies of Catering Products	D111 Food production	Department of Food Technology 2026
+7M07209 Innovative technologies of catering products	M111 Food production	Department of Food Technology 2026
+8D07103 Automation and Control	D100 Automation and control	Department of Automation and Robotics 2026
+6B06104 Artificial Intelligence Technologies	B057 Information technology	Information Systems 2026
+6D072800 Crop processing technology	6D072800 Crop processing technology	Department of Food Safety and Quality 2026
+7M06102 Computer Systems and Software Engineering	M094 Information technology	Computer Engineering 2026
+8D07213 Technology of food and processing productions	D111 Food production	Technology of bread products and processing industries 2026
+6B07109 Digital Energy	B062 Electrical Engineering and Electrical Power Engineering	Department of Automation and Robotics 2026
+6B02102 Fashion Design	B110 Fashion design	Department of Design 2026
+6D073300 Technology and Design of Textile Materials	6D073300 Technology and Design of Textile Materials	Department of “Technology and design of products and goods” 2026
+6D073500 Food safety	6D073500 Food safety	Department of Food Safety and Quality 2026

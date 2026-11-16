@@ -11,6 +11,8 @@ return [
     'platonus_failed' => 'Платонус логин немесе құпиясөзді растамады.',
     'platonus_user_not_found' => 'Пайдаланушы табылмады',
     'platonus_incorrect_password' => 'Құпиясөз қате',
+    'platonus_password_recovery_hint' => 'Егер Платонус құпиясөзін ұмытсаңыз, оны сол жерде қалпына келтіріп, жаңа құпиясөзді осында енгізіңіз.',
+    'platonus_password_recovery_link' => 'Платонусты ашу',
     'platonus_error' => 'Платонус :status қатесін қайтарды.',
     'platonus_tutor_not_configured' => 'Оқытушылардың Платонус арқылы авторизациясы бапталмаған.',
     'platonus_tutor_connection_failed' => 'Платонус оқытушылары API-іне қосылу мүмкін болмады.',
@@ -19,5 +21,7 @@ return [
     'platonus_student_full_not_configured' => 'Студенттің толық деректері API-і бапталмаған.',
     'platonus_student_full_connection_failed' => 'Студенттің толық деректері API-іне қосылу мүмкін болмады.',
     'platonus_student_full_request_failed' => 'Студенттің толық деректерін сұрау кезінде қате пайда болды.',
+    'student_iin_not_found' => 'ЖСН АТУ студенттер базасынан табылмады. Бұл ЖСН арқылы сауалнаманы толтыра алмайсыз. Нөмірді тексеріңіз немесе тіркеу офисіне хабарласыңыз.',
+    'student_iin_verification_required' => 'Алдымен ЖСН-ді растаңыз: деректерді Платонустан жүктеңіз. ЖСН табылмаса, тіркеу офисіне хабарласыңыз.',
     'iin_already_used' => 'Бұл ЖСН басқа пайдаланушыға тіркелген.',
 ];

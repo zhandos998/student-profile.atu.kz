@@ -6,6 +6,7 @@ import Modal from "@/Components/Modal";
 import PrimaryButton from "@/Components/PrimaryButton";
 import SecondaryButton from "@/Components/SecondaryButton";
 import TextInput from "@/Components/TextInput";
+import { specialtiesForFaculty } from "@/Components/AcademicSelectOptions";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, router, useForm, usePage } from "@inertiajs/react";
 import { useEffect, useRef, useState } from "react";
@@ -513,6 +514,8 @@ export default function Edit({
         current_performance: valueOrEmpty(academicProfile.current_performance),
         academic_debt: valueOrEmpty(academicProfile.academic_debt),
     });
+    const [specialtyOptions, setSpecialtyOptions] = useState(options.specialties ?? []);
+    useEffect(() => setSpecialtyOptions(options.specialties ?? []), [options.specialties]);
     const [profileErrors, setProfileErrors] = useState({});
     const [profileProcessing, setProfileProcessing] = useState(false);
     const [profileRecentlySuccessful, setProfileRecentlySuccessful] =
@@ -561,11 +564,17 @@ export default function Edit({
             !group.faculty ||
             group.faculty === profileData.faculty,
     );
+    const visibleSpecialtyOptions = specialtiesForFaculty(
+        specialtyOptions,
+        profileData.faculty,
+        profileData.specialty,
+    );
 
     const setFaculty = (faculty) => {
         profileForm.setData((current) => ({
             ...current,
             faculty,
+            specialty: current.faculty === faculty ? current.specialty : "",
             student_group_id:
                 current.faculty === faculty ? current.student_group_id : "",
             group_name: current.faculty === faculty ? current.group_name : "",
@@ -582,6 +591,7 @@ export default function Edit({
             student_group_id: studentGroupId,
             group_name: selectedGroup?.name || selectedGroup?.label || "",
             faculty: selectedGroup?.faculty || current.faculty,
+            specialty: selectedGroup?.faculty && selectedGroup.faculty !== current.faculty ? "" : current.specialty,
         }));
     };
 
@@ -747,6 +757,12 @@ export default function Edit({
                 return;
             }
 
+            if (payload.specialtyOption) {
+                setSpecialtyOptions((current) => [
+                    ...current.filter((option) => option.value !== payload.specialtyOption.value),
+                    payload.specialtyOption,
+                ]);
+            }
             applyPlatonusProfile(payload.profile);
             setProfileErrors((current) => ({
                 ...current,
@@ -1821,8 +1837,10 @@ export default function Edit({
                                         label="Специальность"
                                         error={profileForm.errors.specialty}
                                     >
-                                        <TextInput
+                                        <SelectInput
                                             value={profileForm.data.specialty}
+                                            options={visibleSpecialtyOptions}
+                                            placeholder="Выберите специальность"
                                             onChange={(event) => {
                                                 const specialty = event.target.value;
                                                 profileForm.setData((current) => ({
@@ -1833,7 +1851,6 @@ export default function Edit({
                                                         "bachelor",
                                                 }));
                                             }}
-                                            className="w-full"
                                         />
                                     </Field>
 
@@ -1860,7 +1877,7 @@ export default function Edit({
                                         <TextInput
                                             type="number"
                                             min="1"
-                                            max="8"
+                                            max="5"
                                             value={profileForm.data.course}
                                             onChange={(event) =>
                                                 profileForm.setData(

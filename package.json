@@ -23,6 +23,7 @@
     },
     "dependencies": {
         "jsbarcode": "^3.12.3",
-        "qrcode.react": "^4.2.0"
+        "qrcode.react": "^4.2.0",
+        "react-easy-crop": "^6.2.5"
     }
 }

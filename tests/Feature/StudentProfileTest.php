@@ -182,8 +182,10 @@ class StudentProfileTest extends TestCase
                 ],
                 'education' => [
                     'faculty_name_ru' => $faculty,
+                    'faculty_name_kz' => 'Ақпараттық технологиялар факультеті',
                     'speciality_code' => 'B057',
                     'speciality_name_ru' => 'Информационные технологии',
+                    'speciality_name_kz' => 'Ақпараттық технологиялар',
                     'group_name' => 'ИС-101',
                     'course' => 2,
                     'study_form_ru' => 'очная',
@@ -208,6 +210,7 @@ class StudentProfileTest extends TestCase
             ->assertJsonPath('profile.student_group_id', (string) $group->id)
             ->assertJsonPath('profile.group_name', 'ИС-101')
             ->assertJsonPath('profile.specialty', 'B057 - Информационные технологии')
+            ->assertJsonPath('specialtyOption.label', 'B057 - Информационные технологии')
             ->assertJsonPath('profile.education_level', StudentProfile::EDUCATION_BACHELOR)
             ->assertJsonPath('profile.course', 2)
             ->assertJsonPath('profile.admission_year', 2023)
@@ -215,6 +218,12 @@ class StudentProfileTest extends TestCase
             ->assertJsonPath('profile.residence_address', 'г. Алматы')
             ->assertJsonPath('profile.contact_details', '+7 701 111 22 33')
             ->assertJsonPath('profile.personal_email', 'daulet.rauan@atu.kz');
+
+        $this->assertDatabaseHas('specialties', [
+            'code' => 'B057',
+            'name_ru' => 'Информационные технологии',
+            'name_kk' => 'Ақпараттық технологиялар',
+        ]);
 
         Http::assertSent(fn (HttpRequest $request): bool => str_starts_with($request->url(), 'https://hub.atu.kz/api/v1/hub/student_full')
             && str_contains($request->url(), 'iin=980915300671')
@@ -233,6 +242,10 @@ class StudentProfileTest extends TestCase
         ]);
 
         $this->actingAs($user)
+            ->withSession(['verified_student_profile_iin' => [
+                'user_id' => $user->id,
+                'iin' => '123456789012',
+            ]])
             ->post(route('student-profile.update'), [
                 'full_name' => 'Ivan Ivanov',
                 'student_status' => StudentProfile::STUDENT_STATUS_DEPARTED,
@@ -325,6 +338,100 @@ class StudentProfileTest extends TestCase
         $this->assertSame(AcademicProfile::REVIEW_PENDING, $academicProfile->academic_review_status);
         Storage::disk('public')->assertExists($profile->photo_path);
         Storage::disk('public')->assertExists($profile->identity_card_path);
+    }
+
+    public function test_student_cannot_save_iin_without_platonus_verification(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+
+        $this->actingAs($student)
+            ->post(route('student-profile.update'), [
+                'full_name' => 'Test Student',
+                'iin' => '123456789012',
+            ])
+            ->assertSessionHasErrors('iin');
+
+        $this->assertDatabaseMissing('student_profiles', ['user_id' => $student->id, 'iin' => '123456789012']);
+    }
+
+    public function test_missing_platonus_iin_is_reported_and_cannot_be_saved(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        config([
+            'services.platonus.student_full_url' => 'https://hub.atu.kz/api/v1/hub/student_full',
+            'services.platonus.api_key' => 'test-key',
+        ]);
+        Http::fake([
+            'https://hub.atu.kz/api/v1/hub/student_full*' => Http::response(['detail' => 'User not found'], 404),
+        ]);
+
+        $this->actingAs($student)
+            ->getJson(route('student-profile.platonus.fetch', ['iin' => '123456789012']))
+            ->assertNotFound()
+            ->assertJsonPath('message', __('auth.student_iin_not_found'));
+
+        $this->actingAs($student)
+            ->post(route('student-profile.update'), [
+                'full_name' => 'Test Student',
+                'iin' => '123456789012',
+            ])
+            ->assertSessionHasErrors('iin');
+    }
+
+    public function test_student_can_save_iin_after_successful_platonus_lookup(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+        config([
+            'services.platonus.student_full_url' => 'https://hub.atu.kz/api/v1/hub/student_full',
+            'services.platonus.api_key' => 'test-key',
+        ]);
+        Http::fake([
+            'https://hub.atu.kz/api/v1/hub/student_full*' => Http::response([
+                'iin' => '123456789012',
+                'full_name' => 'Test Student',
+            ]),
+        ]);
+
+        $this->actingAs($student)
+            ->getJson(route('student-profile.platonus.fetch', ['iin' => '123456789012']))
+            ->assertOk();
+
+        $this->actingAs($student)
+            ->post(route('student-profile.update'), [
+                'full_name' => 'Test Student',
+                'iin' => '999999999999',
+            ])
+            ->assertSessionHasErrors('iin');
+
+        $this->actingAs($student)
+            ->post(route('student-profile.update'), [
+                'full_name' => 'Test Student',
+                'iin' => '123456789012',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('student_profiles', ['user_id' => $student->id, 'iin' => '123456789012']);
+    }
+
+    public function test_course_cannot_exceed_five(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $student = $this->userWithRole(Role::STUDENT, 'Student');
+
+        $this->actingAs($student)
+            ->post(route('student-profile.update'), ['full_name' => 'Test Student', 'course' => 5])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('student_profiles', ['user_id' => $student->id, 'course' => 5]);
+
+        $this->actingAs($student)
+            ->post(route('student-profile.update'), ['full_name' => 'Test Student', 'course' => 6])
+            ->assertSessionHasErrors('course');
+
+        $this->assertDatabaseHas('student_profiles', ['user_id' => $student->id, 'course' => 5]);
     }
 
     public function test_student_cannot_save_iin_used_by_another_profile(): void

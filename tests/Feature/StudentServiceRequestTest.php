@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\StudentProfile;
 use App\Models\StudentServiceRequest;
 use App\Models\User;
+use App\Services\AcademicDirectory;
 use Carbon\CarbonImmutable;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -99,7 +100,7 @@ class StudentServiceRequestTest extends TestCase
                 ->where('initial.education_level', StudentProfile::EDUCATION_MASTER)
                 ->where('hasOpenRequest', false)
                 ->where('integrationReady', true)
-                ->has('faculties', 6)
+                ->has('academicOptions.faculties', 6)
             );
 
         $this->actingAs($student)
@@ -150,7 +151,7 @@ class StudentServiceRequestTest extends TestCase
                 ...$this->faceIdData(),
                 'iin' => '123',
                 'faculty' => 'Неизвестный факультет',
-                'course' => 9,
+                'course' => 6,
                 'education_level' => 'unknown',
                 'photo' => UploadedFile::fake()->create('photo.pdf', 1, 'application/pdf'),
             ])
@@ -535,45 +536,41 @@ class StudentServiceRequestTest extends TestCase
             'full_name' => 'Тестовый студент',
             'iin' => '060515500608',
             'photo_path' => $photoPath,
-            'study_start_date' => '2026-09-01',
+            'study_start_date' => '2025-09-15',
             'faculty' => 'Факультет информационных технологий',
             'specialty' => '7M06101 - Информационные системы',
             'education_level' => StudentProfile::EDUCATION_MASTER,
         ]);
 
         $this->actingAs($student)
-            ->post(route('student-services.library-barcode.store', $serviceRequest), [
-                'regdate' => '2026-09-01',
-                'reregdate' => '2027-09-01',
-            ])->assertForbidden();
+            ->post(route('student-services.library-barcode.store', $serviceRequest))->assertForbidden();
 
         $this->actingAs($admin)
             ->get(route('student-services.show', $serviceRequest))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('canRequestLibraryBarcode', true)
-                ->where('libraryDates.regdate', '2026-09-01')
-                ->where('libraryDates.reregdate', '2027-09-01')
+                ->where('libraryDates.regdate', '2025-09-01')
+                ->where('libraryDates.reregdate', '2026-09-01')
             );
 
         $this->actingAs($admin)
-            ->post(route('student-services.library-barcode.store', $serviceRequest), [
-                'regdate' => '2026-09-01',
-                'reregdate' => '2027-09-01',
-            ])->assertSessionHasNoErrors();
+            ->post(route('student-services.library-barcode.store', $serviceRequest))->assertSessionHasNoErrors();
 
         Http::assertSent(fn ($request) => $request->method() === 'POST'
             && $request['iin'] === '060515500608'
             && $request['fio'] === 'Тестовый студент'
             && $request['birthday'] === '2006-05-15'
             && $request['status'] === 'Магистратура'
-            && $request['regdate'] === '01-09-2026'
-            && $request['reregdate'] === '01-09-2027'
+            && $request['regdate'] === '01-09-2025'
+            && $request['reregdate'] === '01-09-2026'
             && $request['custom1'] === 'Факультет информационных технологий'
             && $request['custom2'] === '7M06101 - Информационные системы'
             && $request['ext'] === 'JPEG'
             && str_starts_with($request['photo_hex'], 'FFD8'));
 
         $this->assertSame('B50834', $serviceRequest->fresh()->library_rdr_id);
+        $this->assertSame('2025-09-01', $serviceRequest->fresh()->library_regdate->toDateString());
+        $this->assertSame('2026-09-01', $serviceRequest->fresh()->library_reregdate->toDateString());
         $this->actingAs($student)
             ->get(route('student-services.show', $serviceRequest))
             ->assertInertia(fn (Assert $page) => $page
@@ -583,15 +580,25 @@ class StudentServiceRequestTest extends TestCase
         $this->actingAs($admin)
             ->get(route('student-services.id-card.print', $serviceRequest))
             ->assertInertia(fn (Assert $page) => $page->where('card.library_rdr_id', 'B50834'));
+        app(AcademicDirectory::class)->syncFromPlatonus([
+            'speciality_code' => '7M06101',
+            'speciality_name_ru' => 'Информационные системы',
+            'speciality_name_kz' => 'Ақпараттық жүйелер',
+        ], 'Факультет информационных технологий');
+        $this->actingAs($admin)
+            ->get(route('student-services.id-card.print', $serviceRequest))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('card.faculty_ru', 'Факультет информационных технологий')
+                ->where('card.specialty_ru', '7M06101 - Информационные системы')
+                ->where('card.faculty_kk', 'Ақпараттық технологиялар факультеті')
+                ->where('card.specialty_kk', '7M06101 - Ақпараттық жүйелер')
+            );
         $this->actingAs($admin)
             ->get(route('student-services.show', $serviceRequest))
             ->assertInertia(fn (Assert $page) => $page->where('canPrint', true));
 
         $this->actingAs($admin)
-            ->post(route('student-services.library-barcode.store', $serviceRequest), [
-                'regdate' => '2026-09-01',
-                'reregdate' => '2027-09-01',
-            ])->assertSessionHasErrors('library_barcode');
+            ->post(route('student-services.library-barcode.store', $serviceRequest))->assertSessionHasErrors('library_barcode');
         Http::assertSentCount(1);
     }
 
@@ -617,17 +624,44 @@ class StudentServiceRequestTest extends TestCase
             'full_name' => 'Тестовый студент',
             'iin' => '060515500608',
             'photo_path' => $photoPath,
+            'study_start_date' => '2026-09-01',
         ]);
 
         $this->actingAs($admin)
             ->post(route('student-services.library-barcode.store', $serviceRequest), [
-                'regdate' => '2026-09-01',
-                'reregdate' => '2027-09-01',
+                'regdate' => '2030-04-01',
+                'reregdate' => '2031-04-01',
             ])->assertSessionHasNoErrors();
 
         $this->assertSame('B50086', $serviceRequest->fresh()->library_rdr_id);
         Http::assertSent(fn ($request) => $request['ext'] === 'JPEG'
-            && str_starts_with($request['photo_hex'], 'FFD8'));
+            && str_starts_with($request['photo_hex'], 'FFD8')
+            && $request['regdate'] === '01-09-2026'
+            && $request['reregdate'] === '01-09-2027');
+    }
+
+    public function test_library_barcode_requires_study_start_month_for_legacy_request(): void
+    {
+        Http::preventStrayRequests();
+        $student = $this->user(Role::STUDENT);
+        $admin = $this->user(Role::ADMINISTRATOR_DIT);
+        $serviceRequest = StudentServiceRequest::query()->create([
+            'student_id' => $student->id,
+            'service_type' => StudentServiceRequest::ID_CARD,
+            'status' => StudentServiceRequest::PENDING,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('student-services.show', $serviceRequest))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('canRequestLibraryBarcode', false)
+                ->where('barcodeMissingStudyStart', true)
+                ->where('libraryDates.regdate', null)
+            );
+
+        $this->actingAs($admin)
+            ->post(route('student-services.library-barcode.store', $serviceRequest))
+            ->assertSessionHasErrors('library_barcode');
     }
 
     public function test_library_barcode_is_not_saved_when_response_has_another_iin(): void
@@ -651,13 +685,11 @@ class StudentServiceRequestTest extends TestCase
             'full_name' => 'Тестовый студент',
             'iin' => '060515500608',
             'photo_path' => $photoPath,
+            'study_start_date' => '2026-09-01',
         ]);
 
         $this->actingAs($admin)
-            ->post(route('student-services.library-barcode.store', $serviceRequest), [
-                'regdate' => '2026-09-01',
-                'reregdate' => '2027-09-01',
-            ])->assertSessionHasErrors('library_barcode');
+            ->post(route('student-services.library-barcode.store', $serviceRequest))->assertSessionHasErrors('library_barcode');
 
         $this->assertNull($serviceRequest->fresh()->library_rdr_id);
     }
@@ -694,7 +726,6 @@ class StudentServiceRequestTest extends TestCase
         $this->actingAs($admin)->get(route('student-services.show', $serviceRequest))->assertOk();
         $this->actingAs($admin)->get(route('student-services.download', [$serviceRequest, 'receipt']))->assertOk();
 
-        $this->actingAs($student)->post(route('student-services.store'), $this->idCardData())->assertSessionHasErrors('service_type');
         $this->assertSame(1, StudentServiceRequest::query()->count());
     }
 
@@ -747,6 +778,41 @@ class StudentServiceRequestTest extends TestCase
             ->assertSessionHasErrors('service_type');
 
         $this->assertSame(2, StudentServiceRequest::query()->count());
+    }
+
+    public function test_student_can_submit_multiple_pending_id_card_requests_in_test_mode(): void
+    {
+        Storage::fake('local');
+        $student = $this->user(Role::STUDENT);
+
+        $this->actingAs($student)->post(route('student-services.store'), $this->idCardData())
+            ->assertSessionHasNoErrors();
+        $this->actingAs($student)->post(route('student-services.store'), $this->idCardData())
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('student_service_requests', 2);
+        $this->actingAs($student)->get(route('student-services.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('activeTypes', 0));
+        $this->actingAs($student)->get(route('student-services.id-card.create'))
+            ->assertInertia(fn (Assert $page) => $page->where('hasOpenRequest', false));
+    }
+
+    public function test_id_card_one_open_request_limit_can_be_restored(): void
+    {
+        config()->set('student_services.allow_repeat_id_card_requests', false);
+        Storage::fake('local');
+        $student = $this->user(Role::STUDENT);
+
+        $this->actingAs($student)->post(route('student-services.store'), $this->idCardData())
+            ->assertSessionHasNoErrors();
+        $this->actingAs($student)->post(route('student-services.store'), $this->idCardData())
+            ->assertSessionHasErrors('service_type');
+
+        $this->assertDatabaseCount('student_service_requests', 1);
+        $this->actingAs($student)->get(route('student-services.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('activeTypes.0', StudentServiceRequest::ID_CARD));
+        $this->actingAs($student)->get(route('student-services.id-card.create'))
+            ->assertInertia(fn (Assert $page) => $page->where('hasOpenRequest', true));
     }
 
     public function test_staff_sees_pending_requests_by_default_and_can_select_all(): void
@@ -956,6 +1022,7 @@ class StudentServiceRequestTest extends TestCase
             'first_name' => 'Иван',
             'middle_name' => 'Иванович',
             'faculty' => 'Факультет информационных технологий',
+            'specialty' => 'B057 - Информационные технологии',
             'course' => 2,
             'education_level' => StudentProfile::EDUCATION_BACHELOR,
             'photo' => UploadedFile::fake()->image('face-photo.jpg'),

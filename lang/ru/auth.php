@@ -11,6 +11,8 @@ return [
     'platonus_failed' => 'Платонус не подтвердил логин или пароль.',
     'platonus_user_not_found' => 'Пользователь не найден',
     'platonus_incorrect_password' => 'Неверный пароль',
+    'platonus_password_recovery_hint' => 'Если вы забыли пароль Платонуса, восстановите его там и введите новый пароль здесь.',
+    'platonus_password_recovery_link' => 'Открыть Платонус',
     'platonus_error' => 'Платонус вернул ошибку :status.',
     'platonus_tutor_not_configured' => 'Авторизация преподавателей через Платонус не настроена.',
     'platonus_tutor_connection_failed' => 'Не удалось подключиться к API преподавателей Платонуса.',
@@ -19,5 +21,7 @@ return [
     'platonus_student_full_not_configured' => 'API полных данных студента не настроен.',
     'platonus_student_full_connection_failed' => 'Не удалось подключиться к API полных данных студента.',
     'platonus_student_full_request_failed' => 'Ошибка при запросе полных данных студента.',
+    'student_iin_not_found' => 'ИИН не найден в базе студентов АТУ. Вы не можете заполнить анкету с этим ИИН. Проверьте номер или обратитесь в офис регистратора.',
+    'student_iin_verification_required' => 'Сначала подтвердите ИИН: загрузите данные из Платонуса. Если ИИН не найден, обратитесь в офис регистратора.',
     'iin_already_used' => 'Этот ИИН уже привязан к другому пользователю.',
 ];
