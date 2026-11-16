@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
+import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -263,7 +264,7 @@ export default function Index({
                                 {users.data.map((user) => (
                                     <div
                                         key={user.id}
-                                        className="grid gap-4 px-5 py-4 xl:grid-cols-[1.15fr_1fr_0.8fr_0.8fr_auto] xl:items-center"
+                                        className="grid gap-4 px-5 py-4 sm:grid-cols-2 2xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_160px] 2xl:items-center"
                                     >
                                         <div className="min-w-0">
                                             <p className="truncate text-sm font-semibold text-gray-900">
@@ -312,42 +313,27 @@ export default function Index({
                                             </p>
                                         </div>
 
-                                        <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
-                                        {user.canChangeRole && (
-                                            <button type="button" onClick={() => { setRoleUser(user); setRoleForm({ role: user.roleSlug || 'student', position: user.position || '' }); setRoleErrors({}); }} className="rounded-md border border-[#c9d8f0] px-3 py-2 text-sm font-semibold text-[#274f93] hover:bg-[#edf3ff]">
-                                                Роль
-                                            </button>
-                                        )}
-                                        {user.canBlock && (
-                                            <button type="button" onClick={() => setBlockUser(user)} className={`rounded-md border px-3 py-2 text-sm font-semibold ${user.isBlocked ? 'border-[#c9d8f0] text-[#274f93] hover:bg-[#edf3ff]' : 'border-red-200 text-red-700 hover:bg-red-50'}`}>
-                                                {user.isBlocked ? 'Разблокировать' : 'Заблокировать'}
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => impersonate(user)}
-                                            disabled={!user.canImpersonate}
-                                            className="inline-flex items-center justify-center rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f5192] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none"
-                                        >
-                                            Войти как
-                                        </button>
-                                            {(user.canDelete ||
-                                                user.deleteBlockedReason) && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setUserToDelete(user)
-                                                    }
-                                                    disabled={!user.canDelete}
-                                                    title={
-                                                        user.deleteBlockedReason ||
-                                                        ''
-                                                    }
-                                                    className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                                                >
-                                                    Удалить
-                                                </button>
-                                            )}
+                                        <div className="sm:col-span-2 2xl:col-span-1 2xl:justify-self-end">
+                                            <Menu>
+                                                <MenuButton className="inline-flex items-center justify-center rounded-md border border-[#c9d8f0] bg-white px-4 py-2 text-sm font-semibold text-[#274f93] transition hover:bg-[#edf3ff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#355da8]">
+                                                    Действия
+                                                </MenuButton>
+                                                <MenuItems anchor="bottom end" className="z-50 w-52 rounded-md border border-gray-200 bg-white py-1 shadow-lg [--anchor-gap:8px] focus:outline-none">
+                                                    <MenuItem as="button" type="button" disabled={!user.canChangeRole} onClick={() => { setRoleUser(user); setRoleForm({ role: user.roleSlug || 'student', position: user.position || '' }); setRoleErrors({}); }} className="block w-full px-4 py-2 text-left text-sm text-gray-700 data-[focus]:bg-[#edf3ff] disabled:cursor-not-allowed disabled:text-gray-400">
+                                                        Роль
+                                                    </MenuItem>
+                                                    <MenuItem as="button" type="button" disabled={!user.canBlock} onClick={() => setBlockUser(user)} className="block w-full px-4 py-2 text-left text-sm text-gray-700 data-[focus]:bg-[#edf3ff] disabled:cursor-not-allowed disabled:text-gray-400">
+                                                        {user.isBlocked ? 'Разблокировать' : 'Заблокировать'}
+                                                    </MenuItem>
+                                                    <MenuItem as="button" type="button" disabled={!user.canImpersonate} onClick={() => impersonate(user)} className="block w-full px-4 py-2 text-left text-sm text-gray-700 data-[focus]:bg-[#edf3ff] disabled:cursor-not-allowed disabled:text-gray-400">
+                                                        Войти как
+                                                    </MenuItem>
+                                                    <div className="my-1 border-t border-gray-100" />
+                                                    <MenuItem as="button" type="button" disabled={!user.canDelete} title={user.deleteBlockedReason || ''} onClick={() => setUserToDelete(user)} className="block w-full px-4 py-2 text-left text-sm text-red-700 data-[focus]:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400">
+                                                        Удалить
+                                                    </MenuItem>
+                                                </MenuItems>
+                                            </Menu>
                                         </div>
                                     </div>
                                 ))}
