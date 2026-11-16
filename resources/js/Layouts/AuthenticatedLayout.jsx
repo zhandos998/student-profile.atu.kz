@@ -7,7 +7,7 @@ import LanguageDomTranslator from "@/i18n/LanguageDomTranslator";
 import { Link, usePage } from "@inertiajs/react";
 import { useState } from "react";
 
-export default function AuthenticatedLayout({ header, children }) {
+export default function AuthenticatedLayout({ header, children, wide = false }) {
     const page = usePage();
     const {
         user,
@@ -74,7 +74,7 @@ export default function AuthenticatedLayout({ header, children }) {
 
                 {header && (
                     <header className="sticky top-0 z-30 border-b border-[#dbe5f6] bg-white shadow-sm">
-                        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                        <div className={`${wide ? "w-full" : "mx-auto max-w-7xl"} px-4 py-6 sm:px-6 lg:px-8`}>
                             {header}
                         </div>
                     </header>

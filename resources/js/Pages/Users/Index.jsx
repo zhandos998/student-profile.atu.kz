@@ -142,6 +142,7 @@ export default function Index({
 
     return (
         <AuthenticatedLayout
+            wide
             header={
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -162,7 +163,7 @@ export default function Index({
             <Head title="Пользователи" />
 
             <div className="bg-[#f4f7fc] py-8">
-                <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+                <div className="w-full space-y-6 px-4 sm:px-6 lg:px-8">
                     <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
                         <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
                             <h3 className="text-base font-semibold text-[#274f93]">
