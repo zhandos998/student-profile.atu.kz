@@ -1,10 +1,12 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head } from "@inertiajs/react";
+import { Head, Link } from "@inertiajs/react";
 
 export default function TestScores({
     snapshots,
     filters,
     tests,
+    studentCount,
+    testCount,
     indexUrl,
     exportUrl,
     xlsxUrl,
@@ -87,10 +89,14 @@ export default function TestScores({
                 </section>
 
                 <section className="overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
-                    <div className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4">
                         <h3 className="text-base font-semibold text-[#274f93]">
                             Результаты
                         </h3>
+                        <div className="flex flex-wrap gap-4 text-sm text-[#274f93]">
+                            <span><span>Результатов тестов:</span> <strong>{snapshots.total}</strong></span>
+                            <span><span>Студентов:</span> <strong>{studentCount}</strong></span>
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[900px] divide-y divide-gray-200 text-left text-sm">
@@ -128,6 +134,9 @@ export default function TestScores({
                                             <div className="text-xs text-gray-500">
                                                 {row.iin}
                                             </div>
+                                            <div className="mt-1 text-xs text-[#355da8]">
+                                                <span>Рассчитано тестов:</span> {row.completed_tests} <span>из</span> {testCount}
+                                            </div>
                                         </td>
                                         <td className="px-4 py-3 align-top text-gray-600">
                                             {row.group || "—"}
@@ -159,30 +168,27 @@ export default function TestScores({
                             </tbody>
                         </table>
                     </div>
-                    {(snapshots.prev_page_url || snapshots.next_page_url) && (
-                        <div className="flex items-center justify-between border-t border-gray-200 px-5 py-4 text-sm">
+                    {snapshots.total > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 px-5 py-4 text-sm">
                             <span className="text-gray-600">
-                                <span>Страница</span> {snapshots.current_page}{" "}
-                                <span>из</span> {snapshots.last_page}
+                                <span>Результаты</span> {snapshots.from}–{snapshots.to}{" "}
+                                <span>из</span> {snapshots.total}
                             </span>
-                            <div className="flex gap-3">
-                                {snapshots.prev_page_url && (
-                                    <a
-                                        href={snapshots.prev_page_url}
-                                        className="font-medium text-[#355da8] hover:underline"
-                                    >
-                                        Назад
-                                    </a>
-                                )}
-                                {snapshots.next_page_url && (
-                                    <a
-                                        href={snapshots.next_page_url}
-                                        className="font-medium text-[#355da8] hover:underline"
-                                    >
-                                        Далее
-                                    </a>
-                                )}
-                            </div>
+                            <nav aria-label="Пагинация" className="flex flex-wrap gap-1">
+                                {snapshots.links.map((link, index) => {
+                                    const first = index === 0;
+                                    const last = index === snapshots.links.length - 1;
+                                    const label = first ? '←' : last ? '→' : link.label;
+                                    const className = `inline-flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-sm font-medium ${link.active ? 'border-[#355da8] bg-[#355da8] text-white' : link.url ? 'border-gray-300 text-[#355da8] hover:bg-[#edf3ff]' : 'border-gray-200 text-gray-400'}`;
+                                    return link.url ? (
+                                        <Link key={index} href={link.url} preserveScroll className={className} aria-current={link.active ? 'page' : undefined} aria-label={first ? 'Назад' : last ? 'Далее' : undefined} title={first ? 'Назад' : last ? 'Далее' : undefined}>
+                                            {label}
+                                        </Link>
+                                    ) : (
+                                        <span key={index} className={className} aria-disabled="true">{label}</span>
+                                    );
+                                })}
+                            </nav>
                         </div>
                     )}
                 </section>

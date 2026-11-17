@@ -34,17 +34,29 @@ class TestScoreReportController extends Controller
         abort_unless($request->user()?->canViewPsychologicalProfile(), 403);
 
         $filters = $this->filters($request);
-        $snapshots = $this->snapshots($filters)
+        $query = $this->snapshots($filters);
+        $studentCount = (clone $query)->distinct()->count('student_profile_id');
+        $testCounts = $this->snapshots([...$filters, 'test' => ''])
+            ->selectRaw('student_profile_id, COUNT(*) AS test_count')
+            ->groupBy('student_profile_id')
+            ->pluck('test_count', 'student_profile_id');
+        $snapshots = $query
             ->with(['studentProfile.user', 'studentProfile.studentGroup'])
             ->orderBy('id')
             ->paginate(20)
+            ->onEachSide(1)
             ->withQueryString()
-            ->through(fn (StudentSurveyResultSnapshot $snapshot): array => $this->row($snapshot));
+            ->through(fn (StudentSurveyResultSnapshot $snapshot): array => [
+                ...$this->row($snapshot),
+                'completed_tests' => (int) ($testCounts[$snapshot->student_profile_id] ?? 0),
+            ]);
 
         return Inertia::render('Reports/TestScores', [
             'snapshots' => $snapshots,
             'filters' => $filters,
             'tests' => self::TESTS,
+            'studentCount' => $studentCount,
+            'testCount' => count(self::TESTS),
             'indexUrl' => route('reports.test-scores.index'),
             'exportUrl' => route('reports.test-scores.export', $filters),
             'xlsxUrl' => route('reports.test-scores.xlsx', $filters),

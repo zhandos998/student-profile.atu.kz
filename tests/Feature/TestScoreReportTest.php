@@ -42,6 +42,10 @@ class TestScoreReportTest extends TestCase
                 ->where('snapshots.data.0.student_name', 'Тестовый студент')
                 ->where('snapshots.data.0.metrics.0.score', 8)
                 ->where('snapshots.data.0.test', 'Формула темперамента')
+                ->where('snapshots.data.0.completed_tests', 2)
+                ->where('snapshots.total', 1)
+                ->where('studentCount', 1)
+                ->where('testCount', 9)
                 ->missing('snapshots.data.0.status')
                 ->missing('snapshots.data.0.metrics.0.maximum')
                 ->missing('snapshots.data.0.metrics.0.share')
@@ -49,7 +53,10 @@ class TestScoreReportTest extends TestCase
 
         $this->actingAs($psychologist)
             ->get(route('reports.test-scores.index'))
-            ->assertInertia(fn (Assert $page) => $page->has('snapshots.data', 2));
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('snapshots.data', 2)
+                ->where('snapshots.total', 2)
+                ->where('studentCount', 1));
 
         $csv = $this->actingAs($psychologist)
             ->get(route('reports.test-scores.export', ['test' => 'temperament_formula']))
@@ -109,6 +116,40 @@ class TestScoreReportTest extends TestCase
         }
 
         $this->actingAs($dit)->get(route('reports.test-scores.index'))->assertOk();
+    }
+
+    public function test_report_paginates_results_and_keeps_filters_and_counts(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $psychologist = $this->user(Role::ADMINISTRATION, 'Психолог');
+        for ($i = 0; $i < 23; $i++) {
+            $student = $this->user(Role::STUDENT, 'Студент');
+            $profile = StudentProfile::query()->create([
+                'user_id' => $student->id,
+                'full_name' => 'Pagination student '.$i,
+                'iin' => sprintf('%012d', $i + 1),
+            ]);
+            $this->snapshot($profile, 'hads', 5);
+        }
+
+        $this->actingAs($psychologist)
+            ->get(route('reports.test-scores.index', ['q' => 'Pagination', 'test' => 'hads', 'page' => 2]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('snapshots.data', 3)
+                ->where('snapshots.total', 23)
+                ->where('snapshots.current_page', 2)
+                ->where('snapshots.last_page', 2)
+                ->where('snapshots.from', 21)
+                ->where('snapshots.to', 23)
+                ->where('studentCount', 23)
+                ->where('snapshots.data.0.completed_tests', 1)
+                ->where('snapshots.prev_page_url', fn ($url) => str_contains($url, 'q=Pagination') && str_contains($url, 'test=hads')));
+
+        $this->get(route('reports.test-scores.index', ['q' => 'no matches']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('snapshots.total', 0)
+                ->where('studentCount', 0));
     }
 
     public function test_csv_does_not_execute_student_supplied_formula_text(): void
