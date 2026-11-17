@@ -32,9 +32,11 @@ function loadGoogle() {
     return sdkPromise;
 }
 
-export default function GoogleSignIn() {
+export default function GoogleSignIn({ remember = false }) {
     const target = useRef(null);
     const submitting = useRef(false);
+    const rememberRef = useRef(remember);
+    rememberRef.current = remember;
     const [enabled, setEnabled] = useState(false);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
@@ -71,6 +73,7 @@ export default function GoogleSignIn() {
                     router.post(route('login.google'), {
                         credential,
                         nonce: challenge.nonce,
+                        remember: rememberRef.current,
                     }, {
                         preserveScroll: true,
                         onError: (errors) => {

@@ -10,6 +10,7 @@ use App\Support\StudentProfileOptions;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -43,6 +44,40 @@ class AuthenticationTest extends TestCase
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_remember_me_keeps_a_login_cookie_until_logout(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->post('/login', [
+            'auth_type' => 'auto',
+            'email' => $user->email,
+            'password' => 'password',
+            'remember' => '1',
+        ]);
+        $recaller = Auth::guard('web')->getRecallerName();
+
+        $response->assertCookie($recaller);
+
+        $this->assertAuthenticatedAs($user);
+        $token = $user->fresh()->remember_token;
+        $this->post(route('logout'))->assertRedirect('/');
+        $this->assertGuest();
+        $this->assertNotSame($token, $user->fresh()->remember_token);
+    }
+
+    public function test_login_without_remember_me_does_not_create_a_login_cookie(): void
+    {
+        $user = User::factory()->create();
+
+        $this->post('/login', [
+            'auth_type' => 'auto',
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertCookieMissing(Auth::guard('web')->getRecallerName());
+
+        $this->assertAuthenticatedAs($user);
     }
 
     public function test_users_can_authenticate_using_phone_number(): void
@@ -142,12 +177,14 @@ class AuthenticationTest extends TestCase
             'auth_type' => 'platonus',
             'login' => '1Daulet_Rauan',
             'password' => 'plain_password',
+            'remember' => '1',
         ]);
 
         $user = User::query()->where('platonus_login', '1daulet_rauan')->firstOrFail();
 
         $this->assertAuthenticatedAs($user);
         $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertCookie(Auth::guard('web')->getRecallerName());
         $this->assertSame(Role::STUDENT, $user->role?->slug);
         $this->assertSame('daulet.rauan@atu.kz', $user->email);
         $this->assertSame('+7 701 111 22 33', $user->phone);

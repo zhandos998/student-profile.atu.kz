@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\GoogleIdentityVerifier;
 use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -47,7 +48,9 @@ class GoogleLoginTest extends TestCase
         $this->post(route('login.google'), [
             'credential' => $this->token($nonce, ['email' => 'student@gmail.com']),
             'nonce' => $nonce,
-        ])->assertRedirect(route('dashboard', absolute: false));
+            'remember' => true,
+        ])->assertRedirect(route('dashboard', absolute: false))
+            ->assertCookie(Auth::guard('web')->getRecallerName());
 
         $this->assertAuthenticatedAs($user);
         $this->assertSame('google-user-123', $user->fresh()->google_sub);

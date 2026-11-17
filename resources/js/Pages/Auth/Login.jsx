@@ -6,6 +6,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link } from '@inertiajs/react';
+import { useState } from 'react';
 
 export default function Login({
     status,
@@ -15,6 +16,8 @@ export default function Login({
     oldInput = {},
     platonusPasswordHelp = null,
 }) {
+    const [remember, setRemember] = useState(true);
+
     return (
         <GuestLayout>
             <Head title="Вход" />
@@ -83,7 +86,12 @@ export default function Login({
 
                 <div className="mt-4 block">
                     <label className="flex items-center">
-                        <Checkbox name="remember" />
+                        <Checkbox
+                            name="remember"
+                            value="1"
+                            checked={remember}
+                            onChange={(event) => setRemember(event.target.checked)}
+                        />
                         <span className="ms-2 text-sm text-gray-600">
                             Запомнить меня
                         </span>
@@ -105,7 +113,7 @@ export default function Login({
                     <PrimaryButton type="submit">Войти</PrimaryButton>
                 </div>
             </form>
-            <GoogleSignIn />
+            <GoogleSignIn remember={remember} />
         </GuestLayout>
     );
 }

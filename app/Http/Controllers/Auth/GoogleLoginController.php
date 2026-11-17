@@ -47,6 +47,7 @@ class GoogleLoginController extends Controller
         $validated = $request->validate([
             'credential' => ['required', 'string', 'max:12000'],
             'nonce' => ['required', 'string', 'size:64', 'alpha_num:ascii'],
+            'remember' => ['sometimes', 'boolean'],
         ]);
 
         $challenge = $request->session()->pull('google_login_nonce');
@@ -113,7 +114,7 @@ class GoogleLoginController extends Controller
             return $user;
         });
 
-        Auth::login($user);
+        Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard', absolute: false));
