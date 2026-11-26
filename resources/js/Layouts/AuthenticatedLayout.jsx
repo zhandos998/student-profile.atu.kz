@@ -3,6 +3,7 @@ import Dropdown from "@/Components/Dropdown";
 import LanguageSwitcher from "@/Components/LanguageSwitcher";
 import NavLink from "@/Components/NavLink";
 import ResponsiveNavLink from "@/Components/ResponsiveNavLink";
+import ServiceIntegrationAlerts from "@/Components/ServiceIntegrationAlerts";
 import LanguageDomTranslator from "@/i18n/LanguageDomTranslator";
 import { Link, usePage } from "@inertiajs/react";
 import { useState } from "react";
@@ -80,6 +81,7 @@ export default function AuthenticatedLayout({ header, children, wide = false }) 
                     </header>
                 )}
 
+                {page.props.serviceAlerts && <ServiceIntegrationAlerts alerts={page.props.serviceAlerts} />}
                 <main>{children}</main>
             </div>
         </div>

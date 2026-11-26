@@ -113,6 +113,12 @@ export default function Show({ serviceRequest, canManage, canPrint, canRequestLi
             <div className="bg-[#f4f7fc] px-4 py-8 sm:px-6 lg:px-8">
                 <div className="w-full space-y-6">
                     <Link href={route('student-services.index')} className="text-sm font-medium text-[#355da8] hover:underline">Назад к услугам</Link>
+                    {canManage && serviceRequest.hikvision_error && (
+                        <div role="status" className="border-l-4 border-red-400 bg-red-50 px-4 py-3 text-sm text-red-900">
+                            <p className="font-semibold">Ошибка отправки в Hikvision</p>
+                            <p className="mt-1 break-words">{serviceRequest.hikvision_error}</p>
+                        </div>
+                    )}
                     <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200/80">
                         <h3 className="border-b border-[#dbe5f6] bg-[#edf3ff] px-5 py-4 text-base font-semibold text-[#274f93]">{title}</h3>
                         <div className="space-y-5 p-5 sm:p-6">

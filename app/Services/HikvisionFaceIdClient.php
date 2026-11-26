@@ -140,12 +140,12 @@ class HikvisionFaceIdClient
     {
         $data = $response->json();
 
-        if (! is_array($data) || ! isset($data['code']) || ! is_numeric($data['code'])) {
-            throw new RuntimeException('Hikvision вернул некорректный ответ.');
+        if (! $response->successful() && ! (is_array($data) && (int) ($data['code'] ?? -1) === 131 && $response->status() < 500)) {
+            throw new RuntimeException('Hikvision не принял запрос (HTTP '.$response->status().').');
         }
 
-        if (! $response->successful() && ! ((int) $data['code'] === 131 && $response->status() < 500)) {
-            throw new RuntimeException('Hikvision не принял запрос (HTTP '.$response->status().').');
+        if (! is_array($data) || ! isset($data['code']) || ! is_numeric($data['code'])) {
+            throw new RuntimeException('Hikvision вернул некорректный ответ.');
         }
 
         $data['code'] = (int) $data['code'];

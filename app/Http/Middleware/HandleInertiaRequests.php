@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\StudentServiceRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -74,6 +75,7 @@ class HandleInertiaRequests extends Middleware
                 'temporaryPasswordUser' => $request->session()->get('temporary_password_user'),
             ],
             'locale' => app()->getLocale(),
+            'serviceAlerts' => fn () => $this->serviceAlerts($user),
             'availableLocales' => collect(config('locales.supported', []))
                 ->map(fn (string $label, string $value): array => [
                     'value' => $value,
@@ -81,6 +83,27 @@ class HandleInertiaRequests extends Middleware
                 ])
                 ->values()
                 ->all(),
+        ];
+    }
+
+    private function serviceAlerts(?User $user): ?array
+    {
+        if (! $user?->canManageStudentServiceRequests()) {
+            return null;
+        }
+
+        $query = StudentServiceRequest::query()->needsHikvisionAttention();
+
+        return [
+            'count' => (clone $query)->count(),
+            'url' => route('student-services.index', ['service_type' => StudentServiceRequest::FACE_ID, 'status' => '']),
+            'items' => $query->with('student:id,name')->latest('id')->limit(3)->get()
+                ->map(fn (StudentServiceRequest $item): array => [
+                    'id' => $item->id,
+                    'student_name' => $item->full_name ?: $item->student?->name,
+                    'error' => $item->hikvision_error,
+                    'url' => route('student-services.show', $item),
+                ])->all(),
         ];
     }
 }

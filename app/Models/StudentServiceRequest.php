@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'student_id', 'service_type', 'status', 'student_comment', 'staff_comment', 'handled_by_id', 'handled_at',
     'full_name', 'last_name', 'first_name', 'middle_name', 'iin', 'phone', 'study_start_date', 'study_end_date',
     'course', 'education_language', 'education_level', 'faculty', 'specialty', 'admission_year',
-    'photo_path', 'receipt_path', 'hikvision_org_index_code', 'hikvision_synced_at',
+    'photo_path', 'receipt_path', 'hikvision_org_index_code', 'hikvision_synced_at', 'hikvision_error',
     'library_rdr_id', 'library_regdate', 'library_reregdate', 'library_registered_at',
 ])]
 class StudentServiceRequest extends Model
@@ -44,6 +45,13 @@ class StudentServiceRequest extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(User::class, 'student_id');
+    }
+
+    public function scopeNeedsHikvisionAttention(Builder $query): Builder
+    {
+        return $query->where('service_type', self::FACE_ID)
+            ->whereIn('status', [self::PENDING, self::IN_PROGRESS])
+            ->whereNull('hikvision_synced_at');
     }
 
     public function handler(): BelongsTo

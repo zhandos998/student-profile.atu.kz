@@ -182,6 +182,7 @@ class StudentServiceRequestController extends Controller
                 'student_comment', 'staff_comment', 'created_at', 'handled_at',
                 'library_rdr_id', 'library_regdate', 'library_reregdate', 'library_registered_at',
             ]) + [
+                'hikvision_error' => $user->canManageStudentServiceRequests() ? $studentServiceRequest->hikvision_error : null,
                 'student_name' => $studentServiceRequest->student?->name,
                 'handled_by' => $studentServiceRequest->handler?->name,
                 'has_photo' => filled($studentServiceRequest->photo_path),
@@ -414,6 +415,7 @@ class StudentServiceRequestController extends Controller
             $photoPath = null;
             $receiptPath = null;
             $hikvisionOrgCode = null;
+            $hikvisionError = null;
 
             try {
                 if ($validated['service_type'] === StudentServiceRequest::ID_CARD) {
@@ -431,6 +433,7 @@ class StudentServiceRequestController extends Controller
                     try {
                         $hikvisionOrgCode = $hikvision->submit($validated, $request->file('photo'));
                     } catch (RuntimeException $exception) {
+                        $hikvisionError = $exception->getMessage();
                         Log::warning('Face ID request queued after Hikvision error', [
                             'student_id' => $user->id,
                             'error' => $exception->getMessage(),
@@ -447,6 +450,7 @@ class StudentServiceRequestController extends Controller
                         'receipt_path' => $receiptPath,
                         'hikvision_org_index_code' => $hikvisionOrgCode,
                         'hikvision_synced_at' => $hikvisionOrgCode !== null ? now() : null,
+                        'hikvision_error' => $hikvisionError,
                     ],
                 ));
             } catch (\Throwable $exception) {

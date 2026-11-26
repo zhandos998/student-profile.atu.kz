@@ -272,6 +272,7 @@ class StudentServiceRequestTest extends TestCase
         $serviceRequest = StudentServiceRequest::query()->firstOrFail();
         $this->assertSame(StudentServiceRequest::PENDING, $serviceRequest->status);
         $this->assertNull($serviceRequest->hikvision_synced_at);
+        $this->assertSame('Hikvision отклонил заявку Face ID (код 400).', $serviceRequest->hikvision_error);
         Storage::disk('local')->assertExists($serviceRequest->photo_path);
 
         $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
@@ -296,6 +297,24 @@ class StudentServiceRequestTest extends TestCase
         $serviceRequest = StudentServiceRequest::query()->firstOrFail();
         $this->assertSame(StudentServiceRequest::PENDING, $serviceRequest->status);
         Storage::disk('local')->assertExists($serviceRequest->photo_path);
+    }
+
+    public function test_face_id_bad_gateway_is_saved_as_an_http_error(): void
+    {
+        Storage::fake('local');
+        Http::preventStrayRequests();
+        $this->hikvisionResponses = [Http::response('<html>502 Bad Gateway</html>', 502, ['Content-Type' => 'text/html'])];
+        $student = $this->user(Role::STUDENT);
+        $this->ownFaceIdProfile($student);
+
+        $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
+            ->assertSessionHasNoErrors()->assertSessionHas('status', 'face-id-pending');
+
+        $this->assertDatabaseHas('student_service_requests', [
+            'student_id' => $student->id,
+            'status' => StudentServiceRequest::PENDING,
+            'hikvision_error' => 'Hikvision не принял запрос (HTTP 502).',
+        ]);
     }
 
     public function test_face_id_queues_unmapped_admission_year_for_manual_processing(): void
