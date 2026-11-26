@@ -89,12 +89,10 @@ class HikvisionFaceIdClient
         }
 
         $stringToSign = "POST\n*/*\napplication/json\nx-ca-key:{$appKey}\n{$path}";
-        $verify = app()->environment('local') && config('hikvision.verify_tls') === false
-            ? false
-            : (config('hikvision.ca_bundle') ?: true);
+        $tlsOptions = $this->tlsOptions();
 
         try {
-            $response = Http::withOptions(['verify' => $verify])
+            $response = Http::withOptions($tlsOptions)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                     'Accept' => '*/*',
@@ -112,6 +110,30 @@ class HikvisionFaceIdClient
         }
 
         return $this->responseData($response);
+    }
+
+    private function tlsOptions(): array
+    {
+        $pin = config('hikvision.pinned_public_key');
+        if (filled($pin)) {
+            if (! is_string($pin) || ! preg_match('~^sha256//[A-Za-z0-9+/]{43}=$~D', $pin)
+                || ! extension_loaded('curl') || ! defined('CURLOPT_PINNEDPUBLICKEY')) {
+                throw new RuntimeException('Некорректная настройка закреплённого ключа Hikvision.');
+            }
+
+            // The pinned key authenticates the legacy self-signed endpoint instead of a CA/hostname.
+            return [
+                'verify' => false,
+                'allow_redirects' => false,
+                'curl' => [CURLOPT_PINNEDPUBLICKEY => $pin],
+            ];
+        }
+
+        return [
+            'verify' => app()->environment('local') && config('hikvision.verify_tls') === false
+                ? false : (config('hikvision.ca_bundle') ?: true),
+            'allow_redirects' => false,
+        ];
     }
 
     private function responseData(Response $response): array

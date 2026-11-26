@@ -7,6 +7,7 @@ return [
     'timeout' => env('HIKVISION_TIMEOUT', 20),
     'ca_bundle' => env('HIKVISION_CA_BUNDLE'),
     'verify_tls' => env('HIKVISION_VERIFY_TLS', true),
+    'pinned_public_key' => env('HIKVISION_PINNED_PUBLIC_KEY'),
 
     'org_codes' => [
         'bachelor' => [
