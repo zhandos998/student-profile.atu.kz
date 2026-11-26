@@ -314,7 +314,8 @@ class StudentServiceRequestController extends Controller
     {
         $user = $request->user();
         abort_unless($user->canManageStudentServiceRequests() || $studentServiceRequest->student_id === $user->id, 403);
-        abort_unless($studentServiceRequest->service_type === StudentServiceRequest::ID_CARD, 404);
+        abort_unless($studentServiceRequest->service_type === StudentServiceRequest::ID_CARD
+            || ($studentServiceRequest->service_type === StudentServiceRequest::FACE_ID && $type === 'photo'), 404);
 
         $path = $type === 'photo' ? $studentServiceRequest->photo_path : $studentServiceRequest->receipt_path;
         abort_unless($path && Storage::disk('local')->exists($path), 404);

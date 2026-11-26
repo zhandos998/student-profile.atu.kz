@@ -479,6 +479,47 @@ class StudentServiceRequestTest extends TestCase
         $this->actingAs($curator)->get(route('student-services.preview', [$serviceRequest, 'receipt']))->assertForbidden();
     }
 
+    public function test_face_id_photo_preview_is_available_only_to_owner_and_dit_staff(): void
+    {
+        Storage::fake('local');
+        $student = $this->user(Role::STUDENT);
+        $path = UploadedFile::fake()->image('face.png')->store('student-services/face-ids/photos', 'local');
+        $service = StudentServiceRequest::create([
+            'student_id' => $student->id,
+            'service_type' => StudentServiceRequest::FACE_ID,
+            'status' => StudentServiceRequest::PENDING,
+            'photo_path' => $path,
+            'receipt_path' => $path,
+        ]);
+
+        foreach ([$student, $this->user(Role::ADMINISTRATOR_DIT), $this->user(Role::SERVICE_OPERATOR)] as $user) {
+            $this->actingAs($user)->get(route('student-services.preview', [$service, 'photo']))
+                ->assertOk()->assertHeader('Content-Type', 'image/png')
+                ->assertHeader('X-Content-Type-Options', 'nosniff')
+                ->assertHeader('Cache-Control', 'no-store, private');
+        }
+        foreach ([$this->user(Role::STUDENT), $this->user(Role::CURATOR)] as $user) {
+            $this->actingAs($user)->get(route('student-services.preview', [$service, 'photo']))->assertForbidden();
+        }
+        $this->actingAs($student)->get(route('student-services.preview', [$service, 'receipt']))->assertNotFound();
+        Storage::disk('local')->delete($path);
+        $this->get(route('student-services.preview', [$service, 'photo']))->assertNotFound();
+    }
+
+    public function test_face_id_preview_rejects_non_image_content(): void
+    {
+        Storage::fake('local');
+        $student = $this->user(Role::STUDENT);
+        Storage::disk('local')->put('face.jpg', '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+        $service = StudentServiceRequest::create([
+            'student_id' => $student->id,
+            'service_type' => StudentServiceRequest::FACE_ID,
+            'status' => StudentServiceRequest::PENDING,
+            'photo_path' => 'face.jpg',
+        ]);
+        $this->actingAs($student)->get(route('student-services.preview', [$service, 'photo']))->assertNotFound();
+    }
+
     public function test_id_card_pdf_receipt_can_be_previewed_only_by_owner_or_staff(): void
     {
         Storage::fake('local');
