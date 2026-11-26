@@ -84,6 +84,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/services/id-card', [StudentServiceRequestController::class, 'createIdCard'])->name('student-services.id-card.create');
     Route::get('/services/face-id', [StudentServiceRequestController::class, 'createFaceId'])->name('student-services.face-id.create');
     Route::get('/services/requests/{studentServiceRequest}', [StudentServiceRequestController::class, 'show'])->name('student-services.show');
+    Route::post('/services/requests/{studentServiceRequest}/hikvision', [StudentServiceRequestController::class, 'sendToHikvision'])->name('student-services.hikvision.store');
     Route::post('/services/requests/{studentServiceRequest}/barcode', [StudentServiceRequestController::class, 'registerLibraryBarcode'])->name('student-services.library-barcode.store');
     Route::get('/services/requests/{studentServiceRequest}/print', [StudentServiceRequestController::class, 'printIdCard'])->name('student-services.id-card.print');
     Route::get('/services/requests/{studentServiceRequest}/photo', [StudentServiceRequestController::class, 'printPhoto'])->name('student-services.id-card.photo');

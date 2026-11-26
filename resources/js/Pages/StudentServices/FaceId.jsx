@@ -26,7 +26,7 @@ const unsuitablePhotoRules = [
     "Размытое фото.",
 ];
 
-export default function FaceId({ initial, academicOptions = {}, hasOpenRequest, integrationReady = true }) {
+export default function FaceId({ initial, academicOptions = {}, hasOpenRequest }) {
     const form = useForm({ ...initial, service_type: "face_id", photo: null });
     const [previewUrl, setPreviewUrl] = useState(null);
     const faculties = withCurrentOption(academicOptions.faculties, form.data.faculty);
@@ -83,11 +83,6 @@ export default function FaceId({ initial, academicOptions = {}, hasOpenRequest, 
                         </section>
                     ) : (
                         <form onSubmit={submit} className="space-y-6">
-                            {!integrationReady && (
-                                <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
-                                    Автоматическая отправка в Hikvision недоступна. Заявка сохранится со статусом «Ожидает».
-                                </p>
-                            )}
                             {form.errors.service_type && (
                                 <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
                                     {form.errors.service_type}

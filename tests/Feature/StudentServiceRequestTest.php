@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -60,13 +61,13 @@ class StudentServiceRequestTest extends TestCase
                 ->where('canManage', false)
                 ->has('requests.data', 1)
                 ->where('requests.data.0.student_comment', 'Новая карта')
-                ->has('activeTypes', 0)
+                ->has('activeTypes', 1)
             );
 
         $this->assertDatabaseHas('student_service_requests', [
             'student_id' => $student->id,
             'service_type' => StudentServiceRequest::FACE_ID,
-            'status' => StudentServiceRequest::COMPLETED,
+            'status' => StudentServiceRequest::PENDING,
         ]);
     }
 
@@ -99,7 +100,6 @@ class StudentServiceRequestTest extends TestCase
                 ->where('initial.course', 2)
                 ->where('initial.education_level', StudentProfile::EDUCATION_MASTER)
                 ->where('hasOpenRequest', false)
-                ->where('integrationReady', true)
                 ->has('academicOptions.faculties', 6)
             );
 
@@ -107,6 +107,8 @@ class StudentServiceRequestTest extends TestCase
             ->post(route('student-services.store'), [...$this->faceIdData(), 'education_level' => StudentProfile::EDUCATION_MASTER])
             ->assertRedirect(route('student-services.index'))
             ->assertSessionHasNoErrors();
+
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-synced');
 
         $serviceRequest = StudentServiceRequest::query()->firstOrFail();
         $this->assertSame('060515500608', $serviceRequest->iin);
@@ -193,7 +195,7 @@ class StudentServiceRequestTest extends TestCase
         $this->assertNull($serviceRequest->middle_name);
     }
 
-    public function test_face_id_is_sent_to_hikvision_before_request_is_completed(): void
+    public function test_face_id_is_sent_only_after_staff_action(): void
     {
         Storage::fake('local');
         Http::preventStrayRequests();
@@ -206,7 +208,11 @@ class StudentServiceRequestTest extends TestCase
             'course' => 1,
             'admission_year' => 1999,
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'face-id-synced');
+            ->assertSessionHas('status', 'face-id-submitted');
+
+        Http::assertNothingSent();
+        $this->assertSame(StudentServiceRequest::PENDING, StudentServiceRequest::query()->firstOrFail()->status);
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-synced');
 
         Http::assertSent(fn ($request) => $request->url() === 'https://hikvision.test/artemis/api/resource/v1/person/single/add'
             && $request['personCode'] === '060515500608'
@@ -250,6 +256,8 @@ class StudentServiceRequestTest extends TestCase
         $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
             ->assertSessionHasNoErrors();
 
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-synced');
+
         Http::assertSentCount(3);
         Http::assertSent(fn ($request) => str_ends_with($request->url(), '/person/face/update')
             && $request['personId'] === 'person-123'
@@ -267,7 +275,9 @@ class StudentServiceRequestTest extends TestCase
         $this->ownFaceIdProfile($student);
         $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'face-id-pending');
+            ->assertSessionHas('status', 'face-id-submitted');
+
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-pending');
 
         $serviceRequest = StudentServiceRequest::query()->firstOrFail();
         $this->assertSame(StudentServiceRequest::PENDING, $serviceRequest->status);
@@ -292,7 +302,9 @@ class StudentServiceRequestTest extends TestCase
 
         $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'face-id-pending');
+            ->assertSessionHas('status', 'face-id-submitted');
+
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-pending');
 
         $serviceRequest = StudentServiceRequest::query()->firstOrFail();
         $this->assertSame(StudentServiceRequest::PENDING, $serviceRequest->status);
@@ -308,7 +320,9 @@ class StudentServiceRequestTest extends TestCase
         $this->ownFaceIdProfile($student);
 
         $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
-            ->assertSessionHasNoErrors()->assertSessionHas('status', 'face-id-pending');
+            ->assertSessionHasNoErrors()->assertSessionHas('status', 'face-id-submitted');
+
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-pending');
 
         $this->assertDatabaseHas('student_service_requests', [
             'student_id' => $student->id,
@@ -329,7 +343,9 @@ class StudentServiceRequestTest extends TestCase
             ...$this->faceIdData(),
             'course' => 1,
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'face-id-pending');
+            ->assertSessionHas('status', 'face-id-submitted');
+
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-pending');
 
         Http::assertNothingSent();
         $this->assertSame(StudentServiceRequest::PENDING, StudentServiceRequest::query()->firstOrFail()->status);
@@ -346,6 +362,8 @@ class StudentServiceRequestTest extends TestCase
             ...$this->faceIdData(),
             'course' => 1,
         ])->assertSessionHasNoErrors();
+
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-synced');
 
         $serviceRequest = StudentServiceRequest::query()->firstOrFail();
         $this->assertSame(2026, $serviceRequest->admission_year);
@@ -365,6 +383,8 @@ class StudentServiceRequestTest extends TestCase
             'course' => 1,
         ])->assertSessionHasNoErrors();
 
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-synced');
+
         Http::assertSent(fn ($request) => $request['orgIndexCode'] === '178');
         $this->assertSame('178', StudentServiceRequest::query()->firstOrFail()->hikvision_org_index_code);
     }
@@ -378,11 +398,11 @@ class StudentServiceRequestTest extends TestCase
         $this->ownFaceIdProfile($student);
 
         $this->actingAs($student)->get(route('student-services.face-id.create'))
-            ->assertInertia(fn (Assert $page) => $page->where('integrationReady', false));
+            ->assertInertia(fn (Assert $page) => $page->missing('integrationReady'));
 
         $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'face-id-pending');
+            ->assertSessionHas('status', 'face-id-submitted');
 
         Http::assertNothingSent();
         $serviceRequest = StudentServiceRequest::query()->firstOrFail();
@@ -785,6 +805,8 @@ class StudentServiceRequestTest extends TestCase
             ->post(route('student-services.store'), $this->faceIdData())
             ->assertSessionHasNoErrors();
 
+        $this->sendFaceIdAsStaff()->assertSessionHas('status', 'face-id-synced');
+
         $this->actingAs($leader)
             ->post(route('student-services.store'), $this->faceIdData())
             ->assertSessionHasNoErrors();
@@ -869,7 +891,7 @@ class StudentServiceRequestTest extends TestCase
         $admin = $this->user(Role::ADMINISTRATOR_DIT);
         $serviceRequest = StudentServiceRequest::query()->create([
             'student_id' => $student->id,
-            'service_type' => StudentServiceRequest::FACE_ID,
+            'service_type' => StudentServiceRequest::ID_CARD,
             'status' => StudentServiceRequest::PENDING,
         ]);
 
@@ -1000,6 +1022,95 @@ class StudentServiceRequestTest extends TestCase
         $this->get(route('analytics-dashboard.index'))->assertForbidden();
         $this->get(route('groups.index'))->assertForbidden();
         $this->get(route('student-profile.edit'))->assertForbidden();
+    }
+
+    public function test_face_id_sending_is_restricted_to_dit_staff(): void
+    {
+        Storage::fake('local');
+        $student = $this->user(Role::STUDENT);
+        $this->ownFaceIdProfile($student);
+        $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())->assertSessionHasNoErrors();
+        $service = StudentServiceRequest::latest('id')->firstOrFail();
+        foreach ([Role::STUDENT, Role::GROUP_LEADER, Role::CURATOR, Role::ADVISOR, Role::ADMINISTRATION] as $role) {
+            $this->actingAs($this->user($role))->post(route('student-services.hikvision.store', $service))->assertForbidden();
+        }
+        Http::assertNothingSent();
+        $this->assertNull($service->fresh()->hikvision_synced_at);
+    }
+
+    public function test_both_dit_roles_can_send_and_repeated_click_does_not_resend(): void
+    {
+        Storage::fake('local');
+        $student = $this->user(Role::STUDENT);
+        $this->ownFaceIdProfile($student);
+        foreach ([Role::ADMINISTRATOR_DIT, Role::SERVICE_OPERATOR] as $role) {
+            $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())->assertSessionHasNoErrors();
+            $service = StudentServiceRequest::latest('id')->firstOrFail();
+            $staff = $this->user($role);
+            $this->actingAs($staff)->post(route('student-services.hikvision.store', $service))->assertSessionHas('status', 'face-id-synced');
+            $this->post(route('student-services.hikvision.store', $service))->assertSessionHas('status', 'face-id-synced');
+            $this->assertSame($staff->id, $service->fresh()->handled_by_id);
+        }
+        Http::assertSentCount(2);
+    }
+
+    public function test_failed_staff_submission_can_be_retried_and_clears_the_error(): void
+    {
+        Storage::fake('local');
+        $this->hikvisionResponses = [Http::response('Bad Gateway', 502), Http::response(['code' => 0])];
+        $student = $this->user(Role::STUDENT);
+        $this->ownFaceIdProfile($student);
+        $this->actingAs($student)->post(route('student-services.store'), $this->faceIdData())->assertSessionHasNoErrors();
+        $service = StudentServiceRequest::latest('id')->firstOrFail();
+        $staff = $this->user(Role::SERVICE_OPERATOR);
+        $url = route('student-services.hikvision.store', $service);
+        $this->actingAs($staff)->post($url)->assertSessionHas('status', 'face-id-pending');
+        $this->assertSame('pending', $service->fresh()->status);
+        $this->assertNotNull($service->fresh()->hikvision_error);
+        $this->post($url)->assertSessionHas('status', 'face-id-synced');
+        $this->assertSame('completed', $service->fresh()->status);
+        $this->assertNull($service->fresh()->hikvision_error);
+        $this->assertNotNull($service->fresh()->hikvision_synced_at);
+        Storage::disk('local')->assertExists($service->photo_path);
+        Http::assertSentCount(2);
+    }
+
+    public function test_staff_cannot_send_id_card_closed_request_or_missing_photo(): void
+    {
+        Storage::fake('local');
+        $student = $this->user(Role::STUDENT);
+        $this->actingAs($this->user(Role::SERVICE_OPERATOR));
+        $idCard = StudentServiceRequest::create(['student_id' => $student->id, 'service_type' => 'id_card', 'status' => 'pending']);
+        $this->post(route('student-services.hikvision.store', $idCard))->assertNotFound();
+        $closed = StudentServiceRequest::create(['student_id' => $student->id, 'service_type' => 'face_id', 'status' => 'rejected']);
+        $this->post(route('student-services.hikvision.store', $closed))->assertSessionHasErrors('hikvision');
+        $pending = StudentServiceRequest::create(['student_id' => $student->id, 'service_type' => 'face_id', 'status' => 'pending']);
+        $this->post(route('student-services.hikvision.store', $pending))->assertSessionHas('status', 'face-id-pending');
+        $this->assertNotNull($pending->fresh()->hikvision_error);
+        Http::assertNothingSent();
+    }
+
+    public function test_unsent_face_id_cannot_be_marked_completed_manually(): void
+    {
+        $student = $this->user(Role::STUDENT);
+        $service = StudentServiceRequest::create(['student_id' => $student->id, 'service_type' => 'face_id', 'status' => 'pending']);
+        $this->actingAs($this->user(Role::SERVICE_OPERATOR))
+            ->patch(route('student-services.update', $service), ['status' => 'completed'])->assertSessionHasErrors('status');
+        $this->assertSame('pending', $service->fresh()->status);
+        Http::assertNothingSent();
+    }
+
+    private function sendFaceIdAsStaff(): TestResponse
+    {
+        $previous = auth()->user();
+        $response = $this->actingAs($this->user(Role::SERVICE_OPERATOR))->post(
+            route('student-services.hikvision.store', StudentServiceRequest::latest('id')->firstOrFail()),
+        );
+        if ($previous) {
+            $this->actingAs($previous);
+        }
+
+        return $response;
     }
 
     private function user(string $roleSlug): User

@@ -12,6 +12,7 @@ use App\Support\StudentProfileOptions;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -140,9 +141,6 @@ class StudentServiceRequestController extends Controller
                 ->where('service_type', StudentServiceRequest::FACE_ID)
                 ->whereIn('status', [StudentServiceRequest::PENDING, StudentServiceRequest::IN_PROGRESS])
                 ->exists(),
-            'integrationReady' => str_starts_with((string) config('hikvision.base_url'), 'https://')
-                && filled(config('hikvision.app_key'))
-                && filled(config('hikvision.app_secret')),
         ]);
     }
 
@@ -332,7 +330,7 @@ class StudentServiceRequestController extends Controller
         ]);
     }
 
-    public function store(Request $request, HikvisionFaceIdClient $hikvision): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         $user = $request->user();
         abort_unless($user->canUseOwnStudentProfile(), 403);
@@ -397,7 +395,7 @@ class StudentServiceRequestController extends Controller
             ]));
         }
 
-        $synced = DB::transaction(function () use ($user, $validated, $request, $hikvision): bool {
+        DB::transaction(function () use ($user, $validated, $request): void {
             User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
             $hasOpenRequest = StudentServiceRequest::query()
@@ -414,8 +412,6 @@ class StudentServiceRequestController extends Controller
 
             $photoPath = null;
             $receiptPath = null;
-            $hikvisionOrgCode = null;
-            $hikvisionError = null;
 
             try {
                 if ($validated['service_type'] === StudentServiceRequest::ID_CARD) {
@@ -430,27 +426,15 @@ class StudentServiceRequestController extends Controller
                         throw new RuntimeException('Could not store Face ID photo.');
                     }
 
-                    try {
-                        $hikvisionOrgCode = $hikvision->submit($validated, $request->file('photo'));
-                    } catch (RuntimeException $exception) {
-                        $hikvisionError = $exception->getMessage();
-                        Log::warning('Face ID request queued after Hikvision error', [
-                            'student_id' => $user->id,
-                            'error' => $exception->getMessage(),
-                        ]);
-                    }
                 }
 
                 StudentServiceRequest::query()->create(array_merge(
                     collect($validated)->except(['photo', 'receipt'])->all(),
                     [
                         'student_id' => $user->id,
-                        'status' => $hikvisionOrgCode !== null ? StudentServiceRequest::COMPLETED : StudentServiceRequest::PENDING,
+                        'status' => StudentServiceRequest::PENDING,
                         'photo_path' => $photoPath,
                         'receipt_path' => $receiptPath,
-                        'hikvision_org_index_code' => $hikvisionOrgCode,
-                        'hikvision_synced_at' => $hikvisionOrgCode !== null ? now() : null,
-                        'hikvision_error' => $hikvisionError,
                     ],
                 ));
             } catch (\Throwable $exception) {
@@ -458,15 +442,64 @@ class StudentServiceRequestController extends Controller
                 throw $exception;
             }
 
-            return $hikvisionOrgCode !== null;
         });
 
         return to_route('student-services.index')->with(
             'status',
             $validated['service_type'] === StudentServiceRequest::FACE_ID
-                ? ($synced ? 'face-id-synced' : 'face-id-pending')
+                ? 'face-id-submitted'
                 : 'student-service-request-created',
         );
+    }
+
+    public function sendToHikvision(Request $request, StudentServiceRequest $studentServiceRequest, HikvisionFaceIdClient $hikvision): RedirectResponse
+    {
+        $handler = $request->user();
+        abort_unless($handler->canManageStudentServiceRequests(), 403);
+        abort_unless($studentServiceRequest->service_type === StudentServiceRequest::FACE_ID, 404);
+
+        $error = DB::transaction(function () use ($studentServiceRequest, $handler, $hikvision): ?string {
+            $locked = StudentServiceRequest::query()->whereKey($studentServiceRequest->id)->lockForUpdate()->firstOrFail();
+            if ($locked->hikvision_synced_at) {
+                return null;
+            }
+            if (! in_array($locked->status, [StudentServiceRequest::PENDING, StudentServiceRequest::IN_PROGRESS], true)) {
+                throw ValidationException::withMessages(['hikvision' => __('student_services.already_closed')]);
+            }
+
+            try {
+                $disk = Storage::disk('local');
+                if (blank($locked->photo_path) || ! $disk->exists($locked->photo_path)) {
+                    throw new RuntimeException('Фото заявки не найдено. Попросите студента подать новую заявку.');
+                }
+                foreach (['iin', 'last_name', 'first_name', 'faculty', 'education_level', 'admission_year'] as $field) {
+                    if (blank($locked->{$field})) {
+                        throw new RuntimeException('В заявке не хватает данных для отправки в Hikvision.');
+                    }
+                }
+                $photo = new UploadedFile($disk->path($locked->photo_path), basename($locked->photo_path), null, null, true);
+                $orgCode = $hikvision->submit($locked->toArray(), $photo);
+            } catch (RuntimeException $exception) {
+                $locked->update(['hikvision_error' => $exception->getMessage()]);
+                Log::warning('Staff Face ID submission failed', ['request_id' => $locked->id, 'error' => $exception->getMessage()]);
+
+                return $exception->getMessage();
+            }
+
+            $locked->update([
+                'status' => StudentServiceRequest::COMPLETED,
+                'hikvision_org_index_code' => $orgCode,
+                'hikvision_synced_at' => now(),
+                'hikvision_error' => null,
+                'handled_by_id' => $handler->id,
+                'handled_at' => now(),
+            ]);
+
+            return null;
+        });
+
+        return to_route('student-services.show', $studentServiceRequest)
+            ->with('status', $error === null ? 'face-id-synced' : 'face-id-pending');
     }
 
     public function update(Request $request, StudentServiceRequest $studentServiceRequest): RedirectResponse
@@ -487,6 +520,12 @@ class StudentServiceRequestController extends Controller
             throw ValidationException::withMessages([
                 'staff_comment' => __('student_services.rejection_reason_required'),
             ]);
+        }
+
+        if ($validated['status'] === StudentServiceRequest::COMPLETED
+            && $studentServiceRequest->service_type === StudentServiceRequest::FACE_ID
+            && ! $studentServiceRequest->hikvision_synced_at) {
+            throw ValidationException::withMessages(['status' => 'Сначала добавьте фото в Hikvision.']);
         }
 
         DB::transaction(function () use ($studentServiceRequest, $handler, $validated): void {

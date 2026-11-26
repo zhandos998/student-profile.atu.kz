@@ -62,7 +62,7 @@ class ServiceIntegrationAlertsTest extends TestCase
                 ->has('serviceAlerts.items', 3)
                 ->where('serviceAlerts.items.0.id', $ids[4]));
 
-        $this->patch(route('student-services.update', $ids[4]), ['status' => 'completed'])
+        $this->patch(route('student-services.update', $ids[4]), ['status' => 'rejected', 'staff_comment' => 'Не подходит фото'])
             ->assertSessionHasNoErrors();
         $this->get(route('student-services.index'))
             ->assertInertia(fn (Assert $page) => $page

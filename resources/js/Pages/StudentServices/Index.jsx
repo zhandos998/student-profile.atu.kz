@@ -299,9 +299,9 @@ export default function Index({
                             Face ID передан в Hikvision.
                         </p>
                     )}
-                    {flash?.status === "face-id-pending" && (
-                        <p role="status" className="border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                            Заявка Face ID сохранена и ожидает обработки. Автоматическая отправка в Hikvision не удалась.
+                    {flash?.status === "face-id-submitted" && (
+                        <p role="status" className="border-l-4 border-[#355da8] bg-[#edf3ff] px-4 py-3 text-sm text-[#274f93]">
+                            Заявка Face ID принята. Специалист проверит фото и добавит его в Hikvision.
                         </p>
                     )}
                     {flash?.status === "student-service-request-updated" && (

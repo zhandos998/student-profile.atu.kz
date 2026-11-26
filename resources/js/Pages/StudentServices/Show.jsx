@@ -48,8 +48,9 @@ const displayValue = (request, key) => {
 };
 
 function DecisionForm({ request }) {
+    const needsHikvision = request.service_type === 'face_id' && !request.hikvision_synced_at;
     const form = useForm({
-        status: request.status === 'pending' ? 'in_progress' : 'completed',
+        status: request.status === 'pending' || needsHikvision ? 'in_progress' : 'completed',
         staff_comment: request.staff_comment || '',
     });
 
@@ -57,7 +58,7 @@ function DecisionForm({ request }) {
         event.preventDefault();
         form.patch(route('student-services.update', request.id), {
             preserveScroll: true,
-            onSuccess: () => form.setData('status', 'completed'),
+            onSuccess: () => form.setData('status', needsHikvision ? 'in_progress' : 'completed'),
         });
     };
 
@@ -70,8 +71,8 @@ function DecisionForm({ request }) {
                     onChange={(event) => form.setData('status', event.target.value)}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#355da8] focus:ring-[#355da8]"
                 >
-                    {request.status === 'pending' && <option value="in_progress">В работе</option>}
-                    <option value="completed">Выполнено</option>
+                    {(request.status === 'pending' || needsHikvision) && <option value="in_progress">В работе</option>}
+                    {!needsHikvision && <option value="completed">Выполнено</option>}
                     <option value="rejected">Отказано</option>
                 </select>
             </label>
@@ -101,6 +102,7 @@ export default function Show({ serviceRequest, canManage, canPrint, canRequestLi
     const visibleFaceIdLabels = serviceRequest.last_name || serviceRequest.first_name ? faceIdLabels : legacyFaceIdLabels;
     const title = isIdCard ? 'Заявка на ID-карту' : 'Заявка на Face ID';
     const barcodeForm = useForm({});
+    const hikvisionForm = useForm({});
 
     const requestBarcode = (event) => {
         event.preventDefault();
@@ -213,9 +215,18 @@ export default function Show({ serviceRequest, canManage, canPrint, canRequestLi
                                         </p>
                                     )}
                                     {serviceRequest.has_photo && (
-                                        <div className="border-t border-gray-100 pt-5">
+                                        <div className="space-y-3 border-t border-gray-100 pt-5">
+                                            <img src={route('student-services.preview', [serviceRequest.id, 'photo'])} alt="Фото для Face ID" className="h-80 w-full max-w-sm border border-gray-200 bg-gray-50 object-contain" />
                                             <a href={route('student-services.download', [serviceRequest.id, 'photo'])} className="inline-flex rounded-md border border-[#c9d8f0] px-3 py-2 text-sm font-semibold text-[#274f93] hover:bg-[#edf3ff]">Скачать фото</a>
                                         </div>
+                                    )}
+                                    {canManage && !serviceRequest.hikvision_synced_at && ['pending', 'in_progress'].includes(serviceRequest.status) && (
+                                        <form onSubmit={(event) => { event.preventDefault(); hikvisionForm.post(route('student-services.hikvision.store', serviceRequest.id), { preserveScroll: true }); }} className="border-t border-gray-100 pt-5">
+                                            <button type="submit" disabled={hikvisionForm.processing || !serviceRequest.has_photo} className="rounded-md bg-[#355da8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2f5192] disabled:cursor-not-allowed disabled:opacity-50">
+                                                {hikvisionForm.processing ? 'Отправка…' : 'Добавить фото в Hikvision'}
+                                            </button>
+                                            {hikvisionForm.errors.hikvision && <p role="alert" className="mt-2 text-sm text-red-700">{hikvisionForm.errors.hikvision}</p>}
+                                        </form>
                                     )}
                                 </>
                             )}
